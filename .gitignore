@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.egg
+
+# Entornos virtuales
+.env/
+.venv/
+venv/
+ENV/
+
+# Archivos de Jupyter o análisis
+*.ipynb_checkpoints/
+
+# Archivos temporales
+*.log
+*.tmp
+*.bak
+*.swp
+
+# Archivos de configuración
+.DS_Store
+Thumbs.db
+
+# Pesos o modelos grandes (subilos por separado si querés)
+Yolo-Weights/
