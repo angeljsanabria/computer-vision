@@ -1,6 +1,15 @@
 # Object detection
 ###
 #Activar el entorno virtual
+# con python 3.10
+# curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+# python get-pip.py
+
+# ir a la carpeta del -r
+# pip install --upgrade pip
+# pip install -r requirements.txt
+
+
 # python3.10 -m venv .venvOK
 # source .venvOK/bin/activate
 
@@ -19,6 +28,7 @@ torchvision>=0.8.1
 tqdm>=4.64.0
 filterpy==1.4.5
 scikit-image==0.19.3
-numpy==1.22.0
+numpy>=1.18.5 # 1.26.4
 opencv-python>=4.5.4.60
 lap>=0.4.0
+streamlit==1.32.2
