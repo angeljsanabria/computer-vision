@@ -13,6 +13,11 @@
 # - En OpenCV, el orden de color por defecto es **BGR**
 # - Formato común: 8 bits por canal (0-255)
 
+# OpenCV (Open Source Computer Vision Library)
+# - Librería de código abierto para procesar imágenes y video en tiempo real.
+# - Funcionalidades: leer, mostrar, filtrar colores, detectar bordes, movimiento, etc.
+# - Instalación: `pip install opencv-python`
+
 # ---
 # 🎨 Color Spaces
 # Un **espacio de color** define cómo se representan los colores numéricamente.
@@ -25,26 +30,44 @@
 #     - H: Hue (tono) → el color puro.
 #     - S: Saturación → intensidad del color.
 #     - V: Valor → brillo (luminosidad).
+# ℹ️ Nota: Imágenes en escala de grises devuelven solo 2 dimensiones (H, W), sin canal explícito.
 
 # Por ejemplo:
 #     `img_gray.shape` devuelve solo 2 dimensiones → no tiene canal explícito como en (H, W, C)
 #     pero sigue siendo una imagen con un único canal.
 
-# OpenCV (Open Source Computer Vision Library)
-# - Librería de código abierto para procesar imágenes y video en tiempo real.
-# - Funcionalidades: leer, mostrar, filtrar colores, detectar bordes, movimiento, etc.
-# - Instalación: `pip install opencv-python`
+# ---
+# 💧 Blurring (Desenfoque de imágenes)
+# El desenfoque se utiliza para reducir el ruido, suavizar transiciones de color y preparar la imagen para otras tareas
+# como la detección de bordes o máscaras.
+
+# ✍️ Fundamento matemático:
+# Se aplica una operación de *convolución* usando un **kernel** (matriz como 3x3, 5x5, etc).
+# Cada píxel se reemplaza por un valor calculado a partir de sus vecinos. Ejemplo: promedio simple.
+# La diferencia entre los métodos está en cómo se calcula ese nuevo valor:
+
+# - `cv2.blur()` → Promedio simple (suavizado general).
+# - `cv2.GaussianBlur()` → Promedio ponderado con distribución gaussiana (ideal para ruido fino).
+# - `cv2.medianBlur()` → Usa la mediana de los píxeles vecinos (excelente para ruido "sal y pimienta").
+# - `cv2.bilateralFilter()` (no incluido en este script) → Suaviza mientras preserva bordes (para filtros finos tipo “retoque facial”).
+
+# Casos reales:
+# - Mejora resultados de edge detection (`cv2.Canny`)
+# - Limpia imágenes de cámaras ruidosas o comprimidas
+# - Mejora máscaras HSV al eliminar ruido de color
+# - Facilita el procesamiento en tareas como OCR o detección facial
 
 # ---
 # 🧪 Funcionalidades implementadas
-# - Carga una imagen desde disco
-# - Muestra forma, tipo y píxeles
-# - Redimensiona si es muy grande y muestra
-# - Dibuja texto y formas
-# - Modifica canales de color
-# - Guarda y muestra resultado
-# - Recortar una imagen
-
+# ✅ Carga una imagen desde disco
+# ✅ Muestra forma, tipo, tamaño y canales
+# ✅ Redimensiona si es muy grande
+# ✅ Dibuja texto o formas
+# ✅ Modifica canales de color (azul, rojo)
+# ✅ Recorta un área definida
+# ✅ Convierte entre espacios de color (RGB, GRAY, HSV)
+# ✅ Aplica blurring con distintas técnicas
+# ✅ Muestra y exporta la imagen procesada
 # ------------------------------------------------------------------------------
 
 import cv2
@@ -102,7 +125,7 @@ if TO_CROP:
     crop_w = [70, 1300]
     img_cropped = image[crop_w[0]:crop_w[1], crop_h[0]:crop_h[1]]    # es un numpy array, por se recorta asi
 
-COLOR_SPACE = True
+COLOR_SPACE = False
 if COLOR_SPACE:
     print("Convert color space a otro color space")
     CONVERT_COLOR = False
@@ -120,14 +143,29 @@ if COLOR_SPACE:
         print("Cambio de BGR a escala hsv - cv2.COLOR_BGR2HSV")
         img_hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
+UPD_BLUR = False
+if UPD_BLUR:
+    k_size = 50 # defino el kernel o vecindario de 50x50
+    img_blur1a = cv2.blur(image, (k_size, k_size))
 
+    k_size2 = 5
+    img_blur1b = cv2.blur(image, (k_size2, k_size2))
 
+UPD_BLUR2 = True
+if UPD_BLUR2:
+    k_size = 50 # defino el kernel o vecindario de 50x50
+    img_blur2 = cv2.GaussianBlur(image, (7, 7), 7)
+
+UPD_BLUR3 = True
+if UPD_BLUR3:
+    k_size = 50 # defino el kernel o vecindario de 50x50
+    img_blur3 = cv2.medianBlur(image,  7)
 
 
 SHOW = True
 if SHOW:
     # Mostrar la imagen en una ventana
-    cv2.imshow("Muestro image", image)
+    #cv2.imshow("Muestro imagen original", image)
     if TO_RESIZE:
         cv2.imshow(f"Resized {img_rsized.shape}", img_rsized)
 
@@ -141,6 +179,15 @@ if SHOW:
             cv2.imshow("cv2.COLOR_BGR2RGB", img_gray)
             if CONVERT_COLOR_HSV:
                 cv2.imshow("cv2.COLOR_BGR2HSV", img_hsv)
+
+    if UPD_BLUR:
+        cv2.imshow("Blurring grande - suavizado general", img_blur1a)
+        cv2.imshow("Blurring pequeño - suavizado general", img_blur1b)
+
+    if UPD_BLUR2:
+        cv2.imshow("Gaussian Blur - ruido fino y bordes suaves", img_blur2)
+    if UPD_BLUR3:
+        cv2.imshow("Median Blur - ", img_blur3)
 
     # Guardo imagen procesada
     EXPORT = False
@@ -156,16 +203,10 @@ if SHOW:
 
 '''
 AGREGAR:
-Color spaces se puede entender como las diferentes formas de representar los colores en la imagen 
-aplico COLOR_BGR2RGB y bgr a escala de grises. 
-La de grises es importante porque me pasa la info de 3 canales en 1 canal. 
-Explicar porque hsv es importante o muy usado
-
-Por que en:
-        print("Cambio de BGR a escala grises - cv2.COLOR_BGR2GRAY")
-        img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        print(f"Esta me facilita tener la info de 3 canales ({image.shape}) en 1 canal ({img_gray.shape})")
-
-No me muestra que tiene un canal de color?  -> Esta me facilita tener la info de 3 canales ((723, 1440, 3)) en 1 canal ((723, 1440))
-
+Blurring
+Cada vez que se aplica el blurring es como si se tomara un promedio de los pixeles vecinos (kernel, pequeña matriz
+de 3x3 o 5x5, y se mueve por cada pixel de la imagen - convolucion -. Y este calculo va reemplazando el pixel central. 
+La forma de 
+como se definen los pixeles vecinos o el calculo es el tipo de blur que se aplica. Sirve para suavizado general, 
+ruido fino, bodes suaves, eliminacion de ruidos con bordes nitidos.
 '''
