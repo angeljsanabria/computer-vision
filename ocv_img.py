@@ -58,6 +58,47 @@
 # - Facilita el procesamiento en tareas como OCR o detección facial
 
 # ---
+# 🎯 Thresholding (Umbralización)
+# El thresholding permite **segmentar una imagen** separando los píxeles de interés del fondo.
+# Por ejemplo: "Todo lo que sea más claro que cierto umbral → blanco (255), el resto → negro (0)".
+# Es fundamental para preparar imágenes antes de extraer contornos, reconocer texto, u objetos.
+
+# ✍️ Fundamento matemático:
+# Se aplica una función por píxel:
+#     si pixel >= T: pixel = maxval
+#     si pixel <  T: pixel = 0
+# Donde `T` es el umbral definido y `maxval` es el valor máximo posible (por ejemplo 255).
+
+# 📚 Tipos de umbral usados:
+# - `cv2.THRESH_BINARY`           → blanco o negro según el umbral
+# - `cv2.THRESH_BINARY_INV`       → igual al anterior pero invertido
+# - `cv2.THRESH_TRUNC`            → los píxeles mayores al umbral se recortan al valor T
+# - `cv2.THRESH_TOZERO`           → los píxeles menores a T se vuelven cero
+# - `cv2.THRESH_TOZERO_INV`       → los mayores a T se vuelven cero
+
+# 📈 Métodos automáticos:
+# - `cv2.THRESH_OTSU`
+#     → Calcula automáticamente el mejor umbral global (único valor T) separando fondo y objeto.
+#     → ✅ Útil cuando la imagen tiene **histograma bimodal** (dos regiones bien diferenciadas de intensidad).
+#     → Ej: segmentar letras oscuras sobre fondo claro en un escaneo limpio.
+
+# - `cv2.ADAPTIVE_THRESH_MEAN_C`
+#     → Divide la imagen en bloques y calcula el umbral local como el **promedio de vecinos**.
+#     → ✅ Funciona bien en imágenes con **iluminación no uniforme** o sombras.
+#     → Ej: documentos escaneados con zonas claras y oscuras.
+
+# - `cv2.ADAPTIVE_THRESH_GAUSSIAN_C`
+#     → Igual que el anterior, pero pondera los vecinos usando una función gaussiana (más peso al centro).
+#     → ✅ Más suave y preciso para transiciones graduales.
+#     → Ej: fotos de documentos tomadas con celular, con brillo natural o degradado de luz.
+
+# 💡 Casos reales:
+# - Aislar texto para OCR (detección de caracteres)
+# - Detectar formas o bordes antes de `cv2.findContours()`
+# - Preparar máscaras binarias para segmentación
+# - Separar regiones claras/oscura en imágenes médicas o industriales
+
+# ---
 # 🧪 Funcionalidades implementadas
 # ✅ Carga una imagen desde disco
 # ✅ Muestra forma, tipo, tamaño y canales
@@ -76,8 +117,12 @@ import os
 IMG = 'lily2.jpg'
 IMG_OUT = 'out.jpg'
 IMG_PATH = os.path.join('.', 'images', IMG) # '.' current dir
-# Leer imagen (por defecto en uint8; Para 16 bits agrego , cv2.IMREAD_UNCHANGED)
 image = cv2.imread(IMG_PATH)
+
+IMG2 = 'carta.png'
+IMG_PATH2 = os.path.join('.', 'images', IMG2) # '.' current dir
+image2= cv2.imread(IMG_PATH2)
+# Leer imagen (por defecto en uint8; Para 16 bits agrego , cv2.IMREAD_UNCHANGED)
 if image is None:
     print("No se pudo abrir la imagen")
     exit()
@@ -151,16 +196,38 @@ if UPD_BLUR:
     k_size2 = 5
     img_blur1b = cv2.blur(image, (k_size2, k_size2))
 
-UPD_BLUR2 = True
+UPD_BLUR2 = False
 if UPD_BLUR2:
     k_size = 50 # defino el kernel o vecindario de 50x50
     img_blur2 = cv2.GaussianBlur(image, (7, 7), 7)
 
-UPD_BLUR3 = True
+UPD_BLUR3 = False
 if UPD_BLUR3:
     k_size = 50 # defino el kernel o vecindario de 50x50
     img_blur3 = cv2.medianBlur(image,  7)
 
+UPD_THRESHOLD = False
+if UPD_THRESHOLD:
+    #primero paso a escala de grises
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    thresh, maxval = 35, 255
+    ret, img_thr = cv2.threshold(img_gray, thresh, maxval, cv2.THRESH_BINARY)
+    #cv2.THRESH_BINARY	Si el píxel > T, se vuelve maxval, sino 0
+    # otros tipos: THRESH_BINARY_INV, THRESH_TRUNC, THRESH_TOZERO, THRESH_TOZERO_INV
+    # automaticos ADAPTIVE_THRESH_MEAN_C, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_OTSU
+    # si el valor pasa de thresh toma el valor de maxval
+
+UPD_THRESHOLD_AUTO = True
+if UPD_THRESHOLD_AUTO:
+    img_gray = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
+    # Otsu (umbral automático)
+    _, th_otsu = cv2.threshold(img_gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+
+    # Adaptativos
+    th_adapt_mean = cv2.adaptiveThreshold(img_gray, 255, cv2.ADAPTIVE_THRESH_MEAN_C,
+                                          cv2.THRESH_BINARY, 11, 2)
+    th_adapt_gauss = cv2.adaptiveThreshold(img_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                           cv2.THRESH_BINARY, 11, 2)
 
 SHOW = True
 if SHOW:
@@ -189,6 +256,15 @@ if SHOW:
     if UPD_BLUR3:
         cv2.imshow("Median Blur - ", img_blur3)
 
+    if UPD_THRESHOLD:
+        cv2.imshow("Thresholds", img_thr)
+
+    if UPD_THRESHOLD_AUTO:
+        cv2.imshow("Muestro imagen original", image2)
+        cv2.imshow("Otsu", th_otsu)
+        cv2.imshow("Adaptive Mean", th_adapt_mean)
+        cv2.imshow("Adaptive Gaussian", th_adapt_gauss)
+
     # Guardo imagen procesada
     EXPORT = False
     if EXPORT:
@@ -203,10 +279,9 @@ if SHOW:
 
 '''
 AGREGAR:
-Blurring
-Cada vez que se aplica el blurring es como si se tomara un promedio de los pixeles vecinos (kernel, pequeña matriz
-de 3x3 o 5x5, y se mueve por cada pixel de la imagen - convolucion -. Y este calculo va reemplazando el pixel central. 
-La forma de 
-como se definen los pixeles vecinos o el calculo es el tipo de blur que se aplica. Sirve para suavizado general, 
-ruido fino, bodes suaves, eliminacion de ruidos con bordes nitidos.
+Thresholding (Umbralización).
+Es para segmentar imagenes, es decir, separar pixeles de interes del fondo. Por ejemplo, dame todo lo que 
+esta mas claro que cierto valor umbral. O todo lo que es mas oscuro que cierto valor umbral, pasalo a negro.
+Puede servir para reconocimiento de texto, aislando las letras del fondo.
+- DOcumentar todos los Threshold usados
 '''
