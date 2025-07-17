@@ -99,6 +99,46 @@
 # - Separar regiones claras/oscura en imágenes médicas o industriales
 
 # ---
+# 🎯 Detección de Bordes (Edge Detection)
+# La detección de bordes permite **resaltar los contornos** de objetos, texto o estructuras dentro de una imagen.
+# Detecta **cambios bruscos de intensidad** (gradientes), lo cual es útil para segmentar, contar o analizar formas.
+
+# ✍️ Fundamento matemático:
+# - Se analizan los cambios de intensidad usando derivadas (gradientes).
+# - En el caso de Canny, se calcula:
+#     G = √(Gx² + Gy²)
+#   donde Gx y Gy son derivadas en X e Y, respectivamente.
+# - En Laplaciano, se aplica la segunda derivada:
+#     ΔI = ∂²I/∂x² + ∂²I/∂y²
+
+# 📚 Métodos utilizados:
+# - `cv2.Canny(image, threshold1, threshold2)`
+#     → Aplica:
+#         1. Desenfoque (reduce ruido)
+#         2. Cálculo de gradientes
+#         3. Umbrales dobles para detectar bordes fuertes y débiles
+#     → ✅ Muy usado en visión artificial, OCR, robótica y detección de movimiento.
+
+# - `cv2.Laplacian(image_gray, cv2.CV_64F)`
+#     → Usa la segunda derivada para encontrar zonas donde la intensidad cambia en todas direcciones.
+#     → ✅ Detecta bordes sin importar su orientación.
+#     → Requiere imagen en escala de grises.
+
+# 📌 Parámetros importantes:
+# - `threshold1` y `threshold2` → controlan qué tan fuerte debe ser un borde para ser detectado (en Canny).
+# - `cv2.CV_64F` → evita pérdida de información en bordes negativos (Laplaciano).
+
+# 💡 Casos reales:
+# - Detectar bordes antes de aplicar `cv2.findContours()` o segmentar objetos.
+# - Detectar zonas de texto para OCR.
+# - Detección de movimiento o análisis de formas geométricas.
+# - Navegación de robots, visión para drones, análisis médico y más.
+
+# ✅ Recomendación:
+# Siempre aplicar un filtro de suavizado (`cv2.GaussianBlur`) antes de detectar bordes, para reducir el impacto del ruido.
+
+
+# ---
 # 🧪 Funcionalidades implementadas
 # ✅ Carga una imagen desde disco
 # ✅ Muestra forma, tipo, tamaño y canales
@@ -153,6 +193,19 @@ if ADD_TEXT:
 ADD_CIRCLE = False
 if ADD_CIRCLE:
     cv2.circle(image, (200, 200), 50, (255, 0, 0), -1)
+
+ADD_LINE = True
+if ADD_LINE:
+    cv2.line(image, (100, 100), (400, 400), (255, 0, 0), 3)
+
+ADD_RECTANGLE = False
+if ADD_RECTANGLE:
+    cv2.rectangle(image, (200, 200), (400, 400), (255, 0, 0), 3)
+
+ADD_RECTANGLE_SOLID = True
+if ADD_RECTANGLE_SOLID:
+    cv2.rectangle(image, (200, 200), (400, 400), (255, 0, 0), -1)
+
 
 UPD_BLUE = False
 if UPD_BLUE:
@@ -217,7 +270,7 @@ if UPD_THRESHOLD:
     # automaticos ADAPTIVE_THRESH_MEAN_C, ADAPTIVE_THRESH_GAUSSIAN_C, THRESH_OTSU
     # si el valor pasa de thresh toma el valor de maxval
 
-UPD_THRESHOLD_AUTO = True
+UPD_THRESHOLD_AUTO = False
 if UPD_THRESHOLD_AUTO:
     img_gray = cv2.cvtColor(image2, cv2.COLOR_BGR2GRAY)
     # Otsu (umbral automático)
@@ -229,10 +282,21 @@ if UPD_THRESHOLD_AUTO:
     th_adapt_gauss = cv2.adaptiveThreshold(img_gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
                                            cv2.THRESH_BINARY, 11, 2)
 
+UPD_EDGE_DETECTION1 = False
+if UPD_EDGE_DETECTION1:
+    img_edge1 = cv2.Canny(image, threshold1=50, threshold2=200)
+
+UPD_EDGE_DETECTION2 = False
+if UPD_EDGE_DETECTION2:
+    img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    img_edge2 = cv2.Laplacian(img_gray, cv2.CV_64F)
+
 SHOW = True
 if SHOW:
     # Mostrar la imagen en una ventana
-    #cv2.imshow("Muestro imagen original", image)
+    if ADD_LINE or ADD_CIRCLE or ADD_TEXT or UPD_BLUE:
+        cv2.imshow("Muestro imagen original", image)
+
     if TO_RESIZE:
         cv2.imshow(f"Resized {img_rsized.shape}", img_rsized)
 
@@ -264,6 +328,12 @@ if SHOW:
         cv2.imshow("Otsu", th_otsu)
         cv2.imshow("Adaptive Mean", th_adapt_mean)
         cv2.imshow("Adaptive Gaussian", th_adapt_gauss)
+
+    if UPD_EDGE_DETECTION1:
+        cv2.imshow("edge detection 1",img_edge1)
+
+    if UPD_EDGE_DETECTION2:
+        cv2.imshow("edge detection 2",img_edge2)
 
     # Guardo imagen procesada
     EXPORT = False
