@@ -137,6 +137,58 @@
 # ✅ Recomendación:
 # Siempre aplicar un filtro de suavizado (`cv2.GaussianBlur`) antes de detectar bordes, para reducir el impacto del ruido.
 
+# ---
+# 🎯 Contornos (Contours)
+# Un contorno es una curva que une todos los puntos continuos de una imagen que tienen **el mismo valor**.
+# En visión por computadora se usan para:
+# - Delimitar formas y objetos
+# - Calcular áreas, perímetros, centros
+# - Extraer regiones de interés (ROI)
+# - Reconocer patrones
+
+# ✍️ Fundamento matemático:
+# - Dado un objeto binario (por ejemplo, blanco sobre fondo negro), se recorre el borde externo y se almacena
+#   como una secuencia de puntos.
+# - OpenCV usa algoritmos como **Suzuki-Abe** para detectar contornos jerárquicos.
+
+# 📚 Sintaxis básica:
+#     contours, hierarchy = cv2.findContours(img_binaria, mode, method)
+
+# 📌 Parámetros principales:
+# - `img_binaria`: debe ser una imagen binaria (resultado de threshold o edge detection).
+# - `mode`: cómo recuperar los contornos:
+#     - `cv2.RETR_EXTERNAL`      → solo el contorno más externo (ignora huecos internos)
+#     - `cv2.RETR_LIST`          → todos los contornos sin jerarquía
+#     - `cv2.RETR_TREE`          → todos los contornos con jerarquía (padre-hijo)
+# - `method`: cómo aproximar los contornos:
+#     - `cv2.CHAIN_APPROX_NONE`  → guarda **todos los puntos** del contorno
+#     - `cv2.CHAIN_APPROX_SIMPLE`→ guarda solo **puntos clave** (más eficiente)
+
+# 📌 Funciones útiles con contornos:
+# - `cv2.drawContours(img, contours, ...)` → dibuja los contornos sobre una imagen.
+# - `cv2.contourArea(c)`                   → calcula el área del contorno.
+# - `cv2.arcLength(c, True)`               → calcula el perímetro.
+# - `cv2.boundingRect(c)`                  → devuelve un rectángulo que encierra el contorno.
+# - `cv2.minEnclosingCircle(c)`            → círculo mínimo que encierra el contorno.
+# - `cv2.approxPolyDP(c, epsilon, True)`   → simplifica la forma (útil para detectar polígonos).
+# - `cv2.moments(c)`                       → estadísticas geométricas (centroide, inercia, etc.)
+
+# 💡 Casos reales:
+# - 📐 Detección de formas: triángulos, rectángulos, círculos
+# - 📦 Contar objetos en una imagen
+# - 🧠 Detección de regiones cerebrales en imágenes médicas
+# - 🎯 Tracking de objetos (por ejemplo: contorno de una mano)
+# - 🧾 OCR: detectar regiones de texto antes del reconocimiento
+# - 📸 Segmentación de objetos en fotos, planos o piezas industriales
+
+# ✅ Consejo:
+# - Asegurate siempre de **preprocesar la imagen** con técnicas como:
+#     - `thresholding`
+#     - `canny edge detection`
+#     - `blur` (para eliminar ruido)
+#     - `morphology` (para cerrar o abrir regiones)
+# - Los contornos no se detectan directamente sobre imágenes a color.
+
 
 # ---
 # 🧪 Funcionalidades implementadas
@@ -161,7 +213,11 @@ image = cv2.imread(IMG_PATH)
 
 IMG2 = 'carta.png'
 IMG_PATH2 = os.path.join('.', 'images', IMG2) # '.' current dir
-image2= cv2.imread(IMG_PATH2)
+image2 = cv2.imread(IMG_PATH2)
+
+IMG3 = 'cartas.jpeg'
+IMG_PATH3 = os.path.join('.', 'images', IMG3) # '.' current dir
+image3 = cv2.imread(IMG_PATH3)
 # Leer imagen (por defecto en uint8; Para 16 bits agrego , cv2.IMREAD_UNCHANGED)
 if image is None:
     print("No se pudo abrir la imagen")
@@ -194,7 +250,7 @@ ADD_CIRCLE = False
 if ADD_CIRCLE:
     cv2.circle(image, (200, 200), 50, (255, 0, 0), -1)
 
-ADD_LINE = True
+ADD_LINE = False
 if ADD_LINE:
     cv2.line(image, (100, 100), (400, 400), (255, 0, 0), 3)
 
@@ -202,7 +258,7 @@ ADD_RECTANGLE = False
 if ADD_RECTANGLE:
     cv2.rectangle(image, (200, 200), (400, 400), (255, 0, 0), 3)
 
-ADD_RECTANGLE_SOLID = True
+ADD_RECTANGLE_SOLID = False
 if ADD_RECTANGLE_SOLID:
     cv2.rectangle(image, (200, 200), (400, 400), (255, 0, 0), -1)
 
@@ -291,6 +347,32 @@ if UPD_EDGE_DETECTION2:
     img_gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     img_edge2 = cv2.Laplacian(img_gray, cv2.CV_64F)
 
+UPD_CONTOURS = True
+if UPD_CONTOURS:
+    img_gray = cv2.cvtColor(image3, cv2.COLOR_BGR2GRAY)
+    ret, img_c = cv2.threshold(img_gray, 185, 255, cv2.THRESH_BINARY)
+    contours, hierarchy = cv2.findContours(img_c, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    ADD_C_CONT = True
+    if ADD_C_CONT:
+        for c in contours:
+            area = cv2.contourArea(c)   # calcula el area de un contorno
+            if area > 100:  # filtrar contornos pequeños
+                cv2.drawContours(image3, [c], -1, (0, 255, 0), 2)
+                cv2.drawContours(img_c, [c], -1, (0, 255, 0), 2)
+                x, y, w, h = cv2.boundingRect(c)
+                cv2.rectangle(image, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                cv2.rectangle(img_c, (x, y), (x + w, y + h), (255, 0, 0), 2)
+    ADD_C_REC = False
+    if ADD_C_REC:
+        for c in contours:
+            area = cv2.contourArea(c)   # calcula el area de un contorno
+            if area > 100:  # filtrar contornos pequeños
+                x1, y1, w, h = cv2.boundingRect(c)
+                cv2.rectangle(image3, (x1, y1), (x1+w, y1+h), (0, 255, 0), 2)
+                cv2.rectangle(img_c, (x1, y1), (x1 + w, y1 + h), (0, 255, 0), 2)
+
+
 SHOW = True
 if SHOW:
     # Mostrar la imagen en una ventana
@@ -335,6 +417,10 @@ if SHOW:
     if UPD_EDGE_DETECTION2:
         cv2.imshow("edge detection 2",img_edge2)
 
+    if UPD_CONTOURS:
+        cv2.imshow("edge contours 2",img_c)
+        cv2.imshow("edge contours 3", image3)
+
     # Guardo imagen procesada
     EXPORT = False
     if EXPORT:
@@ -355,3 +441,5 @@ esta mas claro que cierto valor umbral. O todo lo que es mas oscuro que cierto v
 Puede servir para reconocimiento de texto, aislando las letras del fondo.
 - DOcumentar todos los Threshold usados
 '''
+
+
