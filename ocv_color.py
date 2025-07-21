@@ -36,26 +36,31 @@ from PIL import Image
 cap = cv2.VideoCapture(0)
 
 
-def get_limits(color) -> (np.uint8, np.uint8):
-    pass
-    c = np.uint8([[color]]) # valor bgr para convertir en hsr
-    hsvC = cv2.cvtColor(c, cv2.COLOR_BGR2HSV)
+def get_limits(color_bgr, h_margin=10, s_margin=60, v_margin=60):
+    color_bgr = np.uint8([[color_bgr]])
+    hsv = cv2.cvtColor(color_bgr, cv2.COLOR_BGR2HSV)[0][0]
+    h, s, v = hsv
 
+    lower = np.array([
+        max(h - h_margin, 0),
+        max(s - s_margin, 50),   # No permitir saturaciones muy bajas
+        max(v - v_margin, 50)    # Ni valores muy oscuros
+    ], dtype=np.uint8)
 
-    lowerLimit = hsvC[0][0][0] - 10, 100, 100
-    upperLimit = hsvC[0][0][0] + 10, 255, 255
+    upper = np.array([
+        min(h + h_margin, 179),
+        min(s + s_margin, 255),
+        min(v + v_margin, 255)
+    ], dtype=np.uint8)
 
-    lowerLimit = np.array(lowerLimit, dtype=np.uint8)
-    upperLimit = np.array(upperLimit, dtype=np.uint8)
-
-    return lowerLimit, upperLimit
+    return lower, upper
 
 # defino color rojo
-redBajo1 = np.array([0, 100, 20], np.uint8)
-redAlto1 = np.array([8, 255, 255], np.uint8)
+redBajo1 = np.array([0, 140, 100], np.uint8)
+redAlto1 = np.array([10, 255, 255], np.uint8)
 
-redBajo2=np.array([175, 100, 20], np.uint8)
-redAlto2=np.array([179, 255, 255], np.uint8)
+redBajo2 = np.array([170, 140, 100], np.uint8)
+redAlto2 = np.array([180, 255, 255], np.uint8)
 
 
 COLOR_FN = False
@@ -69,11 +74,13 @@ SHOW_PIL = True
 
 while True:
     ret, frame = cap.read()
+    # suavizo el frame con un blurring gausiano
     if ret:
-        frameHSV = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)  # help(cv2.cvtColor): Converts an image from one color space to another.
+        frame_blurred = cv2.GaussianBlur(frame, (5, 5), 0)
+        frameHSV = cv2.cvtColor(frame_blurred, cv2.COLOR_BGR2HSV)  # help(cv2.cvtColor): Converts an image from one color space to another.
 
         if COLOR_FN:
-            lowerLimit, upperLimit = get_limits(color= colorFn)
+            lowerLimit, upperLimit = get_limits(color_bgr= colorFn)
             maskColor = cv2.inRange(frameHSV, lowerLimit, upperLimit )
         else:
             maskRed1 = cv2.inRange(frameHSV, redBajo1, redAlto1)
