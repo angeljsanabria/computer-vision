@@ -13,6 +13,10 @@
 # - En OpenCV, el orden de color por defecto es **BGR**
 # - Formato común: 8 bits por canal (0-255)
 
+# Representacion de imagen en array numpy:
+# - img[alto, ancho, canales] == img[filas, columnas, canales] == img[y, x, canales]
+
+
 # OpenCV (Open Source Computer Vision Library)
 # - Librería de código abierto para procesar imágenes y video en tiempo real.
 # - Funcionalidades: leer, mostrar, filtrar colores, detectar bordes, movimiento, etc.
