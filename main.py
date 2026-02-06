@@ -10,7 +10,7 @@ CONFIANZA_TOLERABLE = 75
 print("Init!")
 
 M_SMALL = False
-M_MEDIUM = False
+M_MEDIUM = True
 M_LARGE = False
 M_XLARGE = False
 
@@ -38,7 +38,7 @@ else:
 print(model.names)
 #print(*model.names)
 
-CAMERA = False
+CAMERA = True
 
 if CAMERA:
     cap = cv2.VideoCapture(1)
