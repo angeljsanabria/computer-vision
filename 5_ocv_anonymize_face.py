@@ -1,9 +1,33 @@
+"""
+Script para deteccion y anonimizacion de caras en imagenes usando MediaPipe.
+
+Descripcion:
+-----------
+Este script detecta caras en una imagen usando MediaPipe Face Detection y
+permite anonimizarlas aplicando blur (desenfoque) sobre las regiones detectadas.
+Tambien puede dibujar bounding boxes y mostrar informacion detallada de las
+detecciones (keypoints, confidence scores).
+
+Ejecucion:
+---------
+python 5_ocv_anonymize_face.py
+
+Parametros:
+----------
+- Modifica IMG = 'lily2.jpg' para cambiar la imagen a procesar
+- La imagen debe estar en la carpeta 'images/'
+- PRINT_DETALLE_DETECCION: Si True, imprime informacion de cada cara detectada
+- ADD_RECTANGLE_DETECCION: Si True, dibuja un rectangulo verde alrededor de cada cara
+- ADD_BLUR: Si True, aplica blur sobre las caras detectadas
+- EXPORT: Si True, guarda la imagen procesada en 'images/out.jpg'
+"""
 import cv2
 import os
 import mediapipe as mp
 import numpy as np
 
-from cv.ocv_img import ADD_RECTANGLE
+# Nota: Se removio el import incorrecto 'from cv.ocv_img import ADD_RECTANGLE'
+# ya que no existe el paquete cv y ADD_RECTANGLE no se usa en este script
 
 relative_keypoints_dict = { 0 : "Ojo derecho", 1 : "Ojo izquierdo", 2 : "Nariz", 3 : "Boca",
                             4 : "Oreja derecha", 5 : "Oreja izquierda" }

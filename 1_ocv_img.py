@@ -1,3 +1,26 @@
+"""
+Script basico de procesamiento de imagenes con OpenCV.
+
+Descripcion:
+-----------
+Este script demuestra operaciones basicas de procesamiento de imagenes:
+- Carga y visualizacion de imagenes
+- Conversion de espacios de color (BGR, RGB, GRAY, HSV)
+- Blurring (desenfoque) con diferentes tecnicas
+- Thresholding (umbralizacion) para segmentacion
+- Deteccion de bordes (Canny, Laplaciano)
+- Deteccion de contornos
+- Dibujo de formas geometricas
+- Modificacion de canales de color
+
+Ejecucion:
+---------
+python 1_ocv_img.py
+
+Nota: El script tiene variables booleanas al inicio para activar/desactivar
+diferentes funcionalidades. Modifica las variables TO_RESIZE, ADD_TEXT,
+UPD_BLUR, UPD_THRESHOLD, etc. segun lo que quieras probar.
+"""
 # ==============================================================================
 # Módulo: OpenCV Básico
 # Descripción: Carga, procesa y muestra una imagen con OpenCV

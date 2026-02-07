@@ -1,14 +1,29 @@
-'''
-pip install streamlit
-'''
-import streamlit as st
-from PIL import Image
-from ultralytics import YOLO
+"""
+Script de deteccion de objetos usando YOLOv8 con interfaz web Streamlit desde webcam.
+
+Descripcion:
+-----------
+Este script permite seleccionar una camara y detectar objetos en tiempo real usando YOLOv8n.
+Muestra los resultados con bounding boxes y etiquetas sobre el video de la camara.
+
+Ejecucion:
+---------
+1. Instalar dependencias (si no estan instaladas):
+   pip install streamlit
+
+2. Ejecutar la aplicacion:
+   streamlit run streamlit/detector_webcam_yolo.py
+   add: --server.port 8501
+
+3. Ver en el navegador: http://localhost:8501
+El script abrira una interfaz web donde podras seleccionar una camara y ver
+la deteccion de objetos en tiempo real.
+"""
 import streamlit as st
 import cv2
 from ultralytics import YOLO
 
-model = YOLO('Yolo-Weights/yolov8n.pt')
+model = YOLO('../Yolo-Weights/yolov8n.pt')
 st.title("Seleccion y Detección en webcam")
 
 run = False

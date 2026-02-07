@@ -1,3 +1,23 @@
+"""
+Script para cargar y reproducir un video desde archivo con OpenCV.
+
+Descripcion:
+-----------
+Este script carga un video desde disco y lo reproduce frame por frame.
+Muestra informacion del video (FPS, total de frames, dimensiones) y permite
+saltar a frames especificos, agregar texto sobre el video, y controlar
+la reproduccion.
+
+Ejecucion:
+---------
+python 3_ocv_vid.py
+
+Parametros:
+----------
+- Modifica la variable VID = 'lily.mp4' para cambiar el archivo de video
+- El video debe estar en la carpeta 'videos/'
+- Presiona 'q' para detener la reproduccion
+"""
 # ==============================================================================
 # Módulo: OpenCV Básico
 # Descripción: Carga un video con OpenCV

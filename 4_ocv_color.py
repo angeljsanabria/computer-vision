@@ -1,31 +1,26 @@
-'''
- Detección de Color en Imágenes
-La detección de color permite encontrar píxeles o regiones de una imagen que estén dentro de un cierto rango de color.
-Es una herramienta fundamental en visión por computadora, especialmente cuando se necesita:
-Rastrear objetos por color
-Crear máscaras de color para segmentación
-Detectar señales, luces, prendas, frutas, etc.
+"""
+Script para deteccion de colores en tiempo real desde camara usando OpenCV.
 
-El espacio de color HSV (Hue, Saturation, Value / Matiz, Saturación, Brillo), posee 3 componentes, similar al espacio
-de color RGB. Pero se prefiere porque de forma sencilla se pueden determinar rangos de colores para detectar.
-H: 0 a 179
-S: 0 a 255
-V: 0 a 255
+Descripcion:
+-----------
+Este script detecta objetos por color en tiempo real desde una camara web.
+Usa el espacio de color HSV para crear mascaras de color y detectar objetos
+de un color especifico (por defecto rojo). Puede mostrar la mascara, aplicar
+bitwise AND, o dibujar bounding boxes alrededor de los objetos detectados.
 
-para ver el mapa hsv en h y s https://omes-va.com/deteccion-de-colores/
-para el rojo  0 a 8, y el segundo de 175 a 179 en H, mientras que para los componente S de 100 a 255, y V de 20 a 255
+Ejecucion:
+---------
+python 4_ocv_color.py
 
-Matematicamente es aplicar una mascara logica:
-mask = (Hmin <= pixel <= Hmax) and (Smin <= pixel <= Smax) and (Vmin <= pixel <= Vmax)
-cv2.inRange() facilita esto Donde lo que queda dentro del rango se vuelve blanco, y el resto negro.
-
-Esto es fundamental para tareas de segmentación, seguimiento de objetos, detección de señales, clasificación y más.
-
-Pillow (PIL):
-Pillow permite manipular imágenes a nivel de píxeles, pero no tiene funciones integradas como cv2.inRange.
-En cambio, podés hacer comparaciones directamente con NumPy o pixel por pixel.
-
-'''
+Parametros:
+----------
+- Modifica cap = cv2.VideoCapture(0) para cambiar el indice de la camara
+- COLOR_FN: Si True, detecta el color definido en colorFn (por defecto amarillo)
+- SHOW_JUST_MASK: Si True, muestra solo la mascara binaria
+- SHOW_BITWISE: Si True, muestra el resultado de aplicar la mascara
+- SHOW_PIL: Si True, muestra el video con bounding boxes (por defecto activo)
+- Presiona 'q' para cerrar
+"""
 
 import numpy as np
 import cv2

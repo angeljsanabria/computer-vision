@@ -1,3 +1,33 @@
+"""
+Script de deteccion de objetos con YOLOv8 en tiempo real desde camara.
+
+Descripcion:
+-----------
+Este script carga un modelo YOLOv8 y procesa video en tiempo real desde una
+camara web. Dibuja bounding boxes manualmente con OpenCV, filtra detecciones
+por confianza minima y cambia el color de los rectangulos segun el nivel de
+confianza de la deteccion.
+
+Diferencia con test_yolo_basic.py:
+----------------------------------
+- test_yolo_basic.py: Procesa imagen/video desde archivo, usa visualizacion
+  integrada de YOLO (show=True)
+- Este script: Procesa video desde camara en tiempo real, dibuja manualmente
+  con OpenCV, filtra por confianza y personaliza colores
+
+Ejecucion:
+---------
+python test_yolo_cam.py
+
+Parametros:
+----------
+- M_SMALL, M_MEDIUM, M_LARGE, M_XLARGE: Activa diferentes tamaños de modelo
+  (por defecto usa nano si todos estan en False)
+- CAMERA: Si True, procesa video desde camara (por defecto True)
+- Modifica cap = cv2.VideoCapture(1) para cambiar el indice de la camara
+- CONFIANZA_TOLERABLE: Confianza minima para mostrar detecciones (default: 75)
+- Presiona 'q' o cierra la ventana para finalizar
+"""
 import numpy
 from ultralytics import YOLO
 import cv2
@@ -73,4 +103,8 @@ while True:
             break
 
     cv2.imshow("Image", img)
-    cv2.waitKey(1)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()

@@ -1,3 +1,21 @@
+"""
+Script basico para capturar video desde una camara web con OpenCV.
+
+Descripcion:
+-----------
+Este script abre una camara web y muestra el video en tiempo real.
+Es el ejemplo mas basico de captura de video desde una camara USB o webcam.
+
+Ejecucion:
+---------
+python 2_ocv_cam.py
+
+Parametros:
+----------
+- Modifica la variable webcam = cv2.VideoCapture(1) para cambiar el indice
+  de la camara (0, 1, 2, etc.)
+- Presiona 'q' para cerrar la ventana y finalizar el script
+"""
 # ==============================================================================
 # Módulo: OpenCV Básico
 # Descripción: Uso de Camaras

@@ -1,26 +1,30 @@
 """
-Script de detección y anonimización de rostros usando MediaPipe y OpenCV.
+Script avanzado de deteccion y anonimizacion de caras con MediaPipe y OpenCV.
 
-Este script permite:
-- Detectar caras en imágenes o en video desde la cámara.
-- Dibujar un bounding box sobre cada cara detectada.
-- Aplicar desenfoque (blur) sobre las caras para anonimizar.
-- Mostrar información detallada de la detección, como puntuación y keypoints.
+Descripcion:
+-----------
+Este script permite detectar y anonimizar caras tanto en imagenes como en
+video en tiempo real desde una camara. Incluye opciones desde linea de comandos
+para configurar el comportamiento del script.
 
-Uso:
-------
-Para procesar una imagen:
-    python ocv_scr_anonymize.py --source image --img_name foto.jpg --details --box
-
-Para usar la cámara (por ejemplo, la secundaria):
-    python ocv_scr_anonymize.py --source camera --cam_index 1 --details --box
-    python ocv_scr_anonymize.py --source camera --cam_index 1 --box --notblur
-
-Opciones:
+Ejecucion:
 ---------
---details   : Muestra información detallada de cada cara detectada.
---box       : Dibuja un bounding box sobre la cara y aplica blur.
---notblur   : No aplica desenfoque (aunque se haya pasado --box).
+Procesar una imagen:
+    python 6_ocv_scr_anonymize.py --source image --img_name foto.jpg --details --box
+
+Usar camara (ejemplo con camara indice 1):
+    python 6_ocv_scr_anonymize.py --source camera --cam_index 1 --details --box
+    python 6_ocv_scr_anonymize.py --source camera --cam_index 1 --box --notblur
+
+Parametros:
+----------
+--source {image, camera}  : Fuente de entrada (default: image)
+--model {0, 1}            : Modelo MediaPipe (0=cerca ~2m, 1=lejos ~5m)
+--img_name STR            : Nombre del archivo de imagen (si source=image)
+--cam_index INT           : Indice de la camara (default: 0)
+--details                 : Muestra informacion detallada de cada cara
+--box                     : Dibuja bounding box y aplica blur
+--notblur                 : No aplica desenfoque (aunque se use --box)
 """
 
 import cv2
@@ -28,7 +32,6 @@ import os
 import mediapipe as mp
 import argparse
 import numpy as np
-from fontTools.misc.cython import returns
 
 # keypoints face
 relative_keypoints_dict = { 0 : "Ojo derecho", 1 : "Ojo izquierdo", 2 : "Nariz", 3 : "Boca",
