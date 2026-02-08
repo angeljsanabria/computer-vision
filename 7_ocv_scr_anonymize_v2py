@@ -1,0 +1,348 @@
+"""
+Script avanzado de deteccion y anonimizacion de caras con MediaPipe y OpenCV.
+
+Descripcion:
+-----------
+Este script permite detectar y anonimizar caras tanto en imagenes como en
+video en tiempo real desde una camara. Incluye opciones desde linea de comandos
+para configurar el comportamiento del script.
+
+Modelo usado:
+---------
+MediaPipe Face Detection (Google)
+    - Detecta caras en imagenes y video en tiempo real
+    - Proporciona bounding boxes y puntos clave (ojos, nariz, boca, orejas)
+    - Funciona en dispositivos con recursos limitados
+    - Arquitectura: MobileNetV2-SSD (modelo 0) o MobileNetV2-SSD profundo (modelo 1)
+Funcionamiento:
+    - Imagen → [MobileNetV2] → Features → [SSD Head] → Bounding Boxes → [NMS] → Detecciones Finales
+
+Ejecucion:
+---------
+Procesar una imagen:
+    python 7_ocv_scr_anonymize_v2py.py --source image --img_name foto.jpg --details --box
+
+Usar camara (ejemplo con camara indice 1):
+    python 7_ocv_scr_anonymize_v2py.py --source camera --cam_index 1 --details --box
+    python 7_ocv_scr_anonymize_v2py.py --source camera --cam_index 1 --box --notblur
+
+Parametros:
+----------
+--source {image, camera}  : Fuente de entrada (default: image)
+--model {0, 1}            : Modelo MediaPipe (0=cerca ~2m, 1=lejos ~5m)
+--img_name STR            : Nombre del archivo de imagen (si source=image)
+--cam_index INT           : Indice de la camara (default: 0)
+--details                 : Muestra informacion detallada de cada cara
+--box                     : Dibuja bounding box y aplica blur
+--notblur                 : No aplica desenfoque (aunque se use --box)
+"""
+
+import cv2
+import os
+import mediapipe as mp
+import argparse
+import numpy as np
+from utils import rotar_frame, detectar_camaras_disponibles, ajustar_frame_manteniendo_aspect_ratio
+
+# keypoints face
+relative_keypoints_dict = { 0 : "Ojo derecho", 1 : "Ojo izquierdo", 2 : "Nariz", 3 : "Boca",
+                            4 : "Oreja derecha", 5 : "Oreja izquierda" }
+
+# image const
+IMG_OUT = 'out.jpg'
+IMG_FOLDER = 'images'
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Detección de caras con MediaPipe")
+    parser.add_argument("--source", type=str, choices=["image", "camera"], default="camera",
+                        help="Fuente de entrada: 'image' o 'camera'")
+    parser.add_argument("--model", type=int, choices=[0, 1], default=0,
+                        help="Modelo de MediaPipe: 0 para cerca, 1 para lejos")
+    parser.add_argument("--img_name", type=str, default=None,
+                        help="Nombre del archivo de imagen (requerido si source='image')")
+    parser.add_argument("--cam_index", type=int, default=0,
+                        help="Índice de la cámara (por defecto 0)")
+    parser.add_argument("--details", action="store_true",
+                        help="Activa prints de detalles")
+    parser.add_argument("--box", action="store_true",
+                        help="add bounding boxes y blur")
+    parser.add_argument("--notblur", action="store_true",
+                        help="Not apply blur")
+    return parser.parse_args()
+
+def _load_img(img_name: str | None = None):
+    if img_name is None:
+        # read image default
+        IMG = 'lily2.jpg'
+    else:
+        IMG = img_name
+
+    IMG_PATH = os.path.join('.', IMG_FOLDER, IMG) # '.' current dir
+    return cv2.imread(IMG_PATH)
+
+
+def _print_detail(detected):
+    if detected is not None:
+        print(f"Se detectaron {len(detected)} caras.")
+        cara = 0
+        for detection in detected:
+            cara = cara + 1
+            print(f"\r\n####### CARA {cara} ####### ")
+            print("Confidence:", detection.score[0])
+            bbox = detection.location_data.relative_bounding_box
+            print("Bounding Box:")
+            print(" - x:", bbox.xmin)
+            print(" - y:", bbox.ymin)
+            print(" - width:", bbox.width)
+            print(" - height:", bbox.height)
+
+            print("Keypoints:")
+            for i, kp in enumerate(detection.location_data.relative_keypoints):
+                print(f"#{i} Point {relative_keypoints_dict[i]}: ({kp.x}, {kp.y})")
+                '''
+                # Índice    Parte del rostro
+                    0       Ojo derecho
+                    1       Ojo izquierdo
+                    2       Nariz
+                    3       Boca
+                    4       Oreja derecha
+                    5       Oreja izquierda 
+                '''
+    else:
+        print("No se detectaron caras.")
+
+# mediapipe no devuelve coordenadas absolutas (en píxeles)
+# sino coordenadas relativas, es decir, normalizadas en el rango [0.0, 1.0]
+# por eso hay que multiplicarlas por el h, w de las dimensiones de la imagen (shape).
+# Por que usa coordenadas relativas?
+#   Independencia de resolución: Funciona igual en imágenes de 100×100 o 1000×1000.
+#   Facilita escalado: Podés reescalar la imagen sin romper las posiciones de los puntos clave.
+#   Interoperabilidad con modelos: Muchos modelos usan esta convención en visión por computadora.
+def _process_bbox(_bbox,
+                  img_shape: tuple[int, int, int]) -> tuple[int, int, int, int]:
+    #: mediapipe.framework.formats.location_data_pb2.RelativeBoundingBox,
+    H, W, _ = img_shape
+    x = int(_bbox.xmin * W)
+    y = int(_bbox.ymin * H)
+    w = int(_bbox.width * W)
+    h = int(_bbox.height * H)
+    return x, y, w, h
+
+
+
+
+def main():
+    args = parse_args()
+
+    PRINT_DETALLE_DETECCION = args.details
+    ADD_RECTANGLE_DETECCION = args.box
+    ADD_BLUR = not args.notblur
+    ADD_FPS = True
+    MIN_CONFIDENCE_MODEL = 0.5
+
+    print(args)
+
+    # Inicializo el modelo de deteccion de caras de mp
+    #   model_selection 0 or 1:
+    #       Si 0, detecta caras cerca de la camara (como 2 metros).
+    #       Si 1, es mas lejos (como 5 metros)
+    #   min_detection_confidence: umbral de confianza (0.0-1.0)
+    #       0.5 es un buen balance: detecta caras con confianza >= 50%
+    #       Valores mas altos (0.7-0.9): mas precision, menos falsos positivos
+    #       Valores mas bajos (0.3-0.4): mas sensibilidad, pero mas falsos positivos
+    mp_face_detection = mp.solutions.face_detection
+    with mp_face_detection.FaceDetection(model_selection=args.model, min_detection_confidence=MIN_CONFIDENCE_MODEL) as face_detection:
+
+        if args.source == "image":
+            img = _load_img(args.img_name)
+            img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)  # Mediapipe trabaja en RGB, por eso transformo el color space
+            out = face_detection.process(img_rgb)
+
+            if PRINT_DETALLE_DETECCION:
+                _print_detail(out.detections)
+
+            if out.detections is not None:
+                for detection in out.detections:
+                    location_data = detection.location_data
+                    bbox = location_data.relative_bounding_box
+
+                    x, y, w, h = _process_bbox(bbox, img.shape)
+                    if ADD_RECTANGLE_DETECCION:
+                        img = cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 10)
+
+                    if ADD_BLUR:
+                        # repesentacion en numpy de la img:
+                        #   img[alto, ancho, canales] == img[filas, columnas, canales] == img[y, x, canales]
+                        img[y : y+h, x : x+w, :] = cv2.blur(img[y : y+h, x : x+w, :], (20, 20), )  # Mas intenso (50, 50)
+
+            # show image
+            cv2.imshow('face', img)
+            # Esperar hasta que se presione una tecla por 10 segs
+            cv2.waitKey(10 * 1000)  # 0, indefinido.
+
+            # Cerrar todas las ventanas
+            cv2.destroyAllWindows()
+
+        elif args.source == "camera":
+            # Detectar camaras disponibles
+            camaras_disponibles = detectar_camaras_disponibles()
+            if not camaras_disponibles:
+                print("No se encontraron camaras disponibles.")
+                return
+
+            # Indice actual en la lista de camaras disponibles
+            camara_actual_idx = 0
+            cap = None
+            rotacion_actual = 0  # 0, 90, 180, 270 grados
+            camara_real_idx = camaras_disponibles[camara_actual_idx]
+            exit_flag = False
+            
+            # Variables para calculo de FPS usando OpenCV
+            fps_start_tick = cv2.getTickCount()
+            fps_frame_count = 0
+            fps_current = 0
+            
+            # Nombre fijo de la ventana para reutilizarla (redimensionable)
+            # IMPORTANTE: El nombre debe ser fijo para reutilizar la misma ventana
+            window_name = "Deteccion de Caras - MediaPipe"
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            # Establecer tamaño inicial de la ventana (puede ser redimensionada arrastrando)
+            cv2.resizeWindow(window_name, 800, 600)
+            # Actualizar titulo con informacion de la camara inicial
+            cv2.setWindowTitle(window_name, 
+                             f"Deteccion de Caras - Camara {camara_actual_idx + 1}/{len(camaras_disponibles)} "
+                             f"(Indice {camara_real_idx})")
+            
+            print("\nControles:")
+            print("  'n' o 'N': Siguiente camara")
+            print("  'p' o 'P': Camara anterior")
+            print("  'r' o 'R': Rotar imagen 90 grados a la izquierda")
+            print("  'd' o 'D': Toggle detalle de deteccion")
+            print("  'b' o 'B': Toggle blur")
+            print("  'c' o 'C': Toggle bounding box")
+            print("  'f' o 'F': Toggle FPS")
+            print("  'q' o 'Q': Salir")
+            print(f"\nUsando camara {camara_real_idx} ({camara_actual_idx + 1}/{len(camaras_disponibles)})")
+            
+            while True:
+                
+                cap = cv2.VideoCapture(camara_real_idx)
+                while cap is not None and cap.isOpened():
+                    ret, frame = cap.read()
+                    if not ret:
+                        break
+
+                    if rotacion_actual != 0: 
+                        frame = rotar_frame(frame, rotacion_actual)
+
+                    # Calcular FPS usando OpenCV (mas preciso para procesamiento de imagenes)
+                    if ADD_FPS:
+                        fps_frame_count += 1
+                        fps_current_tick = cv2.getTickCount()
+                        fps_elapsed_time = (fps_current_tick - fps_start_tick) / cv2.getTickFrequency()
+                        if fps_elapsed_time >= 1.0:  # Actualizar cada segundo
+                            fps_current = fps_frame_count / fps_elapsed_time
+                            fps_frame_count = 0
+                            fps_start_tick = cv2.getTickCount()
+
+                    img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    out = face_detection.process(img_rgb)
+
+                    if PRINT_DETALLE_DETECCION:
+                        _print_detail(out.detections)
+
+                    if out.detections:
+                        for detection in out.detections:
+                            bbox = detection.location_data.relative_bounding_box
+                            x, y, w, h = _process_bbox(bbox, frame.shape)
+
+                            if ADD_RECTANGLE_DETECCION:
+                                try:
+                                    frame = cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 3)
+                                except cv2.error:
+                                    pass  # Ignorar si el bounding box esta fuera de limites
+
+                            if ADD_BLUR:
+                                # repesentacion en numpy de la img:
+                                #   img[alto, ancho, canales] == img[filas, columnas, canales] == img[y, x, canales]
+                                try:
+                                    frame[y : y+h, x : x+w, :] = cv2.blur(frame[y : y+h, x : x+w, :], (20, 20), )  # Mas intenso (50, 50)
+                                except cv2.error:
+                                    pass  # Ignorar si el bounding box esta fuera de limites
+
+                    # Mostrar FPS si esta activado
+                    if ADD_FPS:
+                        fps_text = f"FPS: {fps_current:.1f}"
+                        cv2.putText(frame, fps_text, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+                    cv2.imshow(window_name, frame)
+                    key = cv2.waitKey(5) & 0xFF
+                    if (key == 27) or (key == ord('q') or key == ord('Q')):  # Escape
+                        exit_flag = True
+                        break
+                    elif (key == ord('n') or key == ord('N')):
+                        # Siguiente camara
+                        camara_actual_idx = (camara_actual_idx + 1) % len(camaras_disponibles)
+                        camara_real_idx = camaras_disponibles[camara_actual_idx]
+                        # Actualizar titulo de ventana
+                        cv2.setWindowTitle(window_name, 
+                                         f"Deteccion de Caras - Camara {camara_actual_idx + 1}/{len(camaras_disponibles)} "
+                                         f"(Indice {camara_real_idx})")
+                        # Resetear contador de FPS
+                        fps_start_tick = cv2.getTickCount()
+                        fps_frame_count = 0
+                        fps_current = 0
+                        cap.release()
+                        cap = None
+                        break
+                    elif (key == ord('r') or key == ord('R')):
+                        # Rotar 90 grados a la izquierda
+                        rotacion_actual = (rotacion_actual - 90) % 360
+                        print(f"Rotacion: {rotacion_actual} grados")
+                        #break
+                    elif key == ord('p') or key == ord('P'):
+                        # Camara anterior
+                        camara_actual_idx = (camara_actual_idx - 1) % len(camaras_disponibles)
+                        camara_real_idx = camaras_disponibles[camara_actual_idx]
+                        rotacion_actual = 0  # Resetear rotacion al cambiar de camara
+                        # Actualizar titulo de ventana
+                        cv2.setWindowTitle(window_name, 
+                                         f"Deteccion de Caras - Camara {camara_actual_idx + 1}/{len(camaras_disponibles)} "
+                                         f"(Indice {camara_real_idx})")
+                        # Resetear contador de FPS
+                        fps_start_tick = cv2.getTickCount()
+                        fps_frame_count = 0
+                        fps_current = 0
+                        if cap is not None:
+                            cap.release()
+                        cap = None  # Forzar reapertura
+                        break
+                    elif key == ord('d') or key == ord('D'):
+                        # Camara anterior
+                        PRINT_DETALLE_DETECCION = not PRINT_DETALLE_DETECCION
+                        break
+                    elif key == ord('b') or key == ord('B'):
+                        # Camara anterior
+                        ADD_BLUR = not ADD_BLUR
+                        break      
+                    elif key == ord('c') or key == ord('C'):
+                        # Rotar 90 grados a la izquierda
+                        ADD_RECTANGLE_DETECCION = not ADD_RECTANGLE_DETECCION
+                        break
+                    elif key == ord('f') or key == ord('F'):
+                        # Toggle FPS
+                        ADD_FPS = not ADD_FPS
+                        break
+                    
+
+                if exit_flag:
+                    cap.release()
+                    cv2.destroyAllWindows()
+                    print("\nCerrado correctamente.")
+                    return
+
+
+
+if __name__ == "__main__":
+    main()

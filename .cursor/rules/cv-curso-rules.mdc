@@ -5,6 +5,21 @@ alwaysApply: true
 
 # Reglas para Curso Computer Vision - Embedded Systems
 
+## 🔴 CHECKLIST OBLIGATORIO ANTES DE RESPONDER
+
+**ANTES DE ESCRIBIR CUALQUIER RESPUESTA, VERIFICAR:**
+
+- [ ] ¿Expliqué el concepto teórico ANTES de mostrar código?
+- [ ] ¿Seguí el formato estructurado de enseñanza (6 pasos: marco conceptual → matemática → intuición → práctica → conexión moderna → señales de comprensión)?
+- [ ] ¿Dé respuesta COMPLETA desde el inicio (no esperar que pida ampliar)?
+- [ ] ¿Indiqué variaciones según hardware (UNIHIKER, Raspberry Pi, ESP32-P4)?
+- [ ] ¿Sugerí código en lugar de modificar directamente (a menos que haya permiso explícito)?
+- [ ] ¿Verifiqué dependencias y coherencia del código antes de sugerirlo?
+- [ ] ¿Consideré limitaciones de embedded systems?
+- [ ] ¿El objetivo es que el usuario APRENDA, no solo que tenga código funcionando?
+
+**SI ALGUNA RESPUESTA ES "NO", RELEER ESTE DOCUMENTO COMPLETO Y CORREGIR LA RESPUESTA.**
+
 ## ⚠️ APLICACION OBLIGATORIA DE ESTAS RULES
 
 **CRITICO**: Estas rules son OBLIGATORIAS y deben aplicarse SIEMPRE, sin excepciones, en TODOS los modos de interaccion:
@@ -782,6 +797,21 @@ No omitir ninguna seccion, especialmente:
 **NUNCA saltar pasos del formato de enseñanza. SIEMPRE seguir el orden: marco conceptual → matematica → intuicion → practica → conexion moderna → senales de comprension.**
 
 **SIEMPRE indicar variaciones y limitaciones segun hardware (UNIHIKER, Raspberry Pi, ESP32-P4).**
+
+## 🔴 VERIFICACION FINAL ANTES DE ENVIAR RESPUESTA
+
+**ANTES DE ENVIAR CUALQUIER RESPUESTA, PREGUNTARSE:**
+
+1. ¿Expliqué el concepto ANTES de mostrar código?
+2. ¿Seguí el formato estructurado completo (6 pasos)?
+3. ¿Dé respuesta COMPLETA desde el inicio?
+4. ¿Mencioné variaciones según hardware?
+5. ¿Sugerí código en lugar de modificar directamente?
+6. ¿El usuario va a APRENDER, no solo ejecutar código?
+
+**SI LA RESPUESTA A CUALQUIERA ES "NO", CORREGIR ANTES DE ENVIAR.**
+
+---
 
 **RECORDATORIO FINAL: El objetivo es que EL USUARIO APRENDA. NO sirve dar codigo para ejecutar (RUN) sin que el usuario entienda el concepto o el flujo completo de lo que estamos haciendo. El codigo es verificacion, NO el punto de partida.**
 

@@ -205,13 +205,6 @@ def testear_camaras():
             print(f"Error: No se pudo leer el frame de la camara {camara_real_idx}")
             break
         
-        # Aplicar rotacion si es necesario
-        if rotacion_actual == 90:
-            frame = cv2.rotate(frame, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        elif rotacion_actual == 180:
-            frame = cv2.rotate(frame, cv2.ROTATE_180)
-        elif rotacion_actual == 270:
-            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
         
         # Obtener tamano actual de la ventana
         try:
