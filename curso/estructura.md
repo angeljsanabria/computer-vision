@@ -458,6 +458,137 @@ Usar TensorFlow completo (no Lite) en dispositivos embebidos más potentes.
 
 ---
 
+## Fase 11: OCR (Optical Character Recognition) en Embedded
+
+### Objetivo
+Implementar sistemas de reconocimiento de texto optimizados para dispositivos embebidos, aplicando conceptos de preprocesamiento, detección y clasificación aprendidos en fases anteriores.
+
+### 11.1 Fundamentos de OCR
+- **Qué es OCR y qué resuelve**
+  - Lectura automática de texto en imágenes
+  - Casos de uso en embedded:
+    - Lectura de displays digitales (termómetros, contadores)
+    - Lectura de placas/etiquetas
+    - Documentos escaneados
+    - Lectura de códigos de barras/QR (extensión)
+- **Qué NO resuelve**
+  - No entiende el significado del texto (solo lo lee)
+  - Requiere texto relativamente claro y legible
+  - Dificultades con texto manuscrito (requiere modelos especializados)
+  - Texto muy pequeño o muy borroso puede fallar
+- **En qué parte del pipeline de visión se usa**
+  - Preprocesamiento → Detección de texto → Reconocimiento → Post-procesamiento
+  - Se integra con otros sistemas (detección de objetos, tracking)
+- **Diferencias con conceptos similares**
+  - vs Clasificación: OCR clasifica caracteres, no objetos completos
+  - vs Object Detection: OCR detecta y reconoce texto, no objetos genéricos
+  - vs Letter Recognition: OCR es más complejo (múltiples caracteres, palabras)
+
+### 11.2 Pipeline de OCR
+- **Dos etapas principales**
+  1. **Text Detection (Detección de texto)**
+     - Encontrar regiones donde hay texto en la imagen
+     - Similar a object detection pero específico para texto
+     - Output: bounding boxes de regiones de texto
+  2. **Text Recognition (Reconocimiento de texto)**
+     - Leer los caracteres dentro de cada región detectada
+     - Clasificación de caracteres o secuencias
+     - Output: texto legible (string)
+- **Preprocesamiento crítico**
+  - Binarización (thresholding)
+  - Deskewing (corrección de inclinación)
+  - Noise removal
+  - Normalización de tamaño
+
+### 11.3 Técnicas Clásicas vs Deep Learning
+- **Métodos clásicos**
+  - Tesseract OCR (basado en patrones y features clásicas)
+  - Preprocesamiento manual intensivo
+  - Limitaciones con fuentes no estándar
+  - Ventajas: ligero, funciona sin GPU
+- **Deep Learning para OCR**
+  - **CRNN (Convolutional Recurrent Neural Networks)**
+    - CNN para extraer features
+    - RNN (LSTM) para secuencias de caracteres
+    - CTC (Connectionist Temporal Classification) para alineación
+  - **Attention mechanisms**
+    - Modelos más modernos con atención
+    - Mejor para texto complejo
+  - **End-to-end models**
+    - Detección + reconocimiento en un solo modelo
+    - Más pesado pero más preciso
+
+### 11.4 OCR en Embedded Systems
+- **Consideraciones de recursos**
+  - Modelos ligeros para embedded
+  - Optimizaciones específicas (quantization, pruning)
+  - Trade-offs precisión vs velocidad vs memoria
+- **Herramientas disponibles**
+  - **PaddlePaddle OCR** (ejemplo ARM Cortex-M)
+    - Modelo optimizado para microcontroladores
+    - Ejemplo disponible en ARM Edge AI
+  - **EasyOCR**
+    - Fácil de usar, pero más pesado
+    - Mejor para Raspberry Pi que para ESP32
+  - **Tesseract optimizado**
+    - Versión clásica, muy ligera
+    - Funciona en dispositivos limitados
+  - **TensorFlow Lite para OCR**
+    - Modelos CRNN convertidos a TFLite
+    - Optimización para embedded
+
+### 11.5 Implementación en Raspberry Pi Zero 2W / UNIHIKER
+- **Setup y configuración**
+  - Instalación de herramientas (Tesseract, EasyOCR, o modelos custom)
+  - Preprocesamiento de imágenes
+  - Consideraciones de performance
+- **Pipeline completo**
+  - Captura de imagen
+  - Preprocesamiento (thresholding, deskewing)
+  - Detección de regiones de texto
+  - Reconocimiento de caracteres
+  - Post-procesamiento (corrección, formateo)
+- **Optimizaciones**
+  - Reducir resolución de entrada
+  - ROI (Region of Interest) para áreas específicas
+  - Procesamiento asíncrono
+  - Caching de resultados
+
+### 11.6 OCR en ESP32-P4 (Opcional - Avanzado)
+- **Limitaciones y desafíos**
+  - Modelos ultra-ligeros necesarios
+  - PaddlePaddle OCR en Cortex-M (ejemplo ARM)
+  - Memoria muy limitada
+  - Solo texto simple y claro
+- **Casos de uso específicos**
+  - Lectura de displays digitales simples
+  - Lectura de números en contadores
+  - Texto predecible y limitado
+
+### 11.7 Proyecto Práctico: Sistema de Lectura de Displays
+- **Caso de uso real**
+  - Lectura de displays digitales (termómetros, contadores, medidores)
+  - Captura con cámara
+  - Procesamiento en tiempo real o batch
+- **Implementación**
+  - En Raspberry Pi Zero 2W o UNIHIKER
+  - Pipeline completo de OCR
+  - Optimización para tiempo real
+  - Evaluación de precisión
+  - Manejo de errores y casos edge
+
+### 11.8 Variaciones según Hardware
+- **Raspberry Pi Zero 2W / UNIHIKER**
+  - Puede usar EasyOCR o Tesseract
+  - Modelos CRNN con TensorFlow Lite
+  - Tiempo real posible con optimizaciones
+- **ESP32-P4**
+  - Solo modelos ultra-ligeros (PaddlePaddle OCR)
+  - Texto simple y predecible
+  - Procesamiento más lento, posiblemente no tiempo real
+
+---
+
 ## Fase 10: Proyectos Integrados y Optimización Avanzada
 
 ### Objetivo
@@ -501,12 +632,21 @@ Crear proyectos completos optimizados para producción en embedded.
 - TensorFlow Lite: https://www.tensorflow.org/lite
 - Edge Impulse: https://docs.edgeimpulse.com/
 - YOLO: https://docs.ultralytics.com/
+- Tesseract OCR: https://github.com/tesseract-ocr/tesseract
+- EasyOCR: https://github.com/JaidedAI/EasyOCR
+- PaddlePaddle OCR: https://github.com/PaddlePaddle/PaddleOCR
+
+### Recursos ARM Edge AI
+- ARM Edge AI Examples: https://developer.arm.com/edge-ai/example-applications
+- OCR con PaddlePaddle en Cortex-M: [Learning Path ARM](https://learn.arm.com/learning-paths/embedded-and-microcontrollers/avh_ppocr/)
+- Letter Recognition en STM32: [Learning Path ARM](https://learn.arm.com/learning-paths/embedded-and-microcontrollers/tflow_nn_stcube/)
+- TinyML en Arm: [Learning Path ARM](https://learn.arm.com/learning-paths/embedded-and-microcontrollers/introduction-to-tinyml-on-arm/)
 
 ### Comunidades
 - OpenCV Forum
 - TensorFlow Community
 - Edge Impulse Community
-- Reddit: r/computervision, r/embedded
+- Reddit: r/computervision, r/embedded, r/OCR
 
 ### Hardware
 - Raspberry Pi Official Docs

@@ -43,6 +43,7 @@ import mediapipe as mp
 import argparse
 import numpy as np
 from utils import rotar_frame, detectar_camaras_disponibles, ajustar_frame_manteniendo_aspect_ratio
+from utils.image_utils import bbox_relativo_a_absoluto
 
 # keypoints face
 relative_keypoints_dict = { 0 : "Ojo derecho", 1 : "Ojo izquierdo", 2 : "Nariz", 3 : "Boca",
@@ -112,22 +113,6 @@ def _print_detail(detected):
     else:
         print("No se detectaron caras.")
 
-# mediapipe no devuelve coordenadas absolutas (en píxeles)
-# sino coordenadas relativas, es decir, normalizadas en el rango [0.0, 1.0]
-# por eso hay que multiplicarlas por el h, w de las dimensiones de la imagen (shape).
-# Por que usa coordenadas relativas?
-#   Independencia de resolución: Funciona igual en imágenes de 100×100 o 1000×1000.
-#   Facilita escalado: Podés reescalar la imagen sin romper las posiciones de los puntos clave.
-#   Interoperabilidad con modelos: Muchos modelos usan esta convención en visión por computadora.
-def _process_bbox(_bbox,
-                  img_shape: tuple[int, int, int]) -> tuple[int, int, int, int]:
-    #: mediapipe.framework.formats.location_data_pb2.RelativeBoundingBox,
-    H, W, _ = img_shape
-    x = int(_bbox.xmin * W)
-    y = int(_bbox.ymin * H)
-    w = int(_bbox.width * W)
-    h = int(_bbox.height * H)
-    return x, y, w, h
 
 
 
@@ -167,7 +152,7 @@ def main():
                     location_data = detection.location_data
                     bbox = location_data.relative_bounding_box
 
-                    x, y, w, h = _process_bbox(bbox, img.shape)
+                    x, y, w, h = bbox_relativo_a_absoluto(bbox, img.shape)
                     if ADD_RECTANGLE_DETECCION:
                         img = cv2.rectangle(img, (x, y), (x+w, y+h), (0, 255, 0), 10)
 
@@ -255,7 +240,7 @@ def main():
                     if out.detections:
                         for detection in out.detections:
                             bbox = detection.location_data.relative_bounding_box
-                            x, y, w, h = _process_bbox(bbox, frame.shape)
+                            x, y, w, h = bbox_relativo_a_absoluto(bbox, frame.shape)
 
                             if ADD_RECTANGLE_DETECCION:
                                 try:

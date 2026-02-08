@@ -14,7 +14,8 @@ from .camera_utils import (
 
 from .image_utils import (
     ajustar_frame_manteniendo_aspect_ratio,
-    rotar_frame
+    rotar_frame,
+    bbox_relativo_a_absoluto
 )
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     'obtener_info_camara',
     'mostrar_info_camaras',
     'ajustar_frame_manteniendo_aspect_ratio',
-    'rotar_frame'
+    'rotar_frame',
+    'bbox_relativo_a_absoluto'
 ]

@@ -22,7 +22,7 @@ Aprender a implementar sistemas de visión por computadora en el hardware dispon
 
 ## Estructura del Curso
 
-El curso está dividido en **10 fases** progresivas:
+El curso está dividido en **11 fases** progresivas:
 
 1. **Fase 0**: Fundamentos (✅ Completado)
 2. **Fase 1**: Deep Learning y CNNs
@@ -33,7 +33,9 @@ El curso está dividido en **10 fases** progresivas:
 7. **Fase 6**: TensorFlow Lite
 8. **Fase 7**: Edge Impulse
 9. **Fase 8**: TensorFlow Lite Micro (ESP32-P4)
-10. **Fase 10**: Proyectos Integrados y Optimización Avanzada
+10. **Fase 9**: TensorFlow Completo en Linux Embebido
+11. **Fase 11**: OCR (Optical Character Recognition) en Embedded
+12. **Fase 10**: Proyectos Integrados y Optimización Avanzada
 
 ## Archivos
 

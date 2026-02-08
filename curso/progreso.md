@@ -59,6 +59,14 @@
 | **Fase 10** | Pipeline Completo | 🔲 TODO | |
 | **Fase 10** | Proyecto Final: Sistema Completo | 🔲 TODO | |
 | **Fase 10** | Mejores Prácticas | 🔲 TODO | |
+| **Fase 11** | Fundamentos de OCR | 🔲 TODO | |
+| **Fase 11** | Pipeline de OCR | 🔲 TODO | |
+| **Fase 11** | Técnicas Clásicas vs Deep Learning | 🔲 TODO | |
+| **Fase 11** | OCR en Embedded Systems | 🔲 TODO | |
+| **Fase 11** | Implementación en Raspberry Pi/UNIHIKER | 🔲 TODO | |
+| **Fase 11** | OCR en ESP32-P4 (Opcional) | 🔲 TODO | |
+| **Fase 11** | Proyecto: Sistema de Lectura de Displays | 🔲 TODO | |
+| **Fase 11** | Variaciones según Hardware | 🔲 TODO | |
 
 ---
 

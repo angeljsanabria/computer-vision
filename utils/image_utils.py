@@ -65,3 +65,65 @@ def rotar_frame(frame, grados):
     else:
         return frame
 
+
+def bbox_relativo_a_absoluto(bbox_relativo, img_shape: tuple[int, int, int]) -> tuple[int, int, int, int]:
+    """
+    Convierte un bounding box de coordenadas relativas [0.0, 1.0] a coordenadas absolutas (pixeles).
+    
+    Esta funcion es util para convertir resultados de modelos que usan coordenadas normalizadas,
+    como MediaPipe, YOLO, o cualquier modelo que devuelva coordenadas en el rango [0.0, 1.0].
+    
+    Por que los modelos usan coordenadas relativas?
+    - Independencia de resolucion: Funciona igual en imagenes de 100x100 o 1000x1000
+    - Facilita escalado: Puedes reescalar la imagen sin romper las posiciones
+    - Interoperabilidad: Convencion estandar en vision por computadora
+    
+    Args:
+        bbox_relativo: Bounding box en coordenadas relativas. Puede ser:
+            - Objeto MediaPipe RelativeBoundingBox (con atributos xmin, ymin, width, height)
+            - Dict con claves: xmin, ymin, width, height (todos en [0.0, 1.0])
+            - Tupla (xmin, ymin, width, height) con valores en [0.0, 1.0]
+        img_shape: Shape de la imagen como (alto, ancho, canales) o (alto, ancho)
+    
+    Returns:
+        Tupla (x, y, w, h) en coordenadas absolutas (pixeles):
+        - x, y: Esquina superior izquierda en pixeles
+        - w, h: Ancho y alto en pixeles
+    
+    Ejemplo:
+        # Con MediaPipe
+        bbox_mp = detection.location_data.relative_bounding_box
+        x, y, w, h = bbox_relativo_a_absoluto(bbox_mp, img.shape)
+        
+        # Con dict
+        bbox_dict = {'xmin': 0.2, 'ymin': 0.3, 'width': 0.4, 'height': 0.5}
+        x, y, w, h = bbox_relativo_a_absoluto(bbox_dict, img.shape)
+    """
+    H, W = img_shape[:2]  # Solo necesitamos alto y ancho
+    
+    # Manejar diferentes tipos de entrada
+    if hasattr(bbox_relativo, 'xmin'):
+        # Objeto MediaPipe RelativeBoundingBox
+        xmin = bbox_relativo.xmin
+        ymin = bbox_relativo.ymin
+        width = bbox_relativo.width
+        height = bbox_relativo.height
+    elif isinstance(bbox_relativo, dict):
+        # Dict con claves xmin, ymin, width, height
+        xmin = bbox_relativo['xmin']
+        ymin = bbox_relativo['ymin']
+        width = bbox_relativo['width']
+        height = bbox_relativo['height']
+    elif isinstance(bbox_relativo, (tuple, list)) and len(bbox_relativo) == 4:
+        # Tupla (xmin, ymin, width, height)
+        xmin, ymin, width, height = bbox_relativo
+    else:
+        raise ValueError(f"Formato de bbox_relativo no soportado: {type(bbox_relativo)}")
+    
+    # Convertir coordenadas relativas [0.0, 1.0] a pixeles absolutos
+    x = int(xmin * W)
+    y = int(ymin * H)
+    w = int(width * W)
+    h = int(height * H)
+    
+    return x, y, w, h
