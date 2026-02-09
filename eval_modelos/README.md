@@ -1,91 +1,92 @@
-# Object detection
+## Sistema de Evaluacion de Modelos y Pipelines
 
-Object detection para Computer Vision es una tarea que 
-localiza y clasifica uno o más objetos dentro de una 
-imagen o video.
+Este documento define **como vamos a evaluar modelos y pipelines de vision por computadora**
+en el proyecto, de forma reproducible y profesional.
 
-Hay varias tecnologias para esto
-- mediapipe (manos y caras)
-- OpenCv
-- Yolov8
-- Detectron2
-- AWS Recoknition (servicio cloud)
-- etc
+La idea es separar claramente:
+- **Calidad del modelo/pipeline** (TP, FP, FN, Precision, Recall, F1, IoU, mAP)
+- **Performance** (FPS, latencia, uso de CPU/RAM) en cada hardware
 
-En principio funciona con un
-- Input: image
-- Output: lista de obj detectados (Cuantos hay)
-  - Bounding box (location)
-  - Confidence score (0 a 1)
-  - Obj Category (class name)
+Primero construiremos una **version v1 a mano** para entender bien las metricas.  
+Luego podremos migrar a herramientas usadas por profesionales (COCO, pycocotools, etc.).
 
-### Comparación con Clasificación y Segmentación
-**Clasificación de Imágenes**:
-La tarea consiste en decir qué hay en una imagen entera, sin indicar en qué lugar.
+---
 
-- Entrada: imagen completa
-- Salida: una etiqueta
+## 1. Objetivos del Sistema de Evaluacion
 
-**Segmentación de Imágenes**
+1. **Comparar modelos** (teacher vs students) con la **misma entrada**.
+2. **Comparar hardware** (PC, Raspberry Pi, UNIHIKER, ESP32-P4) con el mismo modelo.
+3. Separar:
+   - Calidad: que tan bien ve el modelo
+   - Performance: que tan rapido y barato corre
+4. Poder repetir las pruebas en el futuro con las mismas reglas.
 
-a. Segmentación Semántica
-Asigna una clase a cada pixel.
+---
 
-No diferencia instancias individuales del mismo objeto.
+## 2. Componentes Principales (v1)
 
-b. Segmentación por Instancia
+En la version inicial vamos a trabajar con **tres scripts principales**:
 
-Como la semántica, pero también distingue entre objetos individuales.
+1. **Script Teacher** (`gen_teacher_gt_v1.py`)
+   - Corre **solo en PC** (modelo pesado / mas preciso).
+   - Recorre un video (o imagenes) y genera una **matriz por frame** con las detecciones del modelo teacher.
+   - El resultado se usa como **pseudo-ground-truth** para comparar otros modelos.
 
-Ejemplo: en una imagen con 3 personas, segmentación semántica etiqueta todos los píxeles como "persona", mientras que la segmentación por instancia los separa como "persona 1", "persona 2", etc.
+2. **Script Student Runner** (`run_student_v1.py`)
+   - Corre en PC, Raspberry Pi, UNIHIKER (y conceptualmente ESP32-P4).
+   - Usa la misma fuente (video/imagenes) y **solo evalua los frames definidos por el teacher**.
+   - Genera otra matriz por frame con las detecciones del student.
 
-### Metricas comunes
-- Loss function
-  - usada en el proceso de entrenamiento
-  - Lower is better - Un valor menos de loss function es mejor!
-- Evaluacion
-  - IuU Intersection over union
-    - IoU = (area of overlap)/(area of union)   - Va de 0 a 1.
-    - Si el IoU > 0.5 o 0.75, se considera una detección correcta (según el umbral).
-    - Dos bounding boxes, Indica el solapamiento entre la caja predicha y la caja real.
-    - Mide la precision de deteccion
-    - Higher is better - Mas cercano a 1 es mejor.
-  - mAP mean avera precision
-    - precision measure: cuan bien podemos interpretar el objeto encontrado?
-      - qué porcentaje de tus detecciones son correctas.
-    - recall measures: cuan efectivamente podemos encontrar objetos
-      - qué porcentaje de objetos verdaderos detectaste.
-    - higher is better
-- MIN > 
-- Object detection with Python FULL COURSE | Computer vision
-https://www.youtube.com/watch?v=UL2cfTTqdNo&list=PLb49csYFtO2F13yGo4kNr3o3aJfGeFevK&ab_channel=Computervisionengineer
-- 
+3. **Script de Metricas de Calidad** (`metrics_quality_v1.py`)
+   - Corre en PC (analisis offline).
+   - Lee la matriz del teacher y la del student.
+   - Hace **matching por IoU** entre bounding boxes de teacher y student.
+   - Calcula:
+     - TP, FP, FN
+     - Precision, Recall, F1
+     - IoU medio
+   - Opcional mas adelante: mAP.
 
+En una **v2** agregaremos un cuarto componente separado:
 
-json
+4. **Script de Performance** (`metrics_performance_v1.py`)
+   - Mide FPS, latencia, uso de CPU/RAM.
+   - No mira calidad de deteccion, solo coste de ejecucion.
+   - Se puede correr en cada hardware (PC, Raspberry, UNIHIKER, etc.).
+
+---
+
+## 3. Formato de la Matriz por Frame (Teacher y Student)
+
+Tanto el teacher como el student van a producir archivos JSON con una **lista de frames evaluados**.
+
+Ejemplo de estructura (simplificada):
+
+```json
 [
-{
-"frame": 120,
-"timestamp": 4.0,
-"detecciones": [
-{
-"bbox": [100, 50, 80, 80],
-"class": "face",
-"confidence": 0.97
-},
-{
-"bbox": [300, 100, 90, 90],
-"class": "face",
-"confidence": 0.88
-}
+  {
+    "frame": 120,
+    "timestamp": 4.0,
+    "detecciones": [
+      {
+        "bbox": [100, 50, 80, 80],
+        "class": "face",
+        "confidence": 0.97
+      },
+      {
+        "bbox": [300, 100, 90, 90],
+        "class": "face",
+        "confidence": 0.88
+      }
+    ]
+  },
+  {
+    "frame": 150,
+    "timestamp": 5.0,
+    "detecciones": []
+  }
 ]
-},
-{
-"frame": 150,
-"timestamp": 5.0,
-"detecciones": []
-}
-]
+```
 
 Donde:
 - **frame**: numero de frame en el video original.
@@ -233,4 +234,67 @@ Proximo paso sugerido:
   el modelo de MediaPipe que ya tienes (`7_ocv_scr_anonymize_v2py`) y generar
   el primer `teacher_faces_*.json` de prueba.
 
+## Sistema de Evaluacion de Modelos y Pipelines
+
+Este documento define **como vamos a evaluar modelos y pipelines de vision por computadora**
+en el proyecto, de forma reproducible y profesional.
+
+La idea es separar claramente:
+- **Calidad del modelo/pipeline** (TP, FP, FN, Precision, Recall, F1, IoU, mAP)
+- **Performance** (FPS, latencia, uso de CPU/RAM) en cada hardware
+
+Primero construiremos una **version v1 a mano** para entender bien las metricas.  
+Luego podremos migrar a herramientas usadas por profesionales (COCO, pycocotools, etc.).
+
+---
+
+## 1. Objetivos del Sistema de Evaluacion
+
+1. **Comparar modelos** (teacher vs students) con la **misma entrada**.
+2. **Comparar hardware** (PC, Raspberry Pi, UNIHIKER, ESP32-P4) con el mismo modelo.
+3. Separar:
+   - Calidad: que tan bien ve el modelo
+   - Performance: que tan rapido y barato corre
+4. Poder repetir las pruebas en el futuro con las mismas reglas.
+
+---
+
+## 2. Componentes Principales (v1)
+
+En la version inicial vamos a trabajar con **tres scripts principales**:
+
+1. **Script Teacher** (`gen_teacher_gt_v1.py`)
+   - Corre **solo en PC** (modelo pesado / mas preciso).
+   - Recorre un video (o imagenes) y genera una **matriz por frame** con las detecciones del modelo teacher.
+   - El resultado se usa como **pseudo-ground-truth** para comparar otros modelos.
+
+2. **Script Student Runner** (`run_student_v1.py`)
+   - Corre en PC, Raspberry Pi, UNIHIKER (y conceptualmente ESP32-P4).
+   - Usa la misma fuente (video/imagenes) y **solo evalua los frames definidos por el teacher**.
+   - Genera otra matriz por frame con las detecciones del student.
+
+3. **Script de Metricas de Calidad** (`metrics_quality_v1.py`)
+   - Corre en PC (analisis offline).
+   - Lee la matriz del teacher y la del student.
+   - Hace **matching por IoU** entre bounding boxes de teacher y student.
+   - Calcula:
+     - TP, FP, FN
+     - Precision, Recall, F1
+     - IoU medio
+   - Opcional mas adelante: mAP.
+
+En una **v2** agregaremos un cuarto componente separado:
+
+4. **Script de Performance** (`metrics_performance_v1.py`)
+   - Mide FPS, latencia, uso de CPU/RAM.
+   - No mira calidad de deteccion, solo coste de ejecucion.
+   - Se puede correr en cada hardware (PC, Raspberry, UNIHIKER, etc.).
+
+---
+
+## 3. Formato de la Matriz por Frame (Teacher y Student)
+
+Tanto el teacher como el student van a producir archivos JSON con una **lista de frames evaluados**.
+
+Ejemplo de estructura (simplificada):
 
