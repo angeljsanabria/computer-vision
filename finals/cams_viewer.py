@@ -26,8 +26,17 @@ Parametros:
 - Modifica detectar_camaras_disponibles(5) para cambiar el numero maximo de
   camaras a detectar
 """
+import sys
+from pathlib import Path
+
+# Anadir raiz del proyecto al path para que "from utils..." funcione al ejecutar desde finals/
+_raiz = Path(__file__).resolve().parent.parent
+if str(_raiz) not in sys.path:
+    sys.path.insert(0, str(_raiz))
+
 import cv2
 import numpy as np
+from utils.image_utils import rotar_frame
 
 def detectar_camaras_disponibles(max_devices=5):
     """
@@ -205,6 +214,9 @@ def testear_camaras():
             print(f"Error: No se pudo leer el frame de la camara {camara_real_idx}")
             break
         
+        # Aplicar rotacion si es necesario
+        if rotacion_actual != 0:
+            frame = rotar_frame(frame, rotacion_actual)
         
         # Obtener tamano actual de la ventana
         try:
