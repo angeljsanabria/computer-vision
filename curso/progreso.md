@@ -14,7 +14,7 @@
 | **Fase 0** | Detección de Color | ✅ DONE | Completado previamente |
 | **Fase 0** | MediaPipe Básico | ✅ DONE | Completado previamente |
 | **Fase 0** | Conceptos Clasificación/Detección/Segmentación | ✅ DONE | Completado previamente |
-| **Fase 0** | Métricas de Evaluación | ✅ DONE | Completado previamente |
+| **Fase 0** | Métricas de Evaluación | 🔄 WIP | Retomando curso; tema en curso |
 | **Fase 1** | Fundamentos de Deep Learning | 🔲 TODO | |
 | **Fase 1** | Convolución 2D | 🔲 TODO | |
 | **Fase 1** | Redes Neuronales Convolucionales (CNNs) | 🔲 TODO | |
@@ -81,14 +81,16 @@
 ## Notas de Progreso
 
 ### Fase 0 - Fundamentos
-- ✅ Completado antes de iniciar este curso estructurado
-- Incluye todos los conceptos básicos de OpenCV y visión por computadora
+- ✅ Temas hasta "Conceptos Clasificación/Detección/Segmentación" completados previamente
+- 🔄 **Métricas de Evaluación**: en curso (retomando tras pausa de un mes)
+- Retomo: considerar desde Métricas como punto de partida activo
 
 ---
 
 ## Próximos Pasos Sugeridos
 
-1. **Iniciar Fase 1**: Fundamentos de Deep Learning y CNNs
+1. **Completar Fase 0**: Métricas de Evaluación (tema actual)
+2. **Luego Fase 1**: Fundamentos de Deep Learning y CNNs
 2. **Enfoque**: Teoría primero, luego implementación práctica
 3. **Objetivo**: Entender CNNs antes de usar frameworks
 

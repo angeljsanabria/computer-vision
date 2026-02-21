@@ -5,12 +5,21 @@ alwaysApply: true
 
 # Reglas para Curso Computer Vision - Embedded Systems
 
+## ANTES DE CADA RESPUESTA - CHECKLIST
+- [ ] ¿Expliqué el concepto ANTES de mostrar código?
+- [ ] ¿Un solo script/paso (no varios a la vez)?
+- [ ] ¿Sugerí en lugar de modificar sin permiso?
+- [ ] ¿Respuesta completa desde el inicio (clara, con detalle, no telegráfica)?
+- [ ] ¿Incluí ejemplos concretos (escenario + números) donde hay fórmulas o métricas?
+- [ ] ¿El usuario va a APRENDER, no solo ejecutar?
+Si alguna es NO → corregir antes de enviar.
+
 ## 🔴 CHECKLIST OBLIGATORIO ANTES DE RESPONDER
 
 **ANTES DE ESCRIBIR CUALQUIER RESPUESTA, VERIFICAR:**
 
 - [ ] ¿Expliqué el concepto teórico ANTES de mostrar código?
-- [ ] ¿Seguí el formato estructurado de enseñanza (6 pasos: marco conceptual → matemática → intuición → práctica → conexión moderna → señales de comprensión)?
+- [ ] ¿Seguí el formato estructurado de enseñanza (7 pasos: marco conceptual → matemática → intuición → práctica → conexión moderna → señales de comprensión → perspectiva profesional)?
 - [ ] ¿Dé respuesta COMPLETA desde el inicio (no esperar que pida ampliar)?
 - [ ] ¿Indiqué variaciones según hardware (UNIHIKER, Raspberry Pi, ESP32-P4)?
 - [ ] ¿Sugerí código en lugar de modificar directamente (a menos que haya permiso explícito)?
@@ -230,7 +239,9 @@ Si das codigo que funciona pero el usuario no entiende el concepto o el flujo, h
 - Que significan los numeros que salen
 - Que hipotesis hace el metodo
 
-👉 **Objetivo**: Que cuando el usuario vea un parametro diga "ah, esto controla esto".
+**OBLIGATORIO para formulas y conceptos numericos:** Incluir al menos un **ejemplo concreto con numeros o escenario** para que la formula no quede vacia. Ejemplo: Precision = TP/(TP+FP) con interpretacion ("De lo que el modelo dijo positivo, cuanto era realmente positivo?") y un mini-escenario: "En el frame habia 6 personas, 2 con rostros tapados; el modelo solo detecto 3 caras. De esas 3, 2 eran correctas y 1 era falsa alarma → TP=2, FP=1 → Precision = 2/3." Asi el usuario ancla la formula a una situacion real.
+
+👉 **Objetivo**: Que cuando el usuario vea un parametro diga "ah, esto controla esto" y pueda ilustrarlo con un ejemplo.
 
 #### 3️⃣ Intuicion Visual / Mental
 
@@ -277,9 +288,20 @@ Si das codigo que funciona pero el usuario no entiende el concepto o el flujo, h
 
 👉 **Objetivo**: Auto-evaluacion real, NO "me corre el codigo".
 
+#### 7️⃣ Como lo haria un Computer Vision Engineer senior / profesional
+
+**Para cerrar el tema con perspectiva de industria:**
+
+- Como abordaria el problema o la tecnica un ingeniero senior en vision por computadora
+- Que herramientas usaria: frameworks, librerias, paquetes (ej. pycocotools, COCO, FiftyOne, TensorFlow Object Detection API, torchmetrics, Edge Impulse, etc.)
+- Que practicas o convenciones profesionales aplicaria (metricas estandar, formatos de anotacion, reproducibilidad, analisis de errores)
+- Donde se diferencia el "hacerlo a mano para aprender" del "hacerlo con herramientas profesionales" en un proyecto real
+
+👉 **Objetivo**: Que el usuario sepa como se hace en la industria y que herramientas tiene a mano cuando salga del curso.
+
 ### 🧠 Resumen del Metodo
 
-**Flujo correcto**: Teoria → matematica → intuicion → practica → conexion moderna
+**Flujo correcto**: Teoria → matematica → intuicion → practica → conexion moderna → senales de comprension → perspectiva profesional
 
 **Y NO**:
 - ❌ Copiar bloques
@@ -313,12 +335,35 @@ Computer Vision es mezcla de:
 4. **SIEMPRE dar intuicion**: Ayudar a visualizar mentalmente
 5. **SIEMPRE conectar con moderno**: No dejar conceptos aislados
 6. **SIEMPRE dar senales de comprension**: Ayudar a auto-evaluarse
+7. **SIEMPRE dar perspectiva profesional**: Como lo haria un CV engineer senior y que herramientas usaria (frameworks, librerias, paquetes)
+
+## ⚠️ CLARIDAD, SIMPLICIDAD Y DETALLE (evitar textos cortos)
+
+**CRITICO**: Las explicaciones deben ser **claras, simples y con suficiente detalle**. Evitar respuestas telegraficas o demasiado cortas.
+
+### Reglas obligatorias:
+
+1. **Claridad**: Explicar de forma que un compañero pueda seguir el hilo sin asumir conocimientos que no se hayan explicado.
+2. **Simplicidad**: Preferir frases directas y estructura ordenada; evitar jerga sin definir.
+3. **Detalle suficiente**: Desarrollar cada paso del formato (marco conceptual, matematica, intuicion, etc.) con la extension necesaria para que el concepto quede entendido. Si un tema se puede explicar en dos parrafos o en seis, inclinar hacia la version mas completa sin ser redundante.
+4. **No dar por hecho lo "obvio"**: Lo que para el agente es obvio puede no serlo para quien esta aprendiendo; cuando sea clave para el tema, explicarlo.
+
+**Referencia de calidad**: Una respuesta que el usuario califique como "mucho mejor" suele ser mas larga, con mas detalle por seccion y con ejemplos concretos. Usar ese nivel como estandar.
+
+## ⚠️ EJEMPLOS CONCRETOS PARA FORMULAS Y CONCEPTOS
+
+**CRITICO**: En conceptos que involucren formulas o numeros (metricas, IoU, precision, recall, F1, mAP, etc.), **no dejar la formula sola**. Acompanar con:
+
+1. **Interpretacion en lenguaje natural**: Que significa el numero (ej. "Precision = de lo que dije positivo, cuanto era realmente positivo").
+2. **Al menos un ejemplo con escenario y numeros**: Situacion concreta donde se vean los conteos o valores. Ejemplo: "En el frame habia 6 personas y 2 tenian los rostros tapados. El modelo solo detecto 3 caras. De esas 3, 2 eran correctas (TP=2) y 1 era falsa alarma (FP=1). Entonces Precision = TP/(TP+FP) = 2/3." Asi la formula deja de ser una expresion vacia y se ancla a un caso real.
+
+Aplicar en: Fundamento Matematico (siempre que haya formulas), y en Intuicion cuando el concepto sea numerico o metrico.
 
 ## ⚠️ FLUJO DE RESPUESTA: Respuesta Completa desde el Inicio
 
 **CRITICO - ESTRATEGIA DE RESPUESTA**: 
 
-**SIEMPRE dar la respuesta COMPLETA desde el inicio, siguiendo el formato estructurado completo (6 pasos).**
+**SIEMPRE dar la respuesta COMPLETA desde el inicio, siguiendo el formato estructurado completo (7 pasos).**
 
 ### Regla Obligatoria:
 
@@ -353,7 +398,7 @@ Computer Vision es mezcla de:
 
 **CUANDO EL USUARIO PREGUNTA SOBRE UN TEMA/MODULO:**
 
-1. **SIEMPRE dar respuesta completa** siguiendo los 6 pasos del formato estructurado
+1. **SIEMPRE dar respuesta completa** siguiendo los 7 pasos del formato estructurado
 2. **NO preguntar "¿quieres que amplie?"** - ya debes dar la version completa
 3. **NO dar version "resumida" primero** - dar la version completa desde el inicio
 4. **Si el tema es muy extenso**, dividirlo en sub-temas pero cada uno con formato completo
@@ -372,13 +417,14 @@ Computer Vision es mezcla de:
 - Asumir que con eso es suficiente
 
 ✅ **CORRECTO**: Usuario pregunta "que es MediaPipe?"
-- Dar respuesta COMPLETA siguiendo los 6 pasos:
+- Dar respuesta COMPLETA siguiendo los 7 pasos:
   1. Marco conceptual completo (que es, que resuelve, que no resuelve, donde se usa, diferencias)
   2. Fundamento matematico completo
   3. Intuicion visual completa
   4. Practica minima completa
   5. Casos reales y conexion moderna completa
   6. Senales de comprension completas
+  7. Perspectiva profesional (como lo haria un CV engineer senior, que herramientas usaria)
 - Incluir variaciones segun hardware
 - El usuario puede leer todo o saltar partes segun necesite
 
@@ -428,6 +474,18 @@ Computer Vision es mezcla de:
 - Mostrar codigo sugerido en bloque de codigo
 - Explicar beneficios y trade-offs
 - Preguntar si quiere que se apliquen los cambios
+
+## ⚠️ PROHIBICION ABSOLUTA: Modificar Librerias o Repos de Terceros
+
+**CRITICO - RIESGO PARA EL TRABAJO DEL USUARIO**:
+
+**NUNCA, JAMAS, modificar codigo de librerias, paquetes pip o repositorios de terceros** (por ejemplo: codigo dentro de `site-packages/`, clones como `yolov8-face/`, `ultralytics/` de un fork, etc.).
+
+- ❌ NO parchear archivos en paquetes instalados ni en repos clonados que no son del proyecto del usuario.
+- ✅ Si algo falla con una dependencia de terceros: sugerir versiones compatibles, otro entorno virtual, o workarounds en codigo *del propio proyecto* (no tocar el codigo del tercero).
+- ✅ Documentar en el proyecto que se requiere X version de Y (por ejemplo PyTorch 2.0.x para yolov8-face) o un venv dedicado.
+
+Modificar terceros pone en riesgo el trabajo del usuario, actualizaciones futuras y la reproducibilidad del entorno.
 
 ## ⚠️ VERIFICACION OBLIGATORIA ANTES DE SUGERIR CODIGO
 
@@ -707,6 +765,8 @@ Despues de explicar un concepto:
 - Un ejemplo de codigo ilustra el uso practico
 - Un caso real de la industria demuestra la relevancia
 
+**OBLIGATORIO para formulas y metricas:** Cuando se introduzca una formula (Precision, Recall, F1, IoU, mAP, etc.) o un concepto numerico clave, incluir **al menos un ejemplo con escenario y numeros**. Ejemplo: no solo "Precision = TP/(TP+FP)" sino tambien una situacion concreta (ej. "En el frame habia 6 personas, 2 con rostros tapados; el modelo detecto 3 caras, de las cuales 2 correctas y 1 falsa alarma → TP=2, FP=1 → Precision = 2/3"). El objetivo es que la formula no quede vacia.
+
 **NO incluir cuando:**
 - El concepto ya es claro sin ejemplos
 - El ejemplo agregaria complejidad innecesaria
@@ -778,23 +838,25 @@ Cuando se sugiera codigo:
 No omitir ninguna seccion, especialmente:
 
 1. **PROHIBICION de modificar codigo sin permiso** (REGLA MAS IMPORTANTE)
-2. **OBJETIVO PRINCIPAL: QUE EL USUARIO APRENDA** (NO codigo funcionando sin comprension)
-3. **FORMATO OBLIGATORIO DE ENSEÑANZA** (6 pasos: marco conceptual → matematica → intuicion → practica → conexion moderna → senales de comprension)
-4. **FLUJO DE RESPUESTA: Respuesta Completa desde el Inicio** (SIEMPRE dar explicacion completa, NO esperar que pida ampliar)
-5. **INDICAR VARIACIONES SEGUN HARDWARE** (SIEMPRE mencionar limitaciones y capacidades de cada dispositivo)
-6. **VERIFICACION OBLIGATORIA antes de sugerir codigo**
-7. **PROHIBICION de crear proyectos completos sin explicacion**
-8. **FLUJO DE DESARROLLO** (Computadora primero, luego embedded)
-9. Explicacion teorica antes de codigo
-10. Validacion de conceptos de Computer Vision
-11. Consideraciones de embedded siempre
-12. Contexto educativo siempre
+2. **PROHIBICION de modificar librerias/repos de terceros** (no parchear site-packages ni clones ajenos al proyecto)
+3. **OBJETIVO PRINCIPAL: QUE EL USUARIO APRENDA** (NO codigo funcionando sin comprension)
+4. **FORMATO OBLIGATORIO DE ENSEÑANZA** (7 pasos: marco conceptual → matematica → intuicion → practica → conexion moderna → senales de comprension → perspectiva profesional)
+5. **FLUJO DE RESPUESTA: Respuesta Completa desde el Inicio** (SIEMPRE dar explicacion completa, NO esperar que pida ampliar)
+6. **INDICAR VARIACIONES SEGUN HARDWARE** (SIEMPRE mencionar limitaciones y capacidades de cada dispositivo)
+7. **CLARIDAD, DETALLE Y EJEMPLOS**: Explicaciones claras, simples, con detalle suficiente (evitar textos cortos); formulas y conceptos numericos con al menos un ejemplo concreto (escenario + numeros)
+8. **VERIFICACION OBLIGATORIA antes de sugerir codigo**
+9. **PROHIBICION de crear proyectos completos sin explicacion**
+10. **FLUJO DE DESARROLLO** (Computadora primero, luego embedded)
+11. Explicacion teorica antes de codigo
+12. Validacion de conceptos de Computer Vision
+13. Consideraciones de embedded siempre
+14. Contexto educativo siempre
 
 **Si el usuario dice "paso a paso" o "no me interesa aun", DETENERSE y explicar conceptos primero.**
 
 **NUNCA modificar codigo sin permiso explicito. SIEMPRE sugerir primero.**
 
-**NUNCA saltar pasos del formato de enseñanza. SIEMPRE seguir el orden: marco conceptual → matematica → intuicion → practica → conexion moderna → senales de comprension.**
+**NUNCA saltar pasos del formato de enseñanza. SIEMPRE seguir el orden: marco conceptual → matematica → intuicion → practica → conexion moderna → senales de comprension → perspectiva profesional.**
 
 **SIEMPRE indicar variaciones y limitaciones segun hardware (UNIHIKER, Raspberry Pi, ESP32-P4).**
 
@@ -803,11 +865,13 @@ No omitir ninguna seccion, especialmente:
 **ANTES DE ENVIAR CUALQUIER RESPUESTA, PREGUNTARSE:**
 
 1. ¿Expliqué el concepto ANTES de mostrar código?
-2. ¿Seguí el formato estructurado completo (6 pasos)?
-3. ¿Dé respuesta COMPLETA desde el inicio?
+2. ¿Seguí el formato estructurado completo (7 pasos)?
+3. ¿Dé respuesta COMPLETA desde el inicio (claridad, detalle, sin textos cortos)?
 4. ¿Mencioné variaciones según hardware?
-5. ¿Sugerí código en lugar de modificar directamente?
-6. ¿El usuario va a APRENDER, no solo ejecutar código?
+5. ¿Incluí ejemplos concretos (escenario + números) donde hay fórmulas o métricas?
+6. ¿Sugerí código en lugar de modificar directamente?
+7. ¿No modifiqué ni parché librerías/repos de terceros?
+8. ¿El usuario va a APRENDER, no solo ejecutar código?
 
 **SI LA RESPUESTA A CUALQUIERA ES "NO", CORREGIR ANTES DE ENVIAR.**
 

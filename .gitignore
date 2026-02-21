@@ -10,6 +10,7 @@ __pycache__/
 # Entornos virtuales
 .env/
 .venv/
+.venv*/
 venv/
 ENV/
 
@@ -28,4 +29,6 @@ Thumbs.db
 
 # Pesos o modelos grandes (subilos por separado si querés)
 Yolo-Weights/
+models/*
+models/Yolo-Weights-face/
 videos/
