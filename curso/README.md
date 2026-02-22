@@ -42,6 +42,7 @@ El curso está dividido en **11 fases** progresivas:
 - **`estructura.md`**: Estructura completa del curso con todos los temas detallados
 - **`progreso.md`**: Tabla de seguimiento con estados (TODO/WIP/DONE)
 - **`README.md`**: Este archivo
+- **`10_img_en_C/`**: Clase "Primera aproximacion a imagen en C"; ejemplos se codearan ahi. Ver `10_img_en_C/CLASE_primera_aproximacion_imagen_C.md` y `10_img_en_C/README.md`.
 
 ## Cómo Usar Este Curso
 
@@ -82,9 +83,13 @@ El curso está dividido en **11 fases** progresivas:
 - ✅ Conocimientos básicos de C (para ESP32)
 - ✅ Familiaridad con sistemas embebidos (recomendado)
 
-## Próximo Paso
+## Clase en C (opcional): primera aproximacion a imagen
 
-👉 **Iniciar Fase 1**: Fundamentos de Deep Learning y CNNs
+En **`10_img_en_C/`** esta la clase "Primera aproximacion a imagen en C". La leccion se sigue en el chat (te guio); los ejemplos se codearan en esa carpeta paso a paso. Ver `10_img_en_C/CLASE_primera_aproximacion_imagen_C.md` y `10_img_en_C/README.md`.
+
+## Proximo Paso
+
+**Iniciar Fase 1**: Fundamentos de Deep Learning y CNNs
 
 ---
 

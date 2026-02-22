@@ -32,3 +32,6 @@ Yolo-Weights/
 models/*
 models/Yolo-Weights-face/
 videos/
+
+# Curso: cabecera externa descargable (ver 10_img_en_C/README.md)
+10_img_en_C/stb_image.h

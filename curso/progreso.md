@@ -14,10 +14,10 @@
 | **Fase 0** | Detección de Color | ✅ DONE | Completado previamente |
 | **Fase 0** | MediaPipe Básico | ✅ DONE | Completado previamente |
 | **Fase 0** | Conceptos Clasificación/Detección/Segmentación | ✅ DONE | Completado previamente |
-| **Fase 0** | Métricas de Evaluación | 🔄 WIP | Retomando curso; tema en curso |
+| **Fase 0** | Métricas de Evaluación | 🔲 TODO | Pendiente; se retomará cuando haya detección en hardware limitado para tener qué evaluar |
 | **Fase 1** | Fundamentos de Deep Learning | 🔲 TODO | |
 | **Fase 1** | Convolución 2D | 🔲 TODO | |
-| **Fase 1** | Redes Neuronales Convolucionales (CNNs) | 🔲 TODO | |
+| **Fase 1** | Redes Neuronales Convollucionales (CNNs) | 🔲 TODO | |
 | **Fase 1** | Arquitecturas Clásicas | 🔲 TODO | |
 | **Fase 1** | Transfer Learning | 🔲 TODO | |
 | **Fase 2** | Object Detection Clásico | 🔲 TODO | |
@@ -82,17 +82,21 @@
 
 ### Fase 0 - Fundamentos
 - ✅ Temas hasta "Conceptos Clasificación/Detección/Segmentación" completados previamente
-- 🔄 **Métricas de Evaluación**: en curso (retomando tras pausa de un mes)
-- Retomo: considerar desde Métricas como punto de partida activo
+- 🔲 **Métricas de Evaluación**: pendiente a propósito; tiene más sentido verla cuando ya exista al menos un pipeline de detección en hardware limitado (caras, vehículos o patentes) para poder comparar y medir con sentido
+
+### Objetivos de detección (usuario)
+- Detección de **caras**
+- Detección de **vehículos**
+- Detección de **patentes/matrículas** (y luego OCR si aplica)
 
 ---
 
 ## Próximos Pasos Sugeridos
 
-1. **Completar Fase 0**: Métricas de Evaluación (tema actual)
-2. **Luego Fase 1**: Fundamentos de Deep Learning y CNNs
-2. **Enfoque**: Teoría primero, luego implementación práctica
-3. **Objetivo**: Entender CNNs antes de usar frameworks
+1. **Fase 1**: Fundamentos de Deep Learning y CNNs (base para detección)
+2. **Fase 2**: Object Detection y YOLO (aplicable a caras, vehículos, patentes)
+3. **Métricas**: retomarlas cuando tengas al menos un detector corriendo en Raspberry Pi / UniHiker para evaluarlo
+4. **Enfoque**: Teoría primero, luego implementación práctica; objetivo: entender antes de usar frameworks
 
 ---
 
@@ -102,6 +106,6 @@
 
 ---
 
-## Recursos Encontrados Útiles
+## Recursos Encontrados Útiless
 
-(Se irán agregando conforme se avance)
+- **`10_img_en_C/`**: Clase "Primera aproximacion a imagen en C"; ejemplos se codearan ahi. Ver `10_img_en_C/CLASE_primera_aproximacion_imagen_C.md` y `10_img_en_C/README.md`.
