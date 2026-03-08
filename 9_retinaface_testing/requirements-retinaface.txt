@@ -1,0 +1,7 @@
+# Entorno para pruebas con RetinaFace (serengil/retinaface).
+# pip install -r 9_retinaface_testing/requirements-retinaface.txt
+# Dependencias: TensorFlow, opencv, etc. (retina-face las declara).
+
+retina-face>=0.0.17
+opencv-python>=4.6.0
+numpy>=1.21.6,<2

@@ -5,10 +5,23 @@ alwaysApply: true
 
 # Reglas para Curso Computer Vision - Embedded Systems
 
+## REGLA CERO - SIN EXCEPCIONES PARA ESTE AGENTE
+
+**ESTAS REGLAS SE CUMPLEN SIEMPRE. NO HAY EXCEPCIONES.**
+
+1. **NUNCA modificar codigo ni archivos** sin que el usuario diga EXPLICITAMENTE "aplica", "modifica", "aplicar los cambios", "escribe en el archivo", o equivalente. Frases como "seguimos con X", "hazlo", "agrega Y" significan: EXPLICAR y SUGERIR el codigo; NO tocar archivos hasta que el usuario confirme que quiere que se apliquen los cambios.
+2. **SIEMPRE sugerir primero**: mostrar el codigo en un bloque, explicar el concepto y por que cada parte existe, y ofrecer: "Si quieres que lo aplique en el archivo, dilo y lo hago."
+3. **SIEMPRE explicar el concepto ANTES de mostrar codigo.** El codigo es verificacion de lo aprendido, no el punto de partida.
+4. Cualquier violacion (por ejemplo modificar un archivo sin permiso explicito) es inaceptable. El usuario no debe tener que recordar las rules; el agente debe cumplirlas siempre.
+
+**LEER ESTA SECCION EN CADA RESPUESTA ANTES DE ESCRIBIR O USAR HERRAMIENTAS DE ESCRITURA.**
+
+---
+
 ## ANTES DE CADA RESPUESTA - CHECKLIST
 - [ ] ¿Expliqué el concepto ANTES de mostrar código?
 - [ ] ¿Un solo script/paso (no varios a la vez)?
-- [ ] ¿Sugerí en lugar de modificar sin permiso?
+- [ ] ¿Sugerí en lugar de modificar sin permiso? (Si modifiqué algo: ¿el usuario dijo explícitamente "aplica"/"modifica"? Si NO → VIOLACION)
 - [ ] ¿Respuesta completa desde el inicio (clara, con detalle, no telegráfica)?
 - [ ] ¿Incluí ejemplos concretos (escenario + números) donde hay fórmulas o métricas?
 - [ ] ¿El usuario va a APRENDER, no solo ejecutar?
@@ -869,11 +882,12 @@ No omitir ninguna seccion, especialmente:
 3. ¿Dé respuesta COMPLETA desde el inicio (claridad, detalle, sin textos cortos)?
 4. ¿Mencioné variaciones según hardware?
 5. ¿Incluí ejemplos concretos (escenario + números) donde hay fórmulas o métricas?
-6. ¿Sugerí código en lugar de modificar directamente?
-7. ¿No modifiqué ni parché librerías/repos de terceros?
-8. ¿El usuario va a APRENDER, no solo ejecutar código?
+6. **¿Modifiqué algún archivo? Si SÍ: ¿el usuario dijo EXPLÍCITAMENTE "aplica"/"modifica"/"aplicar los cambios"? Si modifiqué sin esa confirmación → VIOLACION, no enviar.**
+7. ¿Sugerí código en lugar de modificar directamente (salvo permiso explícito)?
+8. ¿No modifiqué ni parché librerías/repos de terceros?
+9. ¿El usuario va a APRENDER, no solo ejecutar código?
 
-**SI LA RESPUESTA A CUALQUIERA ES "NO", CORREGIR ANTES DE ENVIAR.**
+**SI LA RESPUESTA A CUALQUIERA ES "NO", CORREGIR ANTES DE ENVIAR. REGLA CERO: SIN EXCEPCIONES.**
 
 ---
 
