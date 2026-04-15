@@ -1,5 +1,8 @@
 """
-YOLOv8n (.rknn) en placa Rockchip: camara 0, solo clase person (COCO id 0).
+YOLOv8n (.rknn) en placa Rockchip: camara USB (indice configurable), solo person.
+
+Misma apertura que 2_ocv_cam.py / utils.camera_opencv: V4L2 en Linux y calentamiento.
+En RK3568 la webcam suele ser indice 10 u 11.
 
 Uso en RK3568:
   python3 export_models/detect_yolov8_rknn_lite_cam_person.py
@@ -8,10 +11,17 @@ Salir: tecla q o ESC.
 """
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
+
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from utils.camera_opencv import abrir_camara, preparar_camara
 
 try:
     from rknnlite.api import RKNNLite
@@ -21,10 +31,9 @@ except ImportError as e:
         "rknn-toolkit-lite/rknn_toolkit_lite2-2.3.2-cp310-....whl"
     ) from e
 
-ROOT = Path(__file__).resolve().parent.parent
-
 RKNN_PATH = ROOT / "rknn-toolkit-lite" / "yolov8n.rknn"
-CAMERA_INDEX = 0
+# RK3568 + USB UVC: suele ser 10 u 11 (no 0)
+CAMERA_INDEX = 10
 
 INPUT_SIZE = 640
 OBJ_THRESH = 0.25
@@ -104,9 +113,17 @@ def main() -> None:
     if not RKNN_PATH.is_file():
         raise SystemExit(f"No existe el modelo: {RKNN_PATH}")
 
-    cap = cv2.VideoCapture(CAMERA_INDEX)
-    if not cap.isOpened():
-        raise SystemExit(f"No se pudo abrir la camara index {CAMERA_INDEX}")
+    cap = abrir_camara(CAMERA_INDEX)
+    if cap is None:
+        raise SystemExit(
+            f"No se pudo abrir la camara index {CAMERA_INDEX} "
+            "(prueba otro indice; en RK3568 USB suele ser 10 u 11)."
+        )
+    if not preparar_camara(cap):
+        cap.release()
+        raise SystemExit(
+            "La camara abrio pero no entrego frames; prueba otro CAMERA_INDEX."
+        )
 
     rknn = RKNNLite()
     print("--> load_rknn", RKNN_PATH)

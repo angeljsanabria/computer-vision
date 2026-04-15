@@ -50,17 +50,20 @@ Parametros:
 # ------------------------------------------------------------------------------
 
 import sys
+from pathlib import Path
 
 import cv2
 import os
 
-# "archivo" = lily.mp4 en videos/; "camara" = captura en vivo (USB suele ser indice 10+ en RK3568)
+# "archivo" = lily.mp4 junto al script en videos/; "camara" = captura en vivo (USB suele ser indice 10+ en RK3568)
 MODO = "archivo"
 CAMARA_INDICE = 10
 CALENTAMIENTO_LECTURAS = 25
 
+# Ruta al repo: misma carpeta que este .py, luego videos/nombre.mp4 (no depende del cwd)
+_BASE_DIR = Path(__file__).resolve().parent
 VID = "lily.mp4"
-VID_PATH = os.path.join(".", "videos", VID)
+VID_PATH = str(_BASE_DIR / "videos" / VID)
 
 
 def abrir_camara(indice: int) -> cv2.VideoCapture | None:
@@ -100,9 +103,18 @@ if MODO == "camara":
     print(f"Ancho: {int(video.get(cv2.CAP_PROP_FRAME_WIDTH))}")
     print(f"Alto: {int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
 else:
+    if not os.path.isfile(VID_PATH):
+        print("No existe el archivo de video:")
+        print(f"  {VID_PATH}")
+        print("Crea la carpeta videos/ al lado de 3_ocv_vid.py y coloca ahi el MP4,")
+        print("o cambia VID al nombre de tu archivo.")
+        sys.exit(1)
+
     video = cv2.VideoCapture(VID_PATH)
     if not video.isOpened():
-        print("No se pudo abrir el video")
+        print("OpenCV no pudo abrir el archivo (existe pero fallo el backend/codec):")
+        print(f"  {VID_PATH}")
+        print("Prueba otro MP4 (H.264 en contenedor MP4) o opencv compilado con ffmpeg.")
         sys.exit(1)
 
     total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
