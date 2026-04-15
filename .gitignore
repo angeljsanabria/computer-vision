@@ -29,3 +29,6 @@ Thumbs.db
 # Pesos o modelos grandes (subilos por separado si querés)
 Yolo-Weights/
 videos/
+RK3568/
+RK3568-toolkit2/
+
