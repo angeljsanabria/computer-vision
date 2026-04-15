@@ -12,6 +12,8 @@ Salir: tecla q o ESC.
 from __future__ import annotations
 
 import sys
+import threading
+import time
 from pathlib import Path
 
 import cv2
@@ -38,6 +40,14 @@ CAMERA_INDEX = 10
 INPUT_SIZE = 640
 OBJ_THRESH = 0.5
 NMS_THRESH = 0.45
+
+# Hilo de captura: la camara se lee al ritmo del driver; la inferencia RKNN no bloquea read().
+# Asi se reduce la latencia y el efecto "video a camara lenta" por buffer lleno.
+# Nota: si la NPU es mas lenta que la FPS de la camara, igual solo se etiquetan
+# algunos frames por segundo; la ventana se refresca a esa cadencia.
+USAR_HILO_CAPTURA = True
+# En muchos backends V4L2 reduce cola interna (1 frame); si no soporta, OpenCV lo ignora.
+TAMANO_BUFFER_CAMARA = 1
 
 CLASSES = (
     "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
@@ -133,6 +143,53 @@ def scale_boxes_to_frame(xyxy: np.ndarray, frame_w: int, frame_h: int) -> np.nda
     return out
 
 
+def configurar_buffer_camara(cap: cv2.VideoCapture) -> None:
+    try:
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, TAMANO_BUFFER_CAMARA)
+    except Exception:
+        pass
+
+
+class UltimoFrameCamara:
+    """
+    Un solo hilo llama a cap.read(); el bucle principal copia el ultimo frame.
+    Evita que mientras la NPU infiere se acumulen frames viejos en el buffer.
+    """
+
+    def __init__(self, cap: cv2.VideoCapture) -> None:
+        self._cap = cap
+        self._lock = threading.Lock()
+        self._frame: np.ndarray | None = None
+        self._running = False
+        self._thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def _loop(self) -> None:
+        while self._running:
+            ok, frame = self._cap.read()
+            if ok and frame is not None:
+                with self._lock:
+                    self._frame = frame
+            else:
+                time.sleep(0.001)
+
+    def read_copy(self) -> tuple[bool, np.ndarray | None]:
+        with self._lock:
+            if self._frame is None:
+                return False, None
+            return True, self._frame.copy()
+
+    def stop(self) -> None:
+        self._running = False
+        if self._thread is not None:
+            self._thread.join(timeout=2.0)
+            self._thread = None
+
+
 def main() -> None:
     if not RKNN_PATH.is_file():
         raise SystemExit(f"No existe el modelo: {RKNN_PATH}")
@@ -149,6 +206,8 @@ def main() -> None:
             "La camara abrio pero no entrego frames; prueba otro CAMERA_INDEX."
         )
 
+    configurar_buffer_camara(cap)
+
     rknn = RKNNLite()
     print("--> load_rknn", RKNN_PATH)
     if rknn.load_rknn(str(RKNN_PATH)) != 0:
@@ -161,12 +220,27 @@ def main() -> None:
         cap.release()
         raise SystemExit("init_runtime failed")
 
+    grabber: UltimoFrameCamara | None = None
+    if USAR_HILO_CAPTURA:
+        grabber = UltimoFrameCamara(cap)
+        grabber.start()
+        print("Captura en hilo auxiliar activa (menos latencia por buffer).")
+
     print("Camara lista. q o ESC para salir.")
 
     try:
         while True:
-            ok, frame = cap.read()
+            if grabber is not None:
+                ok, frame = grabber.read_copy()
+            else:
+                ok, frame = cap.read()
             if not ok or frame is None:
+                if grabber is not None:
+                    time.sleep(0.001)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("q") or key == 27:
+                        break
+                    continue
                 break
 
             fh, fw = frame.shape[:2]
@@ -176,6 +250,10 @@ def main() -> None:
 
             outputs = rknn.inference(inputs=[inp])
             if not outputs:
+                cv2.imshow("yolov8 rknn coco", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q") or key == 27:
+                    break
                 continue
             pred = np.array(outputs[0])
 
@@ -209,6 +287,8 @@ def main() -> None:
             if key == ord("q") or key == 27:
                 break
     finally:
+        if grabber is not None:
+            grabber.stop()
         rknn.release()
         cap.release()
         cv2.destroyAllWindows()
