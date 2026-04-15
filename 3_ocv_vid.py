@@ -14,9 +14,10 @@ python 3_ocv_vid.py
 
 Parametros:
 ----------
-- Modifica la variable VID = 'lily.mp4' para cambiar el archivo de video
-- El video debe estar en la carpeta 'videos/'
-- Presiona 'q' para detener la reproduccion
+- MODO: "archivo" (por defecto) o "camara" para USB / V4L2 (en RK3568 el indice suele ser 10 u 11)
+- CAMARA_INDICE: solo si MODO == "camara"
+- VID / videos/: solo si MODO == "archivo"
+- Presiona 'q' para detener
 """
 # ==============================================================================
 # Módulo: OpenCV Básico
@@ -48,32 +49,73 @@ Parametros:
 
 # ------------------------------------------------------------------------------
 
+import sys
+
 import cv2
 import os
 
-# Read video
-VID = 'lily.mp4'
-VID_PATH = os.path.join('.', 'videos', VID) # '.' current dir
+# "archivo" = lily.mp4 en videos/; "camara" = captura en vivo (USB suele ser indice 10+ en RK3568)
+MODO = "archivo"
+CAMARA_INDICE = 10
+CALENTAMIENTO_LECTURAS = 25
 
-video = cv2.VideoCapture(VID_PATH)
-# Verificar apertura
-if not video.isOpened():
-    print("No se pudo abrir el video")
-    exit()
-
-# ver info
-total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
-fps = video.get(cv2.CAP_PROP_FPS)
-delay = int(1000 / fps) if fps > 0 else 40  # delay entre frames x seg o default fallback
-print(f"Tipo objeto: {type(video)}")
-print(f"Total frames: {int(video.get(cv2.CAP_PROP_FRAME_COUNT))}")
-print(f"FPS: {video.get(cv2.CAP_PROP_FPS)}")
-print(f"Ancho: {int(video.get(cv2.CAP_PROP_FRAME_WIDTH))}")
-print(f"Alto: {int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
-print(f"Formato (cuatrocc): {int(video.get(cv2.CAP_PROP_FOURCC))}")
+VID = "lily.mp4"
+VID_PATH = os.path.join(".", "videos", VID)
 
 
-video.set(cv2.CAP_PROP_POS_FRAMES, 200)  # Ir directo frame 200
+def abrir_camara(indice: int) -> cv2.VideoCapture | None:
+    if sys.platform.startswith("linux") and hasattr(cv2, "CAP_V4L2"):
+        cap = cv2.VideoCapture(indice, cv2.CAP_V4L2)
+        if cap.isOpened():
+            return cap
+        cap.release()
+    cap = cv2.VideoCapture(indice)
+    return cap if cap.isOpened() else None
+
+
+def preparar_camara(cap: cv2.VideoCapture) -> bool:
+    for _ in range(CALENTAMIENTO_LECTURAS):
+        ok, frame = cap.read()
+        if ok and frame is not None and frame.size > 0:
+            return True
+    return False
+
+
+if MODO == "camara":
+    video = abrir_camara(CAMARA_INDICE)
+    if video is None:
+        print(f"No se pudo abrir la camara indice {CAMARA_INDICE}")
+        sys.exit(1)
+    if not preparar_camara(video):
+        print("La camara abrio pero no entrego frames; prueba otro CAMARA_INDICE")
+        video.release()
+        sys.exit(1)
+    total_frames = 0
+    fps = video.get(cv2.CAP_PROP_FPS)
+    delay = int(1000 / fps) if fps and fps > 1 else 33
+    print(f"Modo: camara indice {CAMARA_INDICE}")
+    print(f"Tipo objeto: {type(video)}")
+    print("Total frames: N/A (captura en vivo)")
+    print(f"FPS reportado: {fps}")
+    print(f"Ancho: {int(video.get(cv2.CAP_PROP_FRAME_WIDTH))}")
+    print(f"Alto: {int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
+else:
+    video = cv2.VideoCapture(VID_PATH)
+    if not video.isOpened():
+        print("No se pudo abrir el video")
+        sys.exit(1)
+
+    total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = video.get(cv2.CAP_PROP_FPS)
+    delay = int(1000 / fps) if fps > 0 else 40
+    print(f"Tipo objeto: {type(video)}")
+    print(f"Total frames: {int(video.get(cv2.CAP_PROP_FRAME_COUNT))}")
+    print(f"FPS: {video.get(cv2.CAP_PROP_FPS)}")
+    print(f"Ancho: {int(video.get(cv2.CAP_PROP_FRAME_WIDTH))}")
+    print(f"Alto: {int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))}")
+    print(f"Formato (cuatrocc): {int(video.get(cv2.CAP_PROP_FOURCC))}")
+
+    video.set(cv2.CAP_PROP_POS_FRAMES, 200)
 
 # Print info de frame cada 100
 INFO_FRAME = False
