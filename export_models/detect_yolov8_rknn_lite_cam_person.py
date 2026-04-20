@@ -6,11 +6,13 @@ En RK3568 la webcam suele ser indice 10 u 11.
 
 Uso en RK3568:
   python3 export_models/detect_yolov8_rknn_lite_cam_person.py
+  python3 export_models/detect_yolov8_rknn_lite_cam_person.py --no-display
 
 Salir: tecla q o ESC.
 """
 from __future__ import annotations
 
+import argparse
 import sys
 import threading
 import time
@@ -38,8 +40,8 @@ RKNN_PATH = ROOT / "rknn-toolkit-lite" / "yolov8n.rknn"
 CAMERA_INDEX = 10
 
 INPUT_SIZE = 640
-OBJ_THRESH = 0.5
-NMS_THRESH = 0.45
+OBJ_THRESH = 0.65
+NMS_THRESH = 0.55
 
 # Hilo de captura: la camara se lee al ritmo del driver; la inferencia RKNN no bloquea read().
 # Asi se reduce la latencia y el efecto "video a camara lenta" por buffer lleno.
@@ -49,7 +51,7 @@ USAR_HILO_CAPTURA = True
 # En muchos backends V4L2 reduce cola interna (1 frame); si no soporta, OpenCV lo ignora.
 TAMANO_BUFFER_CAMARA = 1
 
-CLASSES = (
+CLASSES_COMPLETE = (
     "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
     "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
     "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack",
@@ -62,6 +64,9 @@ CLASSES = (
     "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush",
 )
 
+CLASSES = (
+    "person", "orange", "cell phone", "book", "chair", "keyboard",
+)
 # Paleta BGR para distinguir clases en pantalla
 _COLORS_BGR = [
     (0, 255, 0),
@@ -191,6 +196,16 @@ class UltimoFrameCamara:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Inferencia YOLOv8 RKNN desde camara USB."
+    )
+    parser.add_argument(
+        "--no-display",
+        action="store_true",
+        help="No abrir ventana de OpenCV (modo headless/sin monitor).",
+    )
+    args = parser.parse_args()
+
     if not RKNN_PATH.is_file():
         raise SystemExit(f"No existe el modelo: {RKNN_PATH}")
 
@@ -226,7 +241,10 @@ def main() -> None:
         grabber.start()
         print("Captura en hilo auxiliar activa (menos latencia por buffer).")
 
-    print("Camara lista. q o ESC para salir.")
+    if args.no_display:
+        print("Camara lista. Modo sin display activo (salir con Ctrl+C).")
+    else:
+        print("Camara lista. q o ESC para salir.")
 
     try:
         while True:
@@ -237,9 +255,10 @@ def main() -> None:
             if not ok or frame is None:
                 if grabber is not None:
                     time.sleep(0.001)
-                    key = cv2.waitKey(1) & 0xFF
-                    if key == ord("q") or key == 27:
-                        break
+                    if not args.no_display:
+                        key = cv2.waitKey(1) & 0xFF
+                        if key == ord("q") or key == 27:
+                            break
                     continue
                 break
 
@@ -250,10 +269,11 @@ def main() -> None:
 
             outputs = rknn.inference(inputs=[inp])
             if not outputs:
-                cv2.imshow("yolov8 rknn coco", frame)
-                key = cv2.waitKey(1) & 0xFF
-                if key == ord("q") or key == 27:
-                    break
+                if not args.no_display:
+                    cv2.imshow("yolov8 rknn coco", frame)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord("q") or key == 27:
+                        break
                 continue
             pred = np.array(outputs[0])
 
@@ -262,6 +282,7 @@ def main() -> None:
             )
             if boxes is not None:
                 boxes = scale_boxes_to_frame(boxes, fw, fh)
+                detected_labels: list[str] = []
                 for box, sc, cid in zip(boxes, scores, class_ids):
                     x1, y1, x2, y2 = [int(round(v)) for v in box]
                     x1 = max(0, min(x1, fw - 1))
@@ -270,6 +291,7 @@ def main() -> None:
                     y2 = max(0, min(y2, fh - 1))
                     cid_i = int(cid)
                     label = CLASSES[cid_i] if cid_i < len(CLASSES) else str(cid_i)
+                    detected_labels.append(label)
                     color = _COLORS_BGR[cid_i % len(_COLORS_BGR)]
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                     cv2.putText(
@@ -281,17 +303,20 @@ def main() -> None:
                         color,
                         1,
                     )
+                print("Detecciones:", ", ".join(detected_labels))
 
-            cv2.imshow("yolov8 rknn coco", frame)
-            key = cv2.waitKey(1) & 0xFF
-            if key == ord("q") or key == 27:
-                break
+            if not args.no_display:
+                cv2.imshow("yolov8 rknn coco", frame)
+                key = cv2.waitKey(1) & 0xFF
+                if key == ord("q") or key == 27:
+                    break
     finally:
         if grabber is not None:
             grabber.stop()
         rknn.release()
         cap.release()
-        cv2.destroyAllWindows()
+        if not args.no_display:
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
