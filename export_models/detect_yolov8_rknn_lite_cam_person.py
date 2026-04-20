@@ -21,6 +21,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+try:
+    import serial
+except ImportError:
+    serial = None
+
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -42,6 +47,8 @@ CAMERA_INDEX = 10
 INPUT_SIZE = 640
 OBJ_THRESH = 0.65
 NMS_THRESH = 0.55
+SERIAL_PORT = "/dev/ttyUSB0"
+SERIAL_BAUDRATE = 9600
 
 # Hilo de captura: la camara se lee al ritmo del driver; la inferencia RKNN no bloquea read().
 # Asi se reduce la latencia y el efecto "video a camara lenta" por buffer lleno.
@@ -155,6 +162,15 @@ def configurar_buffer_camara(cap: cv2.VideoCapture) -> None:
         pass
 
 
+def enviar_serial(ser: serial.Serial | None, mensaje: str) -> None:
+    if ser is None:
+        return
+    try:
+        ser.write((mensaje + "\n").encode())
+    except Exception as e:
+        print(f"Error al enviar por serial: {e}")
+
+
 class UltimoFrameCamara:
     """
     Un solo hilo llama a cap.read(); el bucle principal copia el ultimo frame.
@@ -205,6 +221,7 @@ def main() -> None:
         help="No abrir ventana de OpenCV (modo headless/sin monitor).",
     )
     args = parser.parse_args()
+    ser: serial.Serial | None = None
 
     if not RKNN_PATH.is_file():
         raise SystemExit(f"No existe el modelo: {RKNN_PATH}")
@@ -234,6 +251,23 @@ def main() -> None:
         rknn.release()
         cap.release()
         raise SystemExit("init_runtime failed")
+
+    if serial is None:
+        print("pyserial no esta instalado. Se desactiva envio serial.")
+    else:
+        try:
+            ser = serial.Serial(
+                port=SERIAL_PORT,
+                baudrate=SERIAL_BAUDRATE,
+                timeout=0.05,
+            )
+            print(
+                f"[{time.strftime('%H:%M:%S')}] Serial conectado en "
+                f"{SERIAL_PORT} @ {SERIAL_BAUDRATE} baudios."
+            )
+        except serial.SerialException as e:
+            print(f"Error al conectar serial: {e}")
+            ser = None
 
     grabber: UltimoFrameCamara | None = None
     if USAR_HILO_CAPTURA:
@@ -303,7 +337,9 @@ def main() -> None:
                         color,
                         1,
                     )
-                print("Detecciones:", ", ".join(detected_labels))
+                detecciones_msg = "Detecciones: " + ", ".join(detected_labels)
+                print(detecciones_msg)
+                enviar_serial(ser, detecciones_msg)
 
             if not args.no_display:
                 cv2.imshow("yolov8 rknn coco", frame)
@@ -315,6 +351,9 @@ def main() -> None:
             grabber.stop()
         rknn.release()
         cap.release()
+        if ser is not None:
+            ser.close()
+            print("Puerto serial cerrado.")
         if not args.no_display:
             cv2.destroyAllWindows()
 
