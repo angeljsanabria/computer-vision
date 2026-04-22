@@ -24,6 +24,10 @@ Carpeta del curso: tema "imagen como datos en C". Aqui se codearan los ejemplos 
 2. Codear los ejemplos aqui (`10_img_en_C/`) paso a paso.
 3. Compilar con gcc; descargar `stb_image.h` segun la clase.
 
+## Estado del tema: CERRADO
+
+**Tema cerrado.** Se dio la clase (marco conceptual, fundamento, intuicion, practica, conexion, mock de camara). Practica realizada: `leer_img.c` carga imagen con stb_image, imprime dimensiones, tamaño en bytes, pixel (0,0) y libera memoria. Opciones no implementadas (mock de camara, funcion indice de pixel, etc.) quedan como referencia en la clase. Siguiente unidad del curso: **Fase 1** (Fundamentos de Deep Learning y CNNs).
+
 ## Siguiente paso en el curso
 
-Despues de este tema, continuar con **Fase 1**: Fundamentos de Deep Learning y CNNs (`curso/progreso.md`, `curso/estructura.md`).
+**Fase 1**: Fundamentos de Deep Learning y CNNs (`curso/progreso.md`, `curso/estructura.md`).

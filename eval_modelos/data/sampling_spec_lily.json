@@ -1,0 +1,22 @@
+{
+  "video_path": "/Users/angel-dev/PycharmProjects/cv/videos/lily.mp4",
+  "fecha_actualizacion": "2026-02-11T23:03:09Z",
+  "strategy": "every_n_frames",
+  "total_frames": 834,
+  "fps": 23.98,
+  "duration_sec": 34.78,
+  "max_samples": 10,
+  "num_samples_used": 10,
+  "samples": [
+    0,
+    93,
+    185,
+    278,
+    370,
+    463,
+    555,
+    648,
+    740,
+    833
+  ]
+}

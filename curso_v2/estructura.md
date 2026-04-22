@@ -2,14 +2,15 @@
 
 ## Objetivo General
 
-Aprender Computer Vision desde fundamentos hasta implementación en dispositivos embebidos, con enfoque práctico en Raspberry Pi Zero 2W, UNIHIKER M10 y ESP32-P4, culminando con Edge Impulse, TensorFlow Lite y TensorFlow.
+Aprender Computer Vision desde fundamentos hasta implementación en dispositivos embebidos, con enfoque práctico en **MYIR MYD-LR3568-GK-B** (Edge IoT, RKNN/NPU), complementado con referencias a Raspberry Pi Zero 2W, UNIHIKER M10 y ESP32-P4, y herramientas como RKNN, TensorFlow Lite y Edge Impulse.
 
 ## Hardware Disponible
 
 | Dispositivo | Procesador/Microcontrolador | Tipo | Uso en el Curso |
 |-------------|----------------------------|------|-----------------|
-| **UNIHIKER M10** | Allwinner H6 (ARM Cortex-A53) | Microprocesador (Linux embebido) | Fases iniciales: OpenCV, modelos completos |
-| **Raspberry Pi Zero 2W** | Broadcom BCM2710A1 (ARM Cortex-A53 Quad-core) | Microprocesador (Linux embebido) | Fases iniciales: OpenCV, TensorFlow Lite |
+| **MYD-LR3568-GK-B** | Rockchip RK3568J (Cortex-A55), NPU ~1 TOPS, Mali-G52 | IPC Linux (Debian/MYIR) | **Plataforma principal v2**: vision Edge IoT, RKNN, doble Ethernet, CAN/4G |
+| **UNIHIKER M10** | Allwinner H6 (ARM Cortex-A53) | Microprocesador (Linux embebido) | Referencia / comparacion |
+| **Raspberry Pi Zero 2W** | Broadcom BCM2710A1 (ARM Cortex-A53 Quad-core) | Microprocesador (Linux embebido) | Referencia / comparacion |
 | **ESP32-P4** | RISC-V Dual-core 32-bit | Microcontrolador | Fases avanzadas: TensorFlow Lite Micro, TinyML |
 | **Sony IMX179** | Sensor de imagen CMOS | Cámara/Sensor | Captura de imágenes para todas las placas |
 
@@ -196,10 +197,18 @@ Conocer las capacidades y limitaciones de los dispositivos objetivo.
 
 | Dispositivo | Procesador/Microcontrolador | Tipo | Uso en el Curso |
 |-------------|----------------------------|------|-----------------|
-| **UNIHIKER M10** | Allwinner H6 (ARM Cortex-A53) | Microprocesador (Linux embebido) | Fases iniciales: OpenCV, modelos completos |
-| **Raspberry Pi Zero 2W** | Broadcom BCM2710A1 (ARM Cortex-A53 Quad-core) | Microprocesador (Linux embebido) | Fases iniciales: OpenCV, TensorFlow Lite |
+| **MYD-LR3568-GK-B** | Rockchip RK3568J (Cortex-A55), NPU ~1 TOPS, Mali-G52 | IPC Linux (Debian/MYIR) | **Plataforma principal v2**: RKNN, Edge IoT, industrial |
+| **UNIHIKER M10** | Allwinner H6 (ARM Cortex-A53) | Microprocesador (Linux embebido) | Referencia / comparacion |
+| **Raspberry Pi Zero 2W** | Broadcom BCM2710A1 (ARM Cortex-A53 Quad-core) | Microprocesador (Linux embebido) | Referencia / comparacion |
 | **ESP32-P4** | RISC-V Dual-core 32-bit | Microcontrolador | Fases avanzadas: TensorFlow Lite Micro, TinyML |
 | **Sony IMX179** | Sensor de imagen CMOS | Cámara/Sensor | Captura de imágenes para todas las placas |
+
+### 4.0 MYD-LR3568-GK-B (Edge IoT, Rockchip RK3568)
+
+- **Contexto**: IPC industrial MYIR basada en **RK3568J**, **NPU** integrada (~1 TOPS), **Mali-G52**, **2x GbE**, **WiFi/BT**, **CAN**, **RS485**, **M.2 4G**, **M.2 NVMe** (segun documentacion MYIR).
+- **Vision / IA**: pipeline **ONNX (entrenamiento o export) → RKNN-Toolkit2 en PC Linux → `.rknn` → RKNN Lite en dispositivo**; manifiestos versionados y rutas bajo `/opt/edge-models/`.
+- **Material del repo**: [`edge_iot_myd/README.md`](../edge_iot_myd/README.md), [`Docu/MYD-LR3568_BSP_versiones.md`](../Docu/MYD-LR3568_BSP_versiones.md), PDFs en `Docu/`.
+- **Proyectos alineados**: deteccion de movimiento (clasico + disparo a NPU), caras, biometria (embeddings), patentes + OCR; reparto de carga por **1 TOPS** (cascada, estados, no todo a max FPS simultaneo).
 
 ### 4.1 Raspberry Pi Zero 2W
 - **Procesador**: Broadcom BCM2710A1 (ARM Cortex-A53 Quad-core)

@@ -40,7 +40,7 @@ int main(int argc, char **argv)
         return 1;
     }
     
-    printf("\r\n\r\nAncho: %d, Alto: %d, Canales: %d\r\n", ancho, alto, canales);
+    printf("\r\n\r\nAncho: %d, Alto: %d, Canales: %d. Orden R, G, B.\r\n", ancho, alto, canales);
     printf("Size en bytes %u\n", (ancho * alto * canales));
 
     unsigned char* img = stbi_load(pathImg, &ancho, &alto, &canales, 0);
@@ -51,6 +51,11 @@ int main(int argc, char **argv)
     
     printf("La imagen se cargo correctamente.\n");
 
+    /* Pixel (0,0): primeros canales del buffer */
+    printf("Pixel (0,0): R=%u G=%u B=%u", img[0], img[1], img[2]);
+    if (canales == 4)
+        printf(" A=%u", img[3]);
+    printf("\n");
 
     stbi_image_free(img);
 

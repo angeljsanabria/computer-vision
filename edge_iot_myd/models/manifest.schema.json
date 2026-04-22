@@ -1,0 +1,85 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.local/edge_iot_myd/manifest.schema.json",
+  "title": "EdgeModelManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "model_id",
+    "version",
+    "artifact",
+    "rknn_toolkit_version",
+    "target_platform",
+    "inputs",
+    "outputs"
+  ],
+  "properties": {
+    "model_id": {
+      "type": "string",
+      "description": "Identificador estable del modelo (ej. demo_mobilenet_v2)."
+    },
+    "version": {
+      "type": "string",
+      "description": "Version semantica del artefacto (ej. 1.0.0)."
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["filename", "sha256"],
+      "properties": {
+        "filename": {
+          "type": "string",
+          "description": "Nombre del fichero en el mismo directorio (ej. model.rknn)."
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "rknn_toolkit_version": {
+      "type": "string",
+      "description": "Version de RKNN-Toolkit2 usada para exportar."
+    },
+    "target_platform": {
+      "type": "string",
+      "description": "Plataforma Rockchip objetivo (ej. rk3568)."
+    },
+    "inputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "shape", "dtype"],
+        "properties": {
+          "name": { "type": "string" },
+          "shape": {
+            "type": "array",
+            "items": { "type": "integer" }
+          },
+          "dtype": { "type": "string" },
+          "layout": { "type": "string" },
+          "preprocess": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        }
+      }
+    },
+    "outputs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      }
+    },
+    "notes": { "type": "string" }
+  }
+}

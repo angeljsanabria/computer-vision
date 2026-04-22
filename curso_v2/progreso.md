@@ -29,10 +29,11 @@
 | **Fase 3** | Entrenamiento de Clasificador | 🔲 TODO | |
 | **Fase 3** | Entrenamiento de Detector | 🔲 TODO | |
 | **Fase 3** | Optimización de Modelos | 🔲 TODO | |
-| **Fase 4** | Raspberry Pi Zero 2W Setup | 🔲 TODO | |
-| **Fase 4** | UniHiker Setup | 🔲 TODO | |
+| **Fase 4** | MYD-LR3568-GK-B: BSP Debian/MYIR, NPU, RKNN, pipeline demo | 🔄 WIP | Ver `../edge_iot_myd/` y `../Docu/MYD-LR3568_BSP_versiones.md` |
+| **Fase 4** | Raspberry Pi Zero 2W Setup | 🔲 TODO | Referencia |
+| **Fase 4** | UniHiker Setup | 🔲 TODO | Referencia |
 | **Fase 4** | ESP32-P4 Setup | 🔲 TODO | |
-| **Fase 4** | Comparación de Dispositivos | 🔲 TODO | |
+| **Fase 4** | Comparación de Dispositivos | 🔲 TODO | Incluir MYD vs Pi vs UniHiker |
 | **Fase 5** | Optimización de OpenCV | 🔲 TODO | |
 | **Fase 5** | Pipeline Básico en Raspberry Pi | 🔲 TODO | |
 | **Fase 5** | Optimización de Performance | 🔲 TODO | |
@@ -95,6 +96,10 @@
 - Detección de **caras**
 - Detección de **vehículos**
 - Detección de **patentes/matrículas** (y luego OCR si aplica)
+
+### Hardware curso_v2 (MYD-LR3568-GK-B)
+- **Plataforma principal**: IPC MYIR con **Rockchip RK3568**, **NPU** para inferencia via **RKNN**, documentacion y checklist en `../Docu/`.
+- **Proyecto Edge IoT en repo**: `../edge_iot_myd/` (Docker export, manifiestos, scripts `export_demo_to_rknn.py` / `infer_rknn_lite.py`).
 
 ---
 

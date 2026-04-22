@@ -1,0 +1,6 @@
+# Dispositivo MYD-LR3568 (aarch64 Debian/Ubuntu del BSP MYIR)
+# Instalar en la placa (venv recomendado). Version de rknnlite alineada al runtime del BSP.
+numpy>=1.23.5,<2.0
+opencv-python-headless>=4.8.0
+# Paquete de inferencia en NPU (instalar wheel del BSP si MYIR no usa PyPI):
+rknn-toolkit-lite2>=2.2.0

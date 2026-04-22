@@ -1,0 +1,9 @@
+# Host Linux x86_64: export ONNX -> RKNN (RKNN-Toolkit2)
+# Fijar rknn-toolkit2 a la version compatible con el runtime de la placa MYD.
+numpy>=1.23.5,<2.0
+protobuf>=3.20.3
+onnx>=1.14.0
+onnxruntime>=1.16.0
+torch>=2.0.0
+torchvision>=0.15.0
+rknn-toolkit2>=2.2.0

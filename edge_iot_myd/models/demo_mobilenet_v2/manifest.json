@@ -1,0 +1,30 @@
+{
+  "model_id": "demo_mobilenet_v2",
+  "version": "0.1.0",
+  "artifact": {
+    "filename": "model.rknn",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+  },
+  "rknn_toolkit_version": "REEMPLAZAR_TRAS_EXPORT",
+  "target_platform": "rk3568",
+  "inputs": [
+    {
+      "name": "input",
+      "shape": [1, 224, 224, 3],
+      "dtype": "uint8",
+      "layout": "NHWC",
+      "preprocess": {
+        "channel_mean": [127.5, 127.5, 127.5],
+        "channel_std": [128.0, 128.0, 128.0],
+        "note": "Ajustar si el export usa otro esquema; ver salida del script de export."
+      }
+    }
+  ],
+  "outputs": [
+    {
+      "name": "output",
+      "description": "Logits / scores de clasificacion ImageNet (depende del ONNX usado)."
+    }
+  ],
+  "notes": "Sustituir sha256 y rknn_toolkit_version despues de generar model.rknn. El sha256 es placeholder."
+}
