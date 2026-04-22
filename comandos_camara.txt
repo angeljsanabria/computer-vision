@@ -1,0 +1,9 @@
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetAbility&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetDevInfo&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetIrLights&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetLocalLink&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetEnc&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetImage&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetIsp&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=GetOsd&rs=abc123&user=angelcam&password=AngelCamara
+http://192.168.0.160/cgi-bin/api.cgi?cmd=Reboot&rs=abc123&user=angelcam&password=AngelCamara    
