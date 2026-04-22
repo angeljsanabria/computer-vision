@@ -10,9 +10,12 @@ y permite navegar entre ellas presionando teclas. Es ideal para:
 - Verificar que camaras funcionan correctamente
 - Presentaciones donde necesitas mostrar contenido desde una camara externa
 
+En placas embebidas (p. ej. RK3568) la webcam USB suele tener indice alto (10+);
+la deteccion usa V4L2 y calentamiento como en 2_ocv_cam.py / utils.camera_opencv.
+
 Ejecucion:
 ---------
-python utils/util_cam_viewer.py
+python finals/cams_viewer.py
 
 Controles:
 ---------
@@ -23,69 +26,87 @@ Controles:
 
 Parametros:
 ----------
-- Modifica detectar_camaras_disponibles(5) para cambiar el numero maximo de
-  camaras a detectar
+- Por defecto se prueban indices 0 .. MAX_INDICES_VIDEO_A_PROBAR-1 (incluye 10+ en RK3568).
 """
+import sys
+from pathlib import Path
+
+# Anadir raiz del proyecto al path para que "from utils..." funcione al ejecutar desde finals/
+_raiz = Path(__file__).resolve().parent.parent
+if str(_raiz) not in sys.path:
+    sys.path.insert(0, str(_raiz))
+
 import cv2
 import numpy as np
+from utils.camera_opencv import abrir_camara, preparar_camara
+from utils.image_utils import rotar_frame
 
-def detectar_camaras_disponibles(max_devices=5):
+# RK3568: /dev/video0..9 suelen ser pipelines internos; la UVC USB suele ser 10+
+MAX_INDICES_VIDEO_A_PROBAR = 32
+
+
+def detectar_camaras_disponibles(max_devices=None):
     """
-    Detecta que camaras estan disponibles en el sistema.
-    
+    Indices de OpenCV que entregan frames reales (V4L2 en Linux + calentamiento).
+
     Returns:
-        list: Lista de indices de camaras disponibles
+        Lista de indices de camaras disponibles.
     """
+    if max_devices is None:
+        max_devices = MAX_INDICES_VIDEO_A_PROBAR
+
     camaras_disponibles = []
-    
+
     for i in range(max_devices):
-        cap = cv2.VideoCapture(i)
-        if cap.isOpened():
-            # Intentar leer un frame para verificar que realmente funciona
-            ret, _ = cap.read()
-            if ret:
+        cap = abrir_camara(i)
+        if cap is None:
+            continue
+        try:
+            if preparar_camara(cap):
                 camaras_disponibles.append(i)
-        cap.release()
-    
+        finally:
+            cap.release()
+
     return camaras_disponibles
+
 
 def obtener_info_camara(cam_idx):
     """
     Obtiene informacion tecnica de una camara.
-    
+
     Returns:
         dict: Diccionario con informacion de la camara
     """
-    cap = cv2.VideoCapture(cam_idx)
+    cap = abrir_camara(cam_idx)
     info = {}
-    
-    if cap.isOpened():
-        # Informacion basica
-        info['ancho'] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-        info['alto'] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        info['fps'] = cap.get(cv2.CAP_PROP_FPS)
-        
-        # Backend usado
-        backend = int(cap.get(cv2.CAP_PROP_BACKEND))
-        backend_names = {
-            0: "CAP_ANY",
-            200: "CAP_V4L2",      # Linux
-            700: "CAP_DSHOW",     # Windows DirectShow
-            800: "CAP_MSMF",      # Windows Media Foundation
-            1200: "CAP_AVFOUNDATION"  # macOS
-        }
-        info['backend'] = backend_names.get(backend, f"Unknown ({backend})")
-        
-        # Formato de video (FOURCC)
-        fourcc_int = int(cap.get(cv2.CAP_PROP_FOURCC))
-        fourcc = "".join([chr((fourcc_int >> 8 * i) & 0xFF) for i in range(4)])
-        info['fourcc'] = fourcc if fourcc.isprintable() else "N/A"
-        
-        # Propiedades adicionales (pueden no estar disponibles)
-        info['brillo'] = cap.get(cv2.CAP_PROP_BRIGHTNESS)
-        info['contraste'] = cap.get(cv2.CAP_PROP_CONTRAST)
-        info['saturacion'] = cap.get(cv2.CAP_PROP_SATURATION)
-        
+
+    if cap is None:
+        return info
+
+    preparar_camara(cap)
+
+    info["ancho"] = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    info["alto"] = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    info["fps"] = cap.get(cv2.CAP_PROP_FPS)
+
+    backend = int(cap.get(cv2.CAP_PROP_BACKEND))
+    backend_names = {
+        0: "CAP_ANY",
+        200: "CAP_V4L2",
+        700: "CAP_DSHOW",
+        800: "CAP_MSMF",
+        1200: "CAP_AVFOUNDATION",
+    }
+    info["backend"] = backend_names.get(backend, f"Unknown ({backend})")
+
+    fourcc_int = int(cap.get(cv2.CAP_PROP_FOURCC))
+    fourcc = "".join([chr((fourcc_int >> 8 * i) & 0xFF) for i in range(4)])
+    info["fourcc"] = fourcc if fourcc.isprintable() else "N/A"
+
+    info["brillo"] = cap.get(cv2.CAP_PROP_BRIGHTNESS)
+    info["contraste"] = cap.get(cv2.CAP_PROP_CONTRAST)
+    info["saturacion"] = cap.get(cv2.CAP_PROP_SATURATION)
+
     cap.release()
     return info
 
@@ -156,8 +177,7 @@ def mostrar_info_camaras(camaras_disponibles):
 
 def testear_camaras():
     """Funcion principal que permite navegar entre camaras disponibles."""
-    # Detectar camaras disponibles
-    camaras_disponibles = detectar_camaras_disponibles(5)
+    camaras_disponibles = detectar_camaras_disponibles()
     
     if not camaras_disponibles:
         print("No se encontraron camaras disponibles.")
@@ -192,9 +212,14 @@ def testear_camaras():
         if cap is None or not cap.isOpened():
             if cap is not None:
                 cap.release()
-            cap = cv2.VideoCapture(camara_real_idx)
-            if not cap.isOpened():
+            cap = abrir_camara(camara_real_idx)
+            if cap is None:
                 print(f"Error: No se pudo abrir la camara {camara_real_idx}")
+                break
+            if not preparar_camara(cap):
+                print(f"Error: La camara {camara_real_idx} no entrego frames")
+                cap.release()
+                cap = None
                 break
             print(f"\n[Camara {camara_actual_idx + 1}/{len(camaras_disponibles)}] "
                   f"Indice {camara_real_idx} - Presiona 'n' para siguiente, 'q' para salir")
@@ -205,6 +230,9 @@ def testear_camaras():
             print(f"Error: No se pudo leer el frame de la camara {camara_real_idx}")
             break
         
+        # Aplicar rotacion si es necesario
+        if rotacion_actual != 0:
+            frame = rotar_frame(frame, rotacion_actual)
         
         # Obtener tamano actual de la ventana
         try:
