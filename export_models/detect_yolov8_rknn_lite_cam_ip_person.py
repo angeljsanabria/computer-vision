@@ -44,7 +44,7 @@ STREAM_CAM = RES_LOW_CAM
 RTSP_URL = f"rtsp://{USER_CAM}:{PASS_CAM}@{IP_CAM}:{RTSP_PORT_CAM}/{STREAM_CAM}"
 
 INPUT_SIZE = 640
-OBJ_THRESH = 0.65
+OBJ_THRESH = 0.66
 NMS_THRESH = 0.55
 
 # Hilo de captura: la camara se lee al ritmo del driver; la inferencia RKNN no bloquea read().
@@ -60,6 +60,7 @@ LOG_CADA_CAPS = 10
 TIME_SAVE_DETECTION = 3 * 60  # segundos (3 minutos)
 FILE_DIR = "camara_snap"
 FILE_BASE_NAME_IMG = "latest_detection_snap"
+REINTENTO_CONEXION_SEG = 10
 
 CLASSES = (
     "person", "bicycle", "car", "motorbike", "aeroplane", "bus", "train", "truck", "boat",
@@ -178,6 +179,34 @@ def construir_file_path_dia() -> str:
     return os.path.join(FILE_DIR, file_name_img)
 
 
+def abrir_rtsp_con_calentamiento(rtsp_url: str) -> cv2.VideoCapture | None:
+    cap = cv2.VideoCapture(rtsp_url, cv2.CAP_FFMPEG)
+    if not cap.isOpened():
+        cap.release()
+        return None
+
+    for _ in range(25):
+        ok, frame = cap.read()
+        if ok and frame is not None and frame.size:
+            configurar_buffer_camara(cap)
+            return cap
+
+    cap.release()
+    return None
+
+
+def esperar_primer_frame_grabber(
+    grabber: "UltimoFrameCamara", timeout_seg: float = 2.0
+) -> bool:
+    t_ini = time.time()
+    while (time.time() - t_ini) < timeout_seg:
+        ok, _ = grabber.read_copy()
+        if ok:
+            return True
+        time.sleep(0.05)
+    return False
+
+
 class UltimoFrameCamara:
     """
     Un solo hilo llama a cap.read(); el bucle principal copia el ultimo frame.
@@ -203,6 +232,8 @@ class UltimoFrameCamara:
                 with self._lock:
                     self._frame = frame
             else:
+                with self._lock:
+                    self._frame = None
                 time.sleep(0.001)
 
     def read_copy(self) -> tuple[bool, np.ndarray | None]:
@@ -214,7 +245,10 @@ class UltimoFrameCamara:
     def stop(self) -> None:
         self._running = False
         if self._thread is not None:
-            self._thread.join(timeout=2.0)
+            # Importante: esperar salida real del hilo antes de liberar cap.
+            # Con timeout puede seguir vivo en cap.read() y provocar double free
+            # si cap.release() ocurre en paralelo.
+            self._thread.join()
             self._thread = None
 
 
@@ -237,21 +271,13 @@ def main() -> None:
     if not RKNN_PATH.is_file():
         raise SystemExit(f"No existe el modelo: {RKNN_PATH}")
 
-    cap = cv2.VideoCapture(RTSP_URL, cv2.CAP_FFMPEG)
-    if not cap.isOpened():
-        raise SystemExit(f"No se pudo abrir la camara RTSP: {RTSP_URL}")
-
-    for _ in range(25):
-        ok, frame = cap.read()
-        if ok and frame is not None and frame.size:
-            break
-    else:
-        cap.release()
-        raise SystemExit(
-            f"La camara RTSP abrio pero no entrego frames. Revisar URL: {RTSP_URL}"
+    cap = abrir_rtsp_con_calentamiento(RTSP_URL)
+    while cap is None:
+        print(
+            f"[RETRY] No se pudo abrir/calentar RTSP. Reintento en {REINTENTO_CONEXION_SEG}s..."
         )
-
-    configurar_buffer_camara(cap)
+        time.sleep(REINTENTO_CONEXION_SEG)
+        cap = abrir_rtsp_con_calentamiento(RTSP_URL)
 
     rknn = RKNNLite()
     print("--> load_rknn", RKNN_PATH)
@@ -269,6 +295,13 @@ def main() -> None:
     if USAR_HILO_CAPTURA:
         grabber = UltimoFrameCamara(cap)
         grabber.start()
+        if not esperar_primer_frame_grabber(grabber):
+            grabber.stop()
+            cap.release()
+            raise SystemExit(
+                "Camara conectada pero el hilo no recibio el primer frame. "
+                "Revisar estabilidad de stream RTSP."
+            )
         print("Captura en hilo auxiliar activa (menos latencia por buffer).")
 
     if args.display:
@@ -305,14 +338,43 @@ def main() -> None:
             else:
                 ok, frame = cap.read()
             if not ok or frame is None:
+                print(
+                    f"[RETRY] Sin frame de camara RTSP. Reintentando en {REINTENTO_CONEXION_SEG}s..."
+                )
                 if grabber is not None:
-                    time.sleep(0.001)
+                    grabber.stop()
+                    grabber = None
+                cap.release()
+
+                while True:
                     if args.display:
                         key = cv2.waitKey(1) & 0xFF
                         if key == ord("q") or key == 27:
+                            return
+                    time.sleep(REINTENTO_CONEXION_SEG)
+                    cap = abrir_rtsp_con_calentamiento(RTSP_URL)
+                    if cap is not None:
+                        if USAR_HILO_CAPTURA:
+                            grabber = UltimoFrameCamara(cap)
+                            grabber.start()
+                            if esperar_primer_frame_grabber(grabber):
+                                print("[RETRY] Camara reconectada. Captura en hilo reanudada.")
+                                break
+                            grabber.stop()
+                            grabber = None
+                            cap.release()
+                            cap = None
+                            print(
+                                f"[RETRY] Reconecto RTSP pero sin primer frame del hilo. "
+                                f"Nuevo intento en {REINTENTO_CONEXION_SEG}s..."
+                            )
+                        else:
+                            print("[RETRY] Camara reconectada.")
                             break
-                    continue
-                break
+                    print(
+                        f"[RETRY] Fallo reconexion RTSP. Nuevo intento en {REINTENTO_CONEXION_SEG}s..."
+                    )
+                continue
 
             frame_count += 1
             log_fps_analisis(frame_count, t0_tick, frame)
@@ -325,7 +387,7 @@ def main() -> None:
             outputs = rknn.inference(inputs=[inp])
             if not outputs:
                 if args.display:
-                    cv2.imshow("yolov8 rknn coco", frame)
+                    cv2.imshow("yolov8 rknn RTSP", frame)
                     key = cv2.waitKey(1) & 0xFF
                     if key == ord("q") or key == 27:
                         break
@@ -373,7 +435,7 @@ def main() -> None:
                             print(f"[SAVE] error al guardar: {file_path}")
 
             if args.display:
-                cv2.imshow("yolov8 rknn coco", frame)
+                cv2.imshow("yolov8 rknn RTSP", frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord("q") or key == 27:
                     break
