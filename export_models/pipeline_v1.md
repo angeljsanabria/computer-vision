@@ -60,3 +60,58 @@ Si estás diseñando un producto hoy, esta es la "receta" recomendada para la RK
 
 ---
 *Documento generado para desarrollo en sistemas embebidos Rockchip.*
+
+
+# Migración y Optimización de Modelos para RK3568
+
+Este documento detalla la estrategia de cambio de modelos para pasar de los ejemplos educativos del **Rockchip Model Zoo** a arquitecturas de vanguardia.
+
+> **Nota Crítica:** Todos los modelos "Recomendados" requieren un proceso de conversión manual:  
+> `PyTorch (.pt) / TensorFlow` —> `ONNX` —> `RKNN (vía RKNN-Toolkit2)`.
+
+---
+
+## Fase 1: Detección de Rostros (Face Detection)
+El detector es el primer filtro. Un error aquí detiene todo el pipeline.
+
+
+| Modelo Actual (Zoo) | Modelo Recomendado | ¿Por qué cambiar? |
+| :--- | :--- | :--- |
+| **RetinaFace** (MobileNet 0.25) | **SCRFD** (Efficient Face Det) | **Velocidad y Oclusiones:** SCRFD es hasta un 50% más eficiente en GFLOPs. Detecta rostros con barbijos, manos en la cara o ángulos extremos donde RetinaFace suele fallar. |
+| **YOLOv3/v5-Face** | **YOLOv8-Face (Nano)** | **Precisión de Landmarks:** YOLOv8-Face ofrece puntos de referencia mucho más estables para el alineamiento, reduciendo el "temblor" de los cuadros en video real. |
+
+---
+
+## Fase 2: Reconocimiento Facial (Embeddings)
+Aquí se define la seguridad del sistema y la capacidad de distinguir entre gemelos o personas parecidas.
+
+
+| Modelo Actual (Zoo) | Modelo Recomendado | ¿Por qué cambiar? |
+| :--- | :--- | :--- |
+| **FaceNet** | **ArcFace (ResNet/MobileNet)** | **Obsolescencia:** FaceNet usa distancias euclidianas menos robustas. ArcFace es el estándar actual de la industria por su margen angular, mucho más preciso para 1:N. |
+| **ArcFace** (Estándar) | **AdaFace** (2022/2023) | **Calidad Adaptativa:** AdaFace "entiende" si una imagen es de mala calidad (borrosa/oscura) y ajusta su peso en el entrenamiento. En la vida real, reduce drásticamente los falsos rechazos en pasillos mal iluminados. |
+| **Cualquier modelo pesado** | **EdgeFace** (2023) | **Optimización Edge:** Diseñado específicamente para correr en NPUs limitadas. Ofrece precisión de servidor en un tamaño de modelo "mini". |
+
+---
+
+## Fase 3: Seguridad y Robustez (Liveness)
+El Zoo de Rockchip no suele incluir protección contra ataques. Esta fase es obligatoria para un producto profesional.
+
+
+| Lo que falta | Modelo a Integrar | Función |
+| :--- | :--- | :--- |
+| **Anti-Spoofing** | **Silent-Face-Anti-Spoofing** | Analiza la textura de la imagen para detectar si es una pantalla LCD o papel impreso. Sin esto, cualquier persona entra con una foto de Instagram. |
+| **Filtro de Calidad** | **Face Quality Assessment** | Un modelo ligero que descarta frames antes de enviarlos a la NPU si el rostro no está de frente o está desenfocado, ahorrando batería y cómputo. |
+
+---
+
+## Checklist para la Conversión a .RKNN
+
+Para que estos modelos externos funcionen en tu RK3568, debes seguir estos pasos en tu estación de trabajo (PC con Ubuntu):
+
+1.  **Exportación ONNX:** Asegúrate de usar `opset=12` o superior. Desactiva operaciones dinámicas (como *Dynamic Shapes*) ya que la NPU requiere tamaños fijos (ej. 112x112).
+2.  **Dataset de Calibración:** No conviertas a INT8 "en seco". Necesitas al menos 50-100 imágenes reales de rostros para que el Toolkit2 calcule los rangos de cuantización sin perder precisión.
+3.  **Verificación de Capas:** Usa el comando `rknn.visualize()` para asegurarte de que ninguna capa se "caiga" a la CPU. Si una capa no es compatible, busca una implementación equivalente en el repositorio de Rockchip.
+4.  **Optimización de Memoria:** Activa el `target_platform='rk3568'` en la configuración del Toolkit para que el compilador optimice los pesos para tu chip específico.
+
+---
