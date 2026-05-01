@@ -8,47 +8,68 @@ import cv2
 import numpy as np
 
 
-def ajustar_frame_manteniendo_aspect_ratio(frame, max_ancho, max_alto):
+def ajustar_frame_manteniendo_aspect_ratio(
+    frame,
+    max_ancho,
+    max_alto,
+    default_w: int = 800,
+    default_h: int = 600,
+):
     """
     Ajusta el frame manteniendo el aspect ratio original.
     Agrega barras negras (letterboxing/pillarboxing) si es necesario.
-    
-    Nota sobre rendimiento:
-    - cv2.copyMakeBorder(): Mas rapido (optimizado en C++), menos codigo
-    - numpy manual: Mas control, mas legible para entender el proceso
-    
+
+    En macOS, cv2.getWindowImageRect a veces devuelve 0x0 hasta el primer imshow;
+    con max_ancho o max_alto en 0 la escala queda 0 y cv2.resize falla
+    (inv_scale_x > 0). Aqui se fuerza un tamano valido.
+
     Args:
         frame: Frame de video a ajustar (numpy array)
         max_ancho: Ancho maximo de la ventana
         max_alto: Alto maximo de la ventana
-    
+        default_w, default_h: Fallback si la ventana aun no tiene tamano (0x0)
+
     Returns:
         Frame ajustado con barras negras si es necesario
     """
-    h, w = frame.shape[:2]
-    
-    # Calcular el factor de escala para que quepa en la ventana
-    escala_ancho = max_ancho / w
-    escala_alto = max_alto / h
-    escala = min(escala_ancho, escala_alto)  # Usar la escala mas pequena para que quepa
-    
-    # Nuevas dimensiones manteniendo aspect ratio
-    nuevo_ancho = int(w * escala)
-    nuevo_alto = int(h * escala)
-    
-    # Redimensionar manteniendo aspect ratio
-    frame_redimensionado = cv2.resize(frame, (nuevo_ancho, nuevo_alto), interpolation=cv2.INTER_LINEAR)
-    
-    # Crear imagen negra del tamano de la ventana usando numpy
+    def _dims_ventana(a, b) -> tuple[int, int]:
+        try:
+            wa = int(a)
+            wh = int(b)
+        except (TypeError, ValueError):
+            return default_w, default_h
+        if wa <= 0 or wh <= 0:
+            return default_w, default_h
+        return wa, wh
+
+    max_ancho, max_alto = _dims_ventana(max_ancho, max_alto)
+
+    if frame is None or not hasattr(frame, "shape") or len(frame.shape) < 2:
+        return np.zeros((max_alto, max_ancho, 3), dtype=np.uint8)
+
+    h, w = (int(frame.shape[0]), int(frame.shape[1]))
+    if h <= 0 or w <= 0 or frame.size == 0:
+        return np.zeros((max_alto, max_ancho, 3), dtype=np.uint8)
+
+    escala_ancho = max_ancho / float(w)
+    escala_alto = max_alto / float(h)
+    if not np.isfinite(escala_ancho) or not np.isfinite(escala_alto):
+        return np.zeros((max_alto, max_ancho, 3), dtype=np.uint8)
+
+    escala = min(escala_ancho, escala_alto)
+    nuevo_ancho = max(1, int(round(w * escala)))
+    nuevo_alto = max(1, int(round(h * escala)))
+
+    frame_redimensionado = cv2.resize(
+        frame, (nuevo_ancho, nuevo_alto), interpolation=cv2.INTER_LINEAR
+    )
+
     frame_final = np.zeros((max_alto, max_ancho, 3), dtype=np.uint8)
-    
-    # Calcular posicion para centrar la imagen
     y_offset = (max_alto - nuevo_alto) // 2
     x_offset = (max_ancho - nuevo_ancho) // 2
-    
-    # Colocar la imagen redimensionada en el centro usando indexacion numpy
-    frame_final[y_offset:y_offset + nuevo_alto, x_offset:x_offset + nuevo_ancho] = frame_redimensionado
-    
+    frame_final[y_offset : y_offset + nuevo_alto, x_offset : x_offset + nuevo_ancho] = (
+        frame_redimensionado
+    )
     return frame_final
 
 
