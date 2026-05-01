@@ -4,7 +4,7 @@ Este documento detalla el flujo de trabajo (pipeline) utilizado en productos de 
 
 ---
 
-## 1. El Pipeline Profesional (Flujo Lógico)
+## 1. El Pipeline Propuesto
 
 A diferencia de un script simple, un producto profesional implementa capas de validación para evitar errores de seguridad y falsos positivos.
 

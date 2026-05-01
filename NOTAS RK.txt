@@ -1,0 +1,102 @@
+# Rochchip Toolkit
+
+https://github.com/airockchip/rknn-toolkit2.git
+
+
+# Rockchip Zoo
+
+https://github.com/airockchip/rknn_model_zoo.git
+
+# RK3568
+
+
+## Config del build de la imagen de linux
+
+- RK_CHIP_HAS_GPU=y -> Ver que este habiltada la GPU.
+
+- no existe RK_CHIP_HAS_NPU
+
+ fde40000.npu en /sys/class/devfreq/
+
+librknnrt.so en /lib y /usr/lib
+
+- Ejecutar
+lsmod | grep -iE 'rknpu|rockchip_npu'
+dmesg | grep -i rknpu
+
+- ver con:
+ls -la /dev/*rknpu* /dev/*rknn* 2>/dev/null
+ls /sys/bus/platform/devices/ | grep -i npu
+sudo cat /sys/kernel/debug/rknpu/version 2>/dev/null
+sudo cat /sys/kernel/debug/rknpu/load 2>/dev/null
+
+
+
+## paquetes
+
+sudo apt install -y git screen tree nano python3-pip
+apt install sudo git ssh ethtool rsyslog bash-completion htop
+sudo apt update
+sudo apt install --reinstall ca-certificates
+sudo update-ca-certificates
+
+## SSH
+
+whoami
+
+hostname -I
+
+192.168.1.8
+
+ssh myir@192.168.1.8
+123456
+
+
+## Desde PC
+cd /mnt/c/code/computer-vision
+clonar el repo del toolkit2 (pasar onnx desp a rknn)
+git clone --depth 1 https://github.com/airockchip/rknn-toolkit2.git
+
+## en RK3568-toolkit2/rknn-toolkit2/rknn-toolkit2/packages/x86_64/
+
+- hago un entorno virtual por las dudas
+
+python3 -m venv ~/venv-rknn310
+source ~/venv-rknn310/bin/activate
+python -m pip install --upgrade pip
+
+- Instalo los req del toolkit
+ pip install -r requirements_cp310-2.3.2.txt
+
+- identificar con respecto a la compu
+pip install rknn_toolkit2-2.3.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl
+
+- Este para poder pasar de pn a onnx
+pip install "onnx==1.16.1"
+pip install ultralytics
+
+cd /mnt/c/code/computer-vision
+yolo export model=Yolo-Weights/yolov8n.pt format=onnx imgsz=640
+(falla el anterior - con el opset)
+
+hacer:
+cd /mnt/c/code/computer-vision
+yolo export model=Yolo-Weights/yolov8n.pt format=onnx imgsz=640 opset=19
+
+# una vez que se tiene el modelo en ONNX
+
+lo paso a RKNN
+
+pip show rknn-toolkit2
+
+
+# VOY A LA PLACA
+
+tengo que instalar el RKNN-toolkit-lite2
+
+pip3 install rknn-toolkit-lite/rknn_toolkit_lite2-2.3.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+
+- compruebo:
+python3 -c "from rknnlite.api import RKNNLite; print('RKNNLite OK')"
+
+Modificar permisos de uso del toolkit, no funca fuera de root.

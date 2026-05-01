@@ -39,6 +39,7 @@ videos/
 # Rockchip
 RK3568/
 RK3568-toolkit2/
+rknn_model_zoo/
 
 # capturas
 camera_snap/
