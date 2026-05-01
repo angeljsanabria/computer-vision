@@ -13,7 +13,7 @@ from rknn.api import RKNN
 ROOT = Path(__file__).resolve().parent.parent
 ONNX_PATH = ROOT / "Retinaface-Models" / "RetinaFace_mobile320.onnx"
 RKNN_PATH = ROOT / "Retinaface-Models" / "RetinaFace_mobile320.rknn"
-DATASET_PATH = ROOT / "rknn_model_zoo" / "examples" / "RetinaFace" / "model" / "dataset.txt"
+DATASET_PATH = ROOT / "Retinaface-Models" / "dataset.txt"
 
 # RetinaFace del zoo usa normalizacion tipo Caffe/BGR:
 # mean=[104,117,123], std=[1,1,1]
