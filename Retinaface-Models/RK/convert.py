@@ -1,8 +1,8 @@
 import sys
 from rknn.api import RKNN
 
-DATASET_PATH = '../model/dataset.txt'
-DEFAULT_RKNN_PATH = '../model/RetinaFace.rknn'
+DATASET_PATH = 'model/dataset.txt'
+DEFAULT_RKNN_PATH = 'model/RetinaFace.rknn'
 DEFAULT_QUANT = True
 
 def parse_arg():
