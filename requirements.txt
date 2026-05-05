@@ -29,7 +29,13 @@ tqdm>=4.64.0
 filterpy==1.4.5
 scikit-image==0.19.3
 numpy>=1.18.5 # 1.26.4
-opencv-python>=4.5.4.60
+# Pin fijo (no >=): en Linux ARM algunos wheels recientes de opencv-python traen Qt
+# embebida y pueden fallar al importar (undefined symbol Qt_5 / QtOpenCVPython).
+# En RK3568: pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
+# luego: pip install --no-cache-dir "opencv-python==4.8.1.78"
+# Si esta version aun falla, probar en orden: 4.7.1.78, 4.6.0.66 (>=4.6 suele ir con ultralytics).
+opencv-python==4.8.1.78
+opencv-python-headless==4.8.1.78
 lap>=0.4.0
 streamlit==1.32.2
 mediapipe==0.10.9

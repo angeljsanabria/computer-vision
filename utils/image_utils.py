@@ -4,8 +4,86 @@ Utilidades para procesamiento de imagenes y frames.
 Este modulo proporciona funciones para ajustar frames manteniendo
 el aspect ratio y otras operaciones comunes de procesamiento de imagenes.
 """
+from __future__ import annotations
+
+from typing import NamedTuple
+
 import cv2
 import numpy as np
+
+
+class LetterboxMeta(NamedTuple):
+    """
+    Metadatos del letterbox para volver de coordenadas en el lienzo fijo
+    a coordenadas en la imagen original (des-letterbox).
+
+    - aspect_ratio: factor aplicado al redimensionar (mismo para ancho y alto).
+    - offset_x, offset_y: desplazamiento del contenido dentro del lienzo (barras de relleno).
+    """
+
+    aspect_ratio: float
+    offset_x: int
+    offset_y: int
+
+
+def letterbox_bgr(
+    image_bgr: np.ndarray,
+    out_wh: tuple[int, int],
+    fill_value: int,
+) -> tuple[np.ndarray, LetterboxMeta]:
+    """
+    Letterbox en espacio BGR: escala la imagen manteniendo aspect ratio, centra el
+    resultado en un lienzo fijo (out_wh) y rellena el resto con ``fill_value`` por canal.
+
+    Contrato de salida
+    -------------------
+    - ``canvas`` tiene forma ``(out_h, out_w, 3)``, dtype ``uint8``, BGR.
+    - ``meta`` permite mapear cajas/puntos del espacio del lienzo al espacio del
+      frame original:
+        x_orig = (x_canvas - offset_x) / aspect_ratio
+        y_orig = (y_canvas - offset_y) / aspect_ratio
+
+    Uso actual en el repo
+    ----------------------
+    Preproceso auxiliar del detector **RetinaFace** (ejemplo Rockchip rknn_model_zoo,
+    MobileNet 0.25 con entrada 320 y relleno **114**). Ese valor de relleno coincide
+    con el demo Python oficial del Zoo.
+
+    No es el mismo criterio que ``ajustar_frame_manteniendo_aspect_ratio``: alli el
+    tamano objetivo es una ventana (max_ancho, max_alto) y el fondo es negro; aqui
+    el tamano es el del tensor de entrada del modelo y el relleno es configurable.
+
+    Otros modelos (p. ej. YOLOv8 en ``use_model_yolov8``) suelen usar **resize cuadrado**
+    sin letterbox; no mezclar pipelines sin revisar metricas.
+
+    Args:
+        image_bgr: Imagen BGR (H, W, 3), ``uint8``.
+        out_wh: (ancho, alto) del lienzo de salida, p. ej. (320, 320).
+        fill_value: Entero 0-255 aplicado a los tres canales del fondo (tipico 114 en RetinaFace).
+
+    Returns:
+        (canvas, meta) con ``canvas`` BGR listo para convertir a RGB y alimentar la red.
+    """
+    if image_bgr.ndim != 3 or image_bgr.shape[2] != 3:
+        raise ValueError("image_bgr debe ser (H, W, 3) BGR")
+    target_width, target_height = out_wh[0], out_wh[1]
+    image_height, image_width = image_bgr.shape[:2]
+
+    aspect_ratio = min(target_width / image_width, target_height / image_height)
+    new_width = int(image_width * aspect_ratio)
+    new_height = int(image_height * aspect_ratio)
+
+    resized = cv2.resize(image_bgr, (new_width, new_height), interpolation=cv2.INTER_AREA)
+
+    canvas = (np.ones((target_height, target_width, 3), dtype=np.uint8) * fill_value).astype(
+        np.uint8
+    )
+    offset_x = (target_width - new_width) // 2
+    offset_y = (target_height - new_height) // 2
+    canvas[offset_y : offset_y + new_height, offset_x : offset_x + new_width] = resized
+
+    meta = LetterboxMeta(aspect_ratio=aspect_ratio, offset_x=offset_x, offset_y=offset_y)
+    return canvas, meta
 
 
 def ajustar_frame_manteniendo_aspect_ratio(frame, max_ancho, max_alto):
