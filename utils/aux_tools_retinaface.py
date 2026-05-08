@@ -38,11 +38,12 @@ RETINAFACE_LANDMARK_SCALE = np.array(
 )
 
 
-def prior_box(image_size: tuple[int, int]) -> np.ndarray:
+def prior_box(image_size: tuple[int, int], *, log_priors: bool = False) -> np.ndarray:
     """
     Genera priors (anclas) en coordenadas normalizadas para RetinaFace.
 
     image_size: (alto, ancho) del tensor de entrada, p. ej. (320, 320).
+    log_priors: si True, imprime tamaño y num_priors (depuracion).
 
     Retorna array forma (N, 4) con [cx, cy, w, h] normalizados.
     """
@@ -63,7 +64,8 @@ def prior_box(image_size: tuple[int, int]) -> np.ndarray:
                 for cy, cx in product(dense_cy, dense_cx):
                     anchors += [cx, cy, s_kx, s_ky]
     output = np.array(anchors, dtype=np.float64).reshape(-1, 4)
-    print("image_size:", image_size, " num_priors=", output.shape[0])
+    if log_priors:
+        print("image_size:", image_size, " num_priors=", output.shape[0])
     return output
 
 
@@ -167,6 +169,7 @@ def retinaface_dets_desde_rknn_outputs(
     score_deteccion: float,
     score_pre_nms: float = 0.02,
     nms_iou: float = 0.5,
+    log_priors: bool = False,
 ) -> np.ndarray:
     """
     Postproceso completo de salidas ``rknn.inference`` para RetinaFace (MobileNet 0.25 / Zoo).
@@ -184,13 +187,17 @@ def retinaface_dets_desde_rknn_outputs(
             detecciones con ``score >= score_deteccion`` (lo define el script llamador).
         score_pre_nms: Filtro debil previo al NMS (tipico 0.02 en el demo Zoo).
         nms_iou: Umbral de solapamiento para ``nms`` (no es score de cara).
+        log_priors: Si True, ``prior_box`` imprime depuracion (por defecto silencioso).
 
     Returns:
         ``ndarray`` forma ``(N, 15)``, ``float32``. Si no hay detecciones sobre el umbral,
         ``N == 0``. Orden: score descendente.
     """
     loc, conf, landmarks = split_outputs(outputs)
-    priors = prior_box((RETINAFACE_INPUT_HEIGHT, RETINAFACE_INPUT_WIDTH))
+    priors = prior_box(
+        (RETINAFACE_INPUT_HEIGHT, RETINAFACE_INPUT_WIDTH),
+        log_priors=log_priors,
+    )
     boxes = box_decode(loc.squeeze(0), priors)
     boxes = boxes * RETINAFACE_BOX_SCALE // 1
     boxes[..., 0::2] = np.clip(
