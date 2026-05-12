@@ -49,9 +49,12 @@ from utils.image_utils import letterbox_bgr  # noqa: E402
 
 try:
     import onnxruntime as ort
-except ImportError as e:
+except Exception as e:
     raise SystemExit(
-        "Instala onnxruntime en el PC (CPU): pip install onnxruntime"
+        "No se pudo importar onnxruntime.\n"
+        f"  Python usado: {sys.executable}\n"
+        "  Instala en ESE intérprete (con el venv activado): pip install onnxruntime\n"
+        f"  Detalle: {e!r}"
     ) from e
 
 RETINAFACE_MEAN_BGR = np.array([104.0, 117.0, 123.0], dtype=np.float32)
