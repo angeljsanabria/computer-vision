@@ -1,7 +1,7 @@
 """
 Inferencia YOLOv8 (.rknn) en placa Rockchip con RKNN-Toolkit-Lite2.
 
-Uso en RK3568 (Python 3.10, wheel aarch64 2.3.2):
+Uso en RK3568 (Python del BSP de la placa, p. ej. 3.10; wheel rknnlite cp310/cp311 segun version):
   python3 export_models/detect_yolov8_rknn_lite_img.py
 
 Ajusta RKNN_PATH e IMG si hace falta. El modelo debe ser el exportado desde

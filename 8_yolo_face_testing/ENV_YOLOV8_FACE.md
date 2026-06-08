@@ -2,7 +2,7 @@
 
 Este venv es **solo para scripts que usan YOLOv8-face** (derronqi). No uses el venv principal de YOLO objeto.
 
-**Python:** Usa **Python 3.10**.
+**Python:** Usa **Python 3.11** (ajusta `python3.11` si tu sistema usa otro nombre).
 
 ## Instalacion
 
@@ -11,7 +11,7 @@ Usa las versiones fijas en `requirements-yolov8-face.txt` (en esta carpeta). El 
 ```bash
 cd /Users/angel-dev/PycharmProjects/cv
 
-python3.10 -m venv .venvYoloFace
+python3.11 -m venv .venvYoloFace
 source .venvYoloFace/bin/activate
 
 pip install --upgrade pip

@@ -1,7 +1,7 @@
 # Object detection
 ###
 #Activar el entorno virtual
-# con python 3.10
+# con Python 3.11
 # curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 # python get-pip.py
 
@@ -10,7 +10,7 @@
 # pip install -r requirements.txt
 
 
-# python3.10 -m venv .venvOK
+# python3.11 -m venv .venvOK
 # source .venvOK/bin/activate
 
 ###
@@ -37,5 +37,7 @@ numpy>=1.18.5 # 1.26.4
 opencv-python==4.8.1.78
 opencv-python-headless==4.8.1.78
 lap>=0.4.0
+# Inferencia ONNX en PC (export_models/RetinaFace_from_*_onnx.py, validacion antes de RKNN).
+onnxruntime>=1.16.0
 streamlit==1.32.2
 mediapipe==0.10.9
