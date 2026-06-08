@@ -6,7 +6,7 @@ Detector de caras basado en RetinaFace (TensorFlow). No mezclar con el venv de Y
 
 ```bash
 cd /Users/angel-dev/PycharmProjects/cv
-python3.10 -m venv .venvRetinaFace
+python3.11 -m venv .venvRetinaFace
 source .venvRetinaFace/bin/activate
 pip install --upgrade pip
 pip install -r 9_retinaface_testing/requirements-retinaface.txt

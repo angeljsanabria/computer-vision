@@ -7,6 +7,11 @@ https://github.com/airockchip/rknn-toolkit2.git
 
 https://github.com/airockchip/rknn_model_zoo.git
 
+
+# MobileFaceNet (embeddings faciales, ONNX en weights/)
+
+https://github.com/foamliu/MobileFaceNet.git
+
 # RK3568
 
 
