@@ -7,6 +7,11 @@ face_embedding_from_image.py (RGB, ImageNet normalize, 112x112).
 
 Constantes: MIN_SCORE_MEJOR_CARA_EMBEDDING, SIM_MIN_MATCH_VERIFICACION, FACE_CROP_MARGIN_FRAC.
 
+En PC:
+    pip install onnxruntime
+ENV:
+    conda activa cvEnvOk
+
 Ejemplo:
   python export_models/RetinaFace_from_cam_with_id.py --display
   python export_models/RetinaFace_from_cam_with_id.py --display --ref-embedding embeddings/angel2.npy

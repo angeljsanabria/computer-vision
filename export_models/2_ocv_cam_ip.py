@@ -8,8 +8,8 @@ import cv2
 
 # Campos que forman la URL
 USER_CAM = "angelcam"
-PASS_CAM = "AngelCamara"
-IP_CAM = "192.168.0.160"
+PASS_CAM = "angelCamara"
+IP_CAM = "192.168.1.13"
 RTSP_PORT_CAM = 554     # por defecto, pero depende de la config de la camara
 RES_HIGH_CAM = "Preview_01_main"
 RES_LOW_CAM = "Preview_01_sub"

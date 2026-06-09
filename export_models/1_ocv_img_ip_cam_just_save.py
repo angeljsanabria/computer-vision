@@ -15,8 +15,8 @@ import os
 
 # Campos que forman la URL
 USER_CAM = "angelcam"
-PASS_CAM = "AngelCamara"
-IP_CAM = "192.168.0.160"
+PASS_CAM = "angelCamara"
+IP_CAM = "192.168.1.13"
 RES_HIGH_CAM = "width=2560&height=1920"
 RES_LOW_CAM = "width=640&height=480"
 FILE_DIR = "camara_snap"

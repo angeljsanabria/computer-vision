@@ -54,8 +54,9 @@ from utils.image_utils import letterbox_bgr
 
 # --- RTSP: mismos campos que detect_yolov8_rknn_lite_cam_ip_person.py ---
 USER_CAM = "angelcam"
-PASS_CAM = "AngelCamara"
-IP_CAM = "192.168.0.160"
+PASS_CAM = "angelCamara"
+#IP_CAM = "192.168.0.160"
+IP_CAM = "192.168.1.13"
 RTSP_PORT_CAM = 554
 RES_HIGH_CAM = "Preview_01_main"
 RES_LOW_CAM = "Preview_01_sub"
