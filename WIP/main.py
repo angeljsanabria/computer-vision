@@ -1,6 +1,28 @@
+"""
+Punto de entrada del pipeline de biometria facial Edge (WIP).
+
+Hasta ahora:
+  - Carga configuracion desde configs.settings (modo RTSP/SNAP/USB, MAX_FPS, display, etc.)
+    y valida parametros con validar_todo().
+  - Arranca captura con utils.capture_cameras.CaptureCameras (hilo productor, warmup,
+    limite de FPS y reconexion segun el modo).
+  - Bucle principal: get_frame() -> log debug; opcional ventana OpenCV si
+    DISPLAY_IS_ENABLE=true (env). Salir: Ctrl+C o tecla q en la ventana.
+
+Sin modelos de inferencia todavia (deteccion/embeddings pendientes).
+
+Ejemplo:
+  cd WIP
+  python main.py
+
+  DISPLAY_IS_ENABLE=true CONFIG_MODO=USB python main.py
+"""
 import logging
 import sys
+import time
 from pathlib import Path
+
+import cv2
 
 # import signal  # RK3568 + systemd: descomentar al portar a placa
 
@@ -22,10 +44,8 @@ _WIP_DIR = Path(__file__).resolve().parent
 ROOT = _project_root_with_utils(_WIP_DIR)
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-if str(_WIP_DIR) not in sys.path:
-    sys.path.insert(0, str(_WIP_DIR))
 
-import settings as s  # noqa: E402
+from configs import settings as s  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 
 # ejecutando_pipeline = True
@@ -42,6 +62,11 @@ from utils.capture_cameras import CaptureCameras  # noqa: E402
 if __name__ == "__main__":
     s.validar_todo()
 
+    ventana = "pipeline"
+    if s.DISPLAY_IS_ENABLE:
+        cv2.namedWindow(ventana, cv2.WINDOW_NORMAL)
+        logging.info("Display activo (q en ventana para salir).")
+
     input_manager = CaptureCameras().start()
 
     logging.info("Pipeline de captura en marcha (sin modelos). Ctrl+C para salir.")
@@ -55,6 +80,18 @@ if __name__ == "__main__":
                 h, w = frame.shape[:2]
                 logging.debug(f"Frame listo para procesar: {w}x{h}")
 
+                if s.DISPLAY_IS_ENABLE:
+                    cv2.imshow(ventana, frame)
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        logging.info("Salida solicitada desde ventana (q).")
+                        break
+            else:
+                if s.DISPLAY_IS_ENABLE:
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        logging.info("Salida solicitada desde ventana (q).")
+                        break
+                time.sleep(0.001)
+
     except KeyboardInterrupt:
         logging.warning("Interrupcion por teclado. Cerrando...")
 
@@ -64,5 +101,7 @@ if __name__ == "__main__":
     finally:
         logging.info("Liberando hardware y sockets...")
         input_manager.stop()
+        if s.DISPLAY_IS_ENABLE:
+            cv2.destroyAllWindows()
         logging.info("Proceso terminado.")
         sys.exit(0)

@@ -1,0 +1,13 @@
+
+###
+numpy==1.26.4
+# Pin fijo (no >=): en Linux ARM algunos wheels recientes de opencv-python traen Qt
+# embebida y pueden fallar al importar (undefined symbol Qt_5 / QtOpenCVPython).
+# En RK3568: pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
+# luego: pip install --no-cache-dir "opencv-python==4.8.1.78"
+# Si esta version aun falla, probar en orden: 4.7.1.78, 4.6.0.66 (>=4.6 suele ir con ultralytics).
+# Falta anotar la version de numpy
+opencv-python==4.8.1.78
+opencv-python-headless==4.8.1.78
+# Requiremets debería estar
+

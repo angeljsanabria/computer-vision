@@ -2,12 +2,12 @@ import os
 import sys
 import logging
 
-# Configuración de logs para producción
+# Configuracion de logs para produccion
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, SNAP, USB
+MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 2.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
@@ -20,13 +20,13 @@ REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "10"))
 
-# 2. HARDWARE LOCAL (CÁMARA USB)
+# 2. HARDWARE LOCAL (CAMARA USB)
 USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 
 # 3. CONFIGURACIONES Camara IP
 _user = os.getenv("IP_CAM_USER", "angelcam")
 _pass = os.getenv("IP_CAM_PASS", "angelCamara")
-_host_ip = os.getenv("IP_CAM", "192.168.1.13")  # info dispositivo; info red
+_host_ip = os.getenv("IP_CAM", "192.168.1.16")  # info dispositivo; info red
 
 # 3.1 RTSP
 _port = os.getenv("IP_CAM_RTSP_PORT", "554")   # info dispositivo; info avanzada
@@ -58,8 +58,8 @@ SNAP_HTTP_URL = SNAP_HTTP_URL_RES_LOW
 
 
 def validar_todo():
-    """Valida los parámetros críticos en el arranque."""
-    logging.info("=== VALIDANDO AJUSTES DE PRODUCCIÓN ===")
+    """Valida los parametros criticos en el arranque."""
+    logging.info("=== VALIDANDO AJUSTES DE PRODUCCION ===")
     logging.info(
         f"Modo Activo: {MODO} | Velocidad Objetivo: {MAX_FPS} FPS | "
         f"Display: {DISPLAY_IS_ENABLE}"
