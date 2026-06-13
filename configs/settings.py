@@ -16,6 +16,8 @@ DISPLAY_IS_ENABLE = (
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
+CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 640))   #  High 2560    Medium 1080     Low 640
+CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  #  High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "10"))
@@ -30,7 +32,7 @@ _host_ip = os.getenv("IP_CAM", "192.168.1.16")  # info dispositivo; info red
 
 # 3.1 RTSP
 _port = os.getenv("IP_CAM_RTSP_PORT", "554")   # info dispositivo; info avanzada
-_route_rtsp_quality_low = os.getenv("IP_CAM_RTSP_ROUTE", "Preview_01_main")
+_route_rtsp_quality_low = os.getenv("IP_CAM_RTSP_ROUTE", "Preview_01_sub")
 _route_rtsp_quality_high = os.getenv("IP_CAM_RTSP_ROUTE", "Preview_01_main")
 
 IP_CAM_RTSP_URL = f"rtsp://{_user}:{_pass}@{_host_ip}:{_port}/{_route_rtsp_quality_low}"

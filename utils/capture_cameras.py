@@ -58,6 +58,14 @@ class CaptureCameras:
         except Exception:
             pass
 
+    def _usb_configurar_res(self, cap: cv2.VideoCapture) -> None:
+        try:
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, s.CAP_FRAME_WIDTH)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, s.CAP_FRAME_HEIGHT)
+        except Exception:
+            pass
+
+
     def _abrir_usb(self) -> cv2.VideoCapture | None:
         """Solo USB local. Linux: V4L2 primero; Windows: backend por defecto."""
         if sys.platform.startswith("linux") and hasattr(cv2, "CAP_V4L2"):
@@ -155,6 +163,7 @@ class CaptureCameras:
                     self.cap = self._abrir_usb()
                     if self.cap is None:
                         raise cv2.error("No se pudo abrir camara USB")
+                    self._usb_configurar_res(self.cap)
                     if not self._preparar_usb(self.cap):
                         self.cap.release()
                         self.cap = None
