@@ -16,6 +16,12 @@ Ejemplo:
   python main.py
 
   DISPLAY_IS_ENABLE=true CONFIG_MODO=USB python main.py
+
+TODO:
+    - RGA (Raster Graphic Acceleration Unit) para optimizar operaciones de OpenCV. 
+    - Como resize y espacios de color 
+    - Usar from rga import rga_context  # Módulo del wrapper de Rockchip
+    - rga_context.init()
 """
 import logging
 import sys

@@ -17,6 +17,7 @@ from .image_utils import (
     ajustar_frame_manteniendo_aspect_ratio,
     bbox_relativo_a_absoluto,
     letterbox_bgr,
+    resize_frame,
     rotar_frame,
 )
 
@@ -28,5 +29,6 @@ __all__ = [
     'bbox_relativo_a_absoluto',
     'letterbox_bgr',
     'LetterboxMeta',
+    'resize_frame',
     'rotar_frame',
 ]

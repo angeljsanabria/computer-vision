@@ -10,6 +10,7 @@ from typing import NamedTuple
 
 import cv2
 import numpy as np
+from configs import settings as s
 
 
 class LetterboxMeta(NamedTuple):
@@ -24,6 +25,25 @@ class LetterboxMeta(NamedTuple):
     aspect_ratio: float
     offset_x: int
     offset_y: int
+
+
+def resize_frame(
+    frame: np.ndarray,
+    out_wh: tuple[int, int],
+    interpolation: int = cv2.INTER_AREA,
+) -> np.ndarray:
+    """
+    Redimensiona un frame (H, W, C). OpenCV por defecto; RGA si ``settings.USE_RGA``.
+
+    Args:
+        frame: Array numpy (alto, ancho, canales).
+        out_wh: (ancho, alto) destino, convencion OpenCV.
+        interpolation: Flag ``cv2.INTER_*`` (solo aplica en ruta OpenCV legacy).
+    """
+    if s.USE_RGA:
+        # TODO: completar con toolkit de Rockchip (RGA resize).
+        return cv2.resize(frame, out_wh, interpolation=interpolation)
+    return cv2.resize(frame, out_wh, interpolation=interpolation)
 
 
 def letterbox_bgr(
@@ -73,7 +93,7 @@ def letterbox_bgr(
     new_width = int(image_width * aspect_ratio)
     new_height = int(image_height * aspect_ratio)
 
-    resized = cv2.resize(image_bgr, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    resized = resize_frame(image_bgr, (new_width, new_height), interpolation=cv2.INTER_AREA)
 
     canvas = (np.ones((target_height, target_width, 3), dtype=np.uint8) * fill_value).astype(
         np.uint8
@@ -115,7 +135,9 @@ def ajustar_frame_manteniendo_aspect_ratio(frame, max_ancho, max_alto):
     nuevo_alto = int(h * escala)
     
     # Redimensionar manteniendo aspect ratio
-    frame_redimensionado = cv2.resize(frame, (nuevo_ancho, nuevo_alto), interpolation=cv2.INTER_LINEAR)
+    frame_redimensionado = resize_frame(
+        frame, (nuevo_ancho, nuevo_alto), interpolation=cv2.INTER_LINEAR
+    )
     
     # Crear imagen negra del tamano de la ventana usando numpy
     frame_final = np.zeros((max_alto, max_ancho, 3), dtype=np.uint8)

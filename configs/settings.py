@@ -2,6 +2,8 @@ import os
 import sys
 import logging
 
+from configs.paths import resolve_repo_path
+
 # Configuracion de logs para produccion
 logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
 
@@ -21,6 +23,9 @@ CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  #  High 1920    Medi
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "10"))
+
+# 1.3 Procesamiento de imagen (RGA RK3568; legacy OpenCV por defecto)
+USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 
 # 2. HARDWARE LOCAL (CAMARA USB)
 USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
@@ -54,7 +59,42 @@ SNAP_HTTP_URL_RES_LOW = (
 
 SNAP_HTTP_URL = SNAP_HTTP_URL_RES_LOW
 
-# 4. RUTAS DE LOS MODELOS RKNN
+# 4. DETECCION DE MOVIMIENTO (MOG2) + FSM
+MOG2_PROCESS_WIDTH = int(os.getenv("MOG2_PROCESS_WIDTH", "320"))
+MOG2_PROCESS_HEIGHT = int(os.getenv("MOG2_PROCESS_HEIGHT", "240"))
+MOG2_HISTORY = int(os.getenv("MOG2_HISTORY", "20"))
+MOG2_VAR_THRESHOLD = int(os.getenv("MOG2_VAR_THRESHOLD", "40"))
+MOG2_MOVIMIENTO_PIXELES = int(os.getenv("MOG2_MOVIMIENTO_PIXELES", "750"))
+MOG2_WARMUP_FRAMES = int(os.getenv("MOG2_WARMUP_FRAMES", "20"))
+MOG2_WARMUP_LEARNING_RATE = float(os.getenv("MOG2_WARMUP_LEARNING_RATE", "0.5"))
+MOG2_WARMUP_TIMEOUT_S = float(os.getenv("MOG2_WARMUP_TIMEOUT_S", "120"))
+FSM_TIMEOUT_MOV_S = float(os.getenv("FSM_TIMEOUT_MOV_S", "10"))
+FSM_TIMEOUT_FACE_S = float(os.getenv("FSM_TIMEOUT_FACE_S", "10"))
+
+# 6. INFERENCIA (RetinaFace; MobileFaceNet pendiente)
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "pc").lower()  # "pc", "rk3568"
+RETINAFACE_MODEL_PC = os.getenv(
+    "RETINAFACE_MODEL_PC",
+    "models_onnx/RetinaFace_mobile320.onnx",
+)
+RETINAFACE_MODEL_RK3568 = os.getenv(
+    "RETINAFACE_MODEL_RK3568",
+    "models/RetinaFace_mobile320.rknn",
+)
+RETINAFACE_SCORE_DETECCION = float(os.getenv("RETINAFACE_SCORE_DETECCION", "0.2"))
+RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
+
+
+def retinaface_model_pc_path() -> str:
+    """Ruta absoluta al ONNX RetinaFace (defecto: models_onnx/RetinaFace_mobile320.onnx)."""
+    return str(resolve_repo_path(RETINAFACE_MODEL_PC))
+
+
+def retinaface_model_rk3568_path() -> str:
+    """Ruta absoluta al RKNN RetinaFace (defecto: models/RetinaFace_mobile320.rknn)."""
+    return str(resolve_repo_path(RETINAFACE_MODEL_RK3568))
+
+# 7. RUTAS DE LOS MODELOS RKNN (legacy / futuro embed)
 #RETINAFACE_MODEL = os.getenv("RETINAFACE_PATH", "./models/retinaface.rknn")
 #MOBILEFACENET_MODEL = os.getenv("MOBILEFACENET_PATH", "./models/mobilefacenet.rknn")
 
@@ -86,3 +126,41 @@ def validar_todo():
     if MODO == "SNAP" and not SNAP_HTTP_URL:
         logging.critical("CONFIG ERROR: Modo SNAP sin URL configurada.")
         sys.exit(1)
+
+    if MOG2_PROCESS_WIDTH < 1 or MOG2_PROCESS_HEIGHT < 1:
+        logging.critical("CONFIG ERROR: MOG2_PROCESS_WIDTH/HEIGHT deben ser >= 1.")
+        sys.exit(1)
+
+    if MOG2_WARMUP_FRAMES < 1:
+        logging.critical("CONFIG ERROR: MOG2_WARMUP_FRAMES debe ser >= 1.")
+        sys.exit(1)
+
+    if FSM_TIMEOUT_MOV_S <= 0 or FSM_TIMEOUT_FACE_S <= 0:
+        logging.critical("CONFIG ERROR: FSM_TIMEOUT_MOV_S y FSM_TIMEOUT_FACE_S > 0.")
+        sys.exit(1)
+
+    if INFERENCE_BACKEND not in ("none", "pc", "rk3568"):
+        logging.critical(
+            "CONFIG ERROR: INFERENCE_BACKEND debe ser none, pc o rk3568."
+        )
+        sys.exit(1)
+
+    if INFERENCE_BACKEND == "pc":
+        pc_path = retinaface_model_pc_path()
+        if not os.path.isfile(pc_path):
+            logging.critical(
+                "CONFIG ERROR: INFERENCE_BACKEND=pc pero no existe RETINAFACE_MODEL_PC: "
+                f"{pc_path}"
+            )
+            sys.exit(1)
+        logging.info("RetinaFace PC: %s", pc_path)
+
+    if INFERENCE_BACKEND == "rk3568":
+        rk_path = retinaface_model_rk3568_path()
+        if not os.path.isfile(rk_path):
+            logging.critical(
+                "CONFIG ERROR: INFERENCE_BACKEND=rk3568 pero no existe "
+                f"RETINAFACE_MODEL_RK3568: {rk_path}"
+            )
+            sys.exit(1)
+        logging.info("RetinaFace RK3568: %s", rk_path)
