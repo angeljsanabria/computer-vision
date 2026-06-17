@@ -1,0 +1,7 @@
+calib/test.jpg
+calib/cara2.jpg
+calib/cara3.jpg
+calib/cara4.jpg
+calib/cara5.jpg
+calib/cara6.jpg
+calib/cara7.jpg
