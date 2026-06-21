@@ -1,17 +1,41 @@
 """
-Pipeline WIP: captura + MOG2 + FSM (sin RetinaFace aun).
+Pipeline edge WIP: captura + MOG2 + FSM.
 
-Flujo:
-  1. CaptureCameras.start()
-  2. MOG2 warmup: primer frame x N applies (solo al inicio)
-  3. Bucle: MOG2 + FSM con frames nuevos del stream
+Responsabilidad de este archivo: orquestar el bucle por frame. La logica de
+movimiento y estados vive en ``mov_detect/``; captura en ``utils/``;
+inferencia (RetinaFace via ``inference/``, MobileFaceNet pendiente).
 
-Ejemplo:
+Flujo por frame:
+  1. ``CaptureCameras.get_frame()`` — frame BGR canonico.
+  2. ``Mog2MotionSensor.evaluate()`` — movimiento sobre frame reducido.
+  3. ``MotionFaceFsm.tick_motion()`` — transiciones IDLE / MOV_*.
+  4. ``_sync_umbral_mog2()`` — histéresis de umbral MOG2 segun estado FSM.
+  5. Si ``run_face_detector``: ``build_face_detector().detect()`` + ``tick_face()``.
+
+Estados FSM (resumen):
+  IDLE          — sin inferencia facial.
+  MOV_DETECTED  — MOG2 supero umbral.
+  MOV_OUT       — MOG2 bajo umbral dentro de sesion activa.
+  FACE_*        — RetinaFace activo (cuando INFERENCE_BACKEND != none).
+
+Variables de entorno utiles (ver ``configs/settings.py``):
+  CONFIG_MODO          — USB | RTSP | SNAP
+  DISPLAY_IS_ENABLE    — true/false (overlay OpenCV)
+  MOG2_* / FSM_*       — umbrales y timeouts
+  INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
+
+Ejemplos:
   cd WIP
   python main_mov.py
 
-  DISPLAY_IS_ENABLE=true CONFIG_MODO=USB python main_mov.py
+  INFERENCE_BACKEND=pc DISPLAY_IS_ENABLE=true CONFIG_MODO=USB python main_mov.py
+  INFERENCE_BACKEND=none python main_mov.py
+
+Despliegue RK3568: registrar manejadores SIGINT/SIGTERM para cierre limpio
+con systemd (ver ``main.py`` / comentarios historicos en el repo).
 """
+from __future__ import annotations
+
 import logging
 import sys
 import time
@@ -19,53 +43,64 @@ from pathlib import Path
 
 import cv2
 
-# import signal  # RK3568 + systemd: descomentar al portar a placa
-
-
-def _project_root_with_utils(start_dir: Path) -> Path:
-    """Sube desde start_dir hasta encontrar ./utils/ (RetinaFace + image_utils)."""
-    cur = start_dir.resolve()
-    for d in [cur, *cur.parents]:
-        u = d / "utils"
-        if u.is_dir() and (u / "aux_tools_retinaface.py").is_file():
-            return d
+# Bootstrap: permite ``python main_mov.py`` desde WIP/ sin instalar el paquete.
+# Sube directorios hasta encontrar configs/settings.py y agrega esa raiz a sys.path.
+_WIP_DIR = Path(__file__).resolve().parent
+for _candidate in [_WIP_DIR, *_WIP_DIR.parents]:
+    if (_candidate / "configs" / "settings.py").is_file():
+        if str(_candidate) not in sys.path:
+            sys.path.insert(0, str(_candidate))
+        break
+else:
     raise RuntimeError(
-        "No se encontro carpeta 'utils' con aux_tools_retinaface.py. "
-        f"Origen de busqueda: {start_dir}"
+        "No se encontro raiz del repo (configs/settings.py). "
+        f"Origen: {_WIP_DIR}"
     )
 
-
-_WIP_DIR = Path(__file__).resolve().parent
-ROOT = _project_root_with_utils(_WIP_DIR)
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
 from configs import settings as s  # noqa: E402
+from configs.paths import project_root  # noqa: E402
 from mov_detect import (  # noqa: E402
     FlowState,
     MotionFaceFsm,
     Mog2MotionSensor,
+    MotionResult,
     config_from_settings,
 )
+from mov_detect.types import FsmTickResult  # noqa: E402
+from inference import FaceDetector, build_face_detector  # noqa: E402
+from inference.types import FaceDetections  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 
-# def manejador_apagado_linux(sig, frame):
-#     global ejecutando_pipeline
-#     logging.warning(f"Senal de parada detectada ({sig}). Cierre seguro...")
-#     ejecutando_pipeline = False
+ROOT = project_root(_WIP_DIR)
+WINDOW_NAME = "pipeline_mov"
 
-# signal.signal(signal.SIGINT, manejador_apagado_linux)
-# signal.signal(signal.SIGTERM, manejador_apagado_linux)
+# ---------------------------------------------------------------------------
+# Helpers locales (solo orquestacion / UI de depuracion).
+#
+# No contienen logica de negocio: MOG2, FSM e inferencia viven en mov_detect/
+# e inference/. Estas funciones existen para mantener main() legible y evitar
+# duplicar codigo de logging, overlay y tecla 'q' en el bucle.
+# ---------------------------------------------------------------------------
+
+
 def _log_transitions(transitions: tuple[str, ...]) -> None:
+    """Escribe en log las transiciones FSM que devolvio tick_motion/tick_face."""
     for msg in transitions:
         logging.info(msg)
 
 
 def _sync_umbral_mog2(
     motion: Mog2MotionSensor,
-    estado_antes,
-    estado_despues,
+    estado_antes: FlowState,
+    estado_despues: FlowState,
 ) -> None:
+    """
+    Sincroniza umbral MOG2 con el estado FSM (histéresis).
+
+    En IDLE usa el umbral base (menos sensible). Al salir de IDLE baja el
+    umbral (mas sensible) para no perder actividad durante MOV_* / FACE_*.
+    Debe llamarse despues de cada tick que cambie ``fsm.state``.
+    """
     if estado_despues == estado_antes:
         return
     if estado_despues == FlowState.IDLE:
@@ -74,110 +109,187 @@ def _sync_umbral_mog2(
         motion.set_umbral_activo()
 
 
-def _log_mog2(mov, umbral: int) -> None:
-    if mov.hay_mov:
-        logging.info(
-            "[MOG2] MOV_DETECTED pixels=%d umbral=%d",
-            mov.pixel_count,
-            umbral,
-        )
-    else:
-        logging.info(
-            "[MOG2] NOT_MOV pixels=%d umbral=%d",
-            mov.pixel_count,
-            umbral,
-        )
+def _log_mog2(mov: MotionResult, umbral: int) -> None:
+    """Log de una lectura MOG2 (pixeles en mascara vs umbral activo)."""
+    tag = "MOV_DETECTED" if mov.hay_mov else "NOT_MOV"
+    logging.info("[MOG2] %s pixels=%d umbral=%d", tag, mov.pixel_count, umbral)
 
 
-if __name__ == "__main__":
+def _tick_mog2_fsm(
+    motion: Mog2MotionSensor,
+    fsm: MotionFaceFsm,
+    frame,
+    now: float,
+) -> tuple[MotionResult, FsmTickResult]:
+    """
+    Un ciclo MOG2 + FSM por frame (fase actual del pipeline).
+
+    Encapsula evaluate -> tick_motion -> sync umbral -> log. RetinaFace y
+    embed iran despues de este bloque, usando ``fsm_out.run_face_detector`` y
+    ``fsm_out.run_embedding`` (no dentro de esta funcion).
+    """
+    estado_antes = fsm.state
+    mov = motion.evaluate(frame)
+    _log_mog2(mov, motion.umbral_pixeles)
+
+    fsm_out = fsm.tick_motion(hay_mov=mov.hay_mov, now=now)
+    _sync_umbral_mog2(motion, estado_antes, fsm_out.state)
+    _log_transitions(fsm_out.transitions)
+    return mov, fsm_out
+
+
+def _tick_retinaface_if_needed(
+    face: FaceDetector | None,
+    fsm: MotionFaceFsm,
+    motion: Mog2MotionSensor,
+    frame,
+    now: float,
+    fsm_out: FsmTickResult,
+) -> tuple[FaceDetections | None, FsmTickResult]:
+    """
+    Inferencia RetinaFace + tick_face cuando la FSM lo indica.
+
+    ``face`` viene de ``build_face_detector()`` (None si INFERENCE_BACKEND=none).
+    """
+    if not fsm_out.run_face_detector or face is None:
+        return None, fsm_out
+
+    dets = face.detect(frame)
+    estado_antes = fsm.state
+    fsm_out = fsm.tick_face(hay_cara=dets.has_faces, now=now)
+    _sync_umbral_mog2(motion, estado_antes, fsm_out.state)
+    _log_transitions(fsm_out.transitions)
+    return dets, fsm_out
+
+
+def _draw_overlay(
+    frame,
+    fsm_out: FsmTickResult,
+    mov: MotionResult,
+    dets: FaceDetections | None = None,
+):
+    """
+    Devuelve copia del frame con texto de depuracion (estado FSM + MOG2).
+
+    Si ``dets`` tiene caras, dibuja bbox rojas. Solo para DISPLAY_IS_ENABLE.
+    """
+    vis = frame.copy()
+    if dets is not None and dets.has_faces:
+        for row in dets.dets:
+            x1, y1, x2, y2 = map(int, row[:4])
+            score = float(row[4])
+            cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            cv2.putText(
+                vis,
+                f"{score:.2f}",
+                (x1, max(y1 - 4, 12)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.45,
+                (0, 0, 255),
+                1,
+            )
+    cv2.putText(
+        vis,
+        f"estado: {fsm_out.state.value}",
+        (8, 28),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (0, 255, 0),
+        2,
+    )
+    cv2.putText(
+        vis,
+        f"MOG2 px={mov.pixel_count} mov={mov.hay_mov}",
+        (8, 56),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.55,
+        (0, 255, 255),
+        1,
+    )
+    return vis
+
+
+def _quit_requested() -> bool:
+    """True si el usuario pulso 'q' en la ventana OpenCV (requiere display activo)."""
+    return cv2.waitKey(1) & 0xFF == ord("q")
+
+
+def main() -> int:
+    """
+    Punto de entrada: valida config, warmup MOG2, bucle por frame, cleanup.
+
+    Retorna 0 si termino bien; 1 si hubo excepcion no controlada en el bucle.
+    """
     s.validar_todo()
+    logging.info("Repo root: %s", ROOT)
 
     mog2_cfg, fsm_cfg = config_from_settings()
     motion = Mog2MotionSensor(mog2_cfg)
     fsm = MotionFaceFsm(fsm_cfg)
+    face = build_face_detector()
+    if face is not None:
+        logging.info("RetinaFace activo (backend=%s)", s.INFERENCE_BACKEND)
+    else:
+        logging.info(
+            "RetinaFace desactivado (INFERENCE_BACKEND=%s)", s.INFERENCE_BACKEND
+        )
 
-    ventana = "pipeline_mov"
     if s.DISPLAY_IS_ENABLE:
-        cv2.namedWindow(ventana, cv2.WINDOW_NORMAL)
+        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
         logging.info("Display activo (q en ventana para salir).")
 
     capture = CaptureCameras().start()
-
-    motion.warmup_from_first_frame(
-        capture.get_frame,
-        n_frames=mog2_cfg.warmup_frames,
-        timeout_s=s.MOG2_WARMUP_TIMEOUT_S,
-    )
-
-    logging.info(
-        "Pipeline MOG2+FSM en marcha (RetinaFace pendiente). Ctrl+C para salir."
-    )
-
     try:
+        motion.warmup_from_first_frame(
+            capture.get_frame,
+            n_frames=mog2_cfg.warmup_frames,
+            timeout_s=s.MOG2_WARMUP_TIMEOUT_S,
+        )
+
+        logging.info(
+            "Pipeline MOG2+FSM+RetinaFace en marcha. Ctrl+C para salir."
+        )
+
         while True:
             has_frame, frame = capture.get_frame()
 
             if has_frame and frame is not None:
                 now = time.monotonic()
-                estado_antes = fsm.state
-                mov = motion.evaluate(frame)
-                _log_mog2(mov, motion.umbral_pixeles)
+                mov, fsm_out = _tick_mog2_fsm(motion, fsm, frame, now)
+                dets, fsm_out = _tick_retinaface_if_needed(
+                    face, fsm, motion, frame, now, fsm_out
+                )
 
-                fsm_out = fsm.tick_motion(hay_mov=mov.hay_mov, now=now)
-                _sync_umbral_mog2(motion, estado_antes, fsm_out.state)
-                _log_transitions(fsm_out.transitions)
-
-                # TODO: face = build_face_detector(config)
-                # if fsm_out.run_face_detector and face is not None:
-                #     dets = face.detect(frame)
-                #     estado_antes = fsm.state
-                #     fsm_out = fsm.tick_face(hay_cara=dets.has_faces, now=now)
-                #     _sync_umbral_mog2(motion, estado_antes, fsm_out.state)
-                #     _log_transitions(fsm_out.transitions)
-                # if fsm_out.run_embedding and dets is not None:
-                #     identity.process(frame, dets)
+                # Proximo paso: embedder cuando fsm_out.run_embedding
 
                 if s.DISPLAY_IS_ENABLE:
-                    vis = frame.copy()
-                    cv2.putText(
-                        vis,
-                        "estado: {}".format(fsm_out.state.value),
-                        (8, 28),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (0, 255, 0),
-                        2,
+                    cv2.imshow(
+                        WINDOW_NAME,
+                        _draw_overlay(frame, fsm_out, mov, dets),
                     )
-                    cv2.putText(
-                        vis,
-                        "MOG2 px={} mov={}".format(mov.pixel_count, mov.hay_mov),
-                        (8, 56),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.55,
-                        (0, 255, 255),
-                        1,
-                    )
-                    cv2.imshow(ventana, vis)
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                    if _quit_requested():
                         logging.info("Salida solicitada desde ventana (q).")
                         break
             else:
-                if s.DISPLAY_IS_ENABLE:
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        logging.info("Salida solicitada desde ventana (q).")
-                        break
+                if s.DISPLAY_IS_ENABLE and _quit_requested():
+                    logging.info("Salida solicitada desde ventana (q).")
+                    break
                 time.sleep(0.001)
 
     except KeyboardInterrupt:
         logging.warning("Interrupcion por teclado. Cerrando...")
-
-    except Exception as error_critico:
-        logging.critical("Fallo en el bucle principal: %s", error_critico)
-
+    except Exception as exc:
+        logging.critical("Fallo en el bucle principal: %s", exc, exc_info=True)
+        return 1
     finally:
         logging.info("Liberando hardware y sockets...")
         capture.stop()
         if s.DISPLAY_IS_ENABLE:
             cv2.destroyAllWindows()
         logging.info("Proceso terminado.")
-        sys.exit(0)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
