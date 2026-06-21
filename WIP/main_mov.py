@@ -74,6 +74,9 @@ from utils.capture_cameras import CaptureCameras  # noqa: E402
 ROOT = project_root(_WIP_DIR)
 WINDOW_NAME = "pipeline_mov"
 
+# Fase keep-alive 0..2 -> ".", "..", "..." (se reinicia en la 4. entrada).
+_keep_alive_phase = 0
+
 # ---------------------------------------------------------------------------
 # Helpers locales (solo orquestacion / UI de depuracion).
 #
@@ -130,7 +133,8 @@ def _tick_mog2_fsm(
     """
     estado_antes = fsm.state
     mov = motion.evaluate(frame)
-    _log_mog2(mov, motion.umbral_pixeles)
+    motion.log_motion_if_changed(mov)
+    #_log_mog2(mov, motion.umbral_pixeles)  # ver los de movimiento en cada frame
 
     fsm_out = fsm.tick_motion(hay_mov=mov.hay_mov, now=now)
     _sync_umbral_mog2(motion, estado_antes, fsm_out.state)
@@ -162,6 +166,19 @@ def _tick_retinaface_if_needed(
     return dets, fsm_out
 
 
+def _tick_keep_alive() -> str:
+    """
+    Avanza el indicador keep-alive (0..2) y devuelve '.', '..' o '...'.
+
+    En Python no hay ``static`` local: el contador vive a nivel modulo porque
+    debe persistir entre llamadas a la funcion.
+    """
+    global _keep_alive_phase
+    dots = "." * (_keep_alive_phase + 1)
+    _keep_alive_phase = (_keep_alive_phase + 1) % 3
+    return dots
+
+
 def _draw_overlay(
     frame,
     fsm_out: FsmTickResult,
@@ -174,6 +191,18 @@ def _draw_overlay(
     Si ``dets`` tiene caras, dibuja bbox rojas. Solo para DISPLAY_IS_ENABLE.
     """
     vis = frame.copy()
+    _, w = vis.shape[:2]
+    alive = _tick_keep_alive()
+    (tw, th), _ = cv2.getTextSize(alive, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+    cv2.putText(
+        vis,
+        alive,
+        (w - tw - 8, th + 8),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.7,
+        (200, 200, 200),
+        2,
+    )
     if dets is not None and dets.has_faces:
         for row in dets.dets:
             x1, y1, x2, y2 = map(int, row[:4])
@@ -249,6 +278,7 @@ def main() -> int:
         logging.info(
             "Pipeline MOG2+FSM+RetinaFace en marcha. Ctrl+C para salir."
         )
+        #motion.reset_motion_log()
 
         while True:
             has_frame, frame = capture.get_frame()

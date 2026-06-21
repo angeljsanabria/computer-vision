@@ -14,6 +14,9 @@ from utils.image_utils import resize_frame
 
 GetFrameFn = Callable[[], tuple[bool, Any]]
 
+_MOG2_TAG_MOV = "MOV_DETECTED"
+_MOG2_TAG_NOT = "NOT_MOV"
+
 
 class Mog2MotionSensor:
     """
@@ -34,6 +37,8 @@ class Mog2MotionSensor:
             varThreshold=self._cfg.var_threshold,
             detectShadows=False,
         )
+        self._last_logged_hay_mov: bool | None = None
+        self.reset_motion_log()
 
     @property
     def umbral_pixeles(self) -> int:
@@ -121,3 +126,20 @@ class Mog2MotionSensor:
         pixel_count = int(cv2.countNonZero(mask))
         hay_mov = pixel_count > self._umbral_pixeles
         return MotionResult(hay_mov=hay_mov, pixel_count=pixel_count)
+
+    def reset_motion_log(self) -> None:
+        """Reinicia el estado del log (llamar al iniciar el bucle principal)."""
+        self._last_logged_hay_mov = None
+
+    def log_motion_if_changed(self, result: MotionResult) -> None:
+        """Log MOG2 solo cuando cambia hay_mov (MOV_DETECTED <-> NOT_MOV)."""
+        if result.hay_mov == self._last_logged_hay_mov:
+            return
+        self._last_logged_hay_mov = result.hay_mov
+        tag = _MOG2_TAG_MOV if result.hay_mov else _MOG2_TAG_NOT
+        logging.info(
+            "[MOG2] %s pixels=%d umbral=%d",
+            tag,
+            result.pixel_count,
+            self._umbral_pixeles,
+        )
