@@ -15,6 +15,8 @@ WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
     os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
 )
+# Cuantas caras rankeadas procesar (1=mejor, 2=mejor+siguiente, ...).
+FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 2))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
@@ -83,7 +85,6 @@ RETINAFACE_MODEL_RK3568 = os.getenv(
 )
 RETINAFACE_SCORE_DETECCION = float(os.getenv("RETINAFACE_SCORE_DETECCION", "0.5"))
 RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
-
 
 def retinaface_model_pc_path() -> str:
     """Ruta absoluta al ONNX RetinaFace (defecto: models_onnx/RetinaFace_mobile320.onnx)."""
@@ -164,3 +165,12 @@ def validar_todo():
             )
             sys.exit(1)
         logging.info("RetinaFace RK3568: %s", rk_path)
+
+    if FACE_PROCESS_TOP_N < 1:
+        logging.critical("CONFIG ERROR: FACE_PROCESS_TOP_N debe ser >= 1.")
+        sys.exit(1)
+    logging.info(
+        "Caras a procesar: top %d (score >= RETINAFACE_SCORE_DETECCION=%.2f)",
+        FACE_PROCESS_TOP_N,
+        RETINAFACE_SCORE_DETECCION,
+    )

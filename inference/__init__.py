@@ -6,7 +6,7 @@ from typing import Protocol
 
 import numpy as np
 
-from inference.types import FaceDetections
+from inference.types import FaceDetections, FaceSelection
 
 
 class FaceDetector(Protocol):
@@ -43,5 +43,6 @@ def build_face_detector() -> FaceDetector | None:
 __all__ = [
     "FaceDetections",
     "FaceDetector",
+    "FaceSelection",
     "build_face_detector",
 ]

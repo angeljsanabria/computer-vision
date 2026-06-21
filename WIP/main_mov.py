@@ -23,6 +23,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   DISPLAY_IS_ENABLE    — true/false (overlay OpenCV)
   MOG2_* / FSM_*       — umbrales y timeouts
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
+  FACE_PROCESS_TOP_N     — 1=mejor cara, 2=mejor+siguiente, ...
 
 Ejemplos:
   cd WIP
@@ -69,6 +70,7 @@ from mov_detect import (  # noqa: E402
 from mov_detect.types import FsmTickResult  # noqa: E402
 from inference import FaceDetector, build_face_detector  # noqa: E402
 from inference.types import FaceDetections  # noqa: E402
+from inference.retinaface.select_best import mejores_caras  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 
 ROOT = project_root(_WIP_DIR)
@@ -151,16 +153,18 @@ def _tick_retinaface_if_needed(
     fsm_out: FsmTickResult,
 ) -> tuple[FaceDetections | None, FsmTickResult]:
     """
-    Inferencia RetinaFace + tick_face cuando la FSM lo indica.
+    RetinaFace + ranking + tick_face cuando la FSM lo indica.
 
-    ``face`` viene de ``build_face_detector()`` (None si INFERENCE_BACKEND=none).
+    Devuelve solo las caras utiles (top-N rankeadas) y el estado FSM.
+    La FSM usa ``hay_cara`` sobre todas las detecciones del modelo, no solo las filtradas.
     """
     if not fsm_out.run_face_detector or face is None:
         return None, fsm_out
 
-    dets = face.detect(frame)
+    raw = face.detect(frame)
+    dets = mejores_caras(raw, top_n=s.FACE_PROCESS_TOP_N)
     estado_antes = fsm.state
-    fsm_out = fsm.tick_face(hay_cara=dets.has_faces, now=now)
+    fsm_out = fsm.tick_face(hay_cara=raw.has_faces, now=now)
     _sync_umbral_mog2(motion, estado_antes, fsm_out.state)
     _log_transitions(fsm_out.transitions)
     return dets, fsm_out
@@ -188,7 +192,7 @@ def _draw_overlay(
     """
     Devuelve copia del frame con texto de depuracion (estado FSM + MOG2).
 
-    Si ``dets`` tiene caras, dibuja bbox rojas. Solo para DISPLAY_IS_ENABLE.
+    ``dets`` ya viene filtrado (top-N); cada bbox se dibuja en verde con su rank.
     """
     vis = frame.copy()
     _, w = vis.shape[:2]
@@ -204,17 +208,21 @@ def _draw_overlay(
         2,
     )
     if dets is not None and dets.has_faces:
-        for row in dets.dets:
+        for idx, row in enumerate(dets.dets):
             x1, y1, x2, y2 = map(int, row[:4])
             score = float(row[4])
-            cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            rank = idx + 1
+            color = (0, 255, 0)
+            label = f"#{rank} {score:.2f}"
+            thickness = 2
+            cv2.rectangle(vis, (x1, y1), (x2, y2), color, thickness)
             cv2.putText(
                 vis,
-                f"{score:.2f}",
+                label,
                 (x1, max(y1 - 4, 12)),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.45,
-                (0, 0, 255),
+                color,
                 1,
             )
     cv2.putText(
@@ -241,6 +249,15 @@ def _draw_overlay(
 def _quit_requested() -> bool:
     """True si el usuario pulso 'q' en la ventana OpenCV (requiere display activo)."""
     return cv2.waitKey(1) & 0xFF == ord("q")
+
+
+def _release_face_detector(face: FaceDetector | None) -> None:
+    """Libera runtime del detector si expone release() (p. ej. RKNNLite en RK3568)."""
+    if face is None:
+        return
+    release = getattr(face, "release", None)
+    if callable(release):
+        release()
 
 
 def main() -> int:
@@ -290,7 +307,7 @@ def main() -> int:
                     face, fsm, motion, frame, now, fsm_out
                 )
 
-                # Proximo paso: embedder cuando fsm_out.run_embedding
+                # Proximo paso: embedder sobre dets.dets (ya top-N rankeadas)
 
                 if s.DISPLAY_IS_ENABLE:
                     cv2.imshow(
@@ -313,6 +330,7 @@ def main() -> int:
         return 1
     finally:
         logging.info("Liberando hardware y sockets...")
+        _release_face_detector(face)
         capture.stop()
         if s.DISPLAY_IS_ENABLE:
             cv2.destroyAllWindows()
