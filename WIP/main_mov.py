@@ -3,7 +3,7 @@ Pipeline edge WIP: captura + MOG2 + FSM.
 
 Responsabilidad de este archivo: orquestar el bucle por frame. La logica de
 movimiento y estados vive en ``mov_detect/``; captura en ``utils/``;
-inferencia (RetinaFace via ``inference/``, MobileFaceNet pendiente).
+inferencia (RetinaFace via ``inference/``, MobileFaceNet pendiente); UI en ``ui/``.
 
 Flujo por frame:
   1. ``CaptureCameras.get_frame()`` — frame BGR canonico.
@@ -42,8 +42,6 @@ import sys
 import time
 from pathlib import Path
 
-import cv2
-
 # Bootstrap: permite ``python main_mov.py`` desde WIP/ sin instalar el paquete.
 # Sube directorios hasta encontrar configs/settings.py y agrega esa raiz a sys.path.
 _WIP_DIR = Path(__file__).resolve().parent
@@ -71,20 +69,15 @@ from mov_detect.types import FsmTickResult  # noqa: E402
 from inference import FaceDetector, build_face_detector  # noqa: E402
 from inference.types import FaceDetections  # noqa: E402
 from inference.retinaface.select_best import mejores_caras  # noqa: E402
+from ui import FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 
 ROOT = project_root(_WIP_DIR)
-WINDOW_NAME = "pipeline_mov"
-
-# Fase keep-alive 0..2 -> ".", "..", "..." (se reinicia en la 4. entrada).
-_keep_alive_phase = 0
 
 # ---------------------------------------------------------------------------
-# Helpers locales (solo orquestacion / UI de depuracion).
+# Helpers locales (orquestacion del pipeline por etapas).
 #
-# No contienen logica de negocio: MOG2, FSM e inferencia viven en mov_detect/
-# e inference/. Estas funciones existen para mantener main() legible y evitar
-# duplicar codigo de logging, overlay y tecla 'q' en el bucle.
+# MOG2, FSM e inferencia viven en mov_detect/ e inference/. La UI vive en ui/.
 # ---------------------------------------------------------------------------
 
 
@@ -170,87 +163,6 @@ def _tick_retinaface_if_needed(
     return dets, fsm_out
 
 
-def _tick_keep_alive() -> str:
-    """
-    Avanza el indicador keep-alive (0..2) y devuelve '.', '..' o '...'.
-
-    En Python no hay ``static`` local: el contador vive a nivel modulo porque
-    debe persistir entre llamadas a la funcion.
-    """
-    global _keep_alive_phase
-    dots = "." * (_keep_alive_phase + 1)
-    _keep_alive_phase = (_keep_alive_phase + 1) % 3
-    return dots
-
-
-def _draw_overlay(
-    frame,
-    fsm_out: FsmTickResult,
-    mov: MotionResult,
-    dets: FaceDetections | None = None,
-):
-    """
-    Devuelve copia del frame con texto de depuracion (estado FSM + MOG2).
-
-    ``dets`` ya viene filtrado (top-N); cada bbox se dibuja en verde con su rank.
-    """
-    vis = frame.copy()
-    _, w = vis.shape[:2]
-    alive = _tick_keep_alive()
-    (tw, th), _ = cv2.getTextSize(alive, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-    cv2.putText(
-        vis,
-        alive,
-        (w - tw - 8, th + 8),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (200, 200, 200),
-        2,
-    )
-    if dets is not None and dets.has_faces:
-        for idx, row in enumerate(dets.dets):
-            x1, y1, x2, y2 = map(int, row[:4])
-            score = float(row[4])
-            rank = idx + 1
-            color = (0, 255, 0)
-            label = f"#{rank} {score:.2f}"
-            thickness = 2
-            cv2.rectangle(vis, (x1, y1), (x2, y2), color, thickness)
-            cv2.putText(
-                vis,
-                label,
-                (x1, max(y1 - 4, 12)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.45,
-                color,
-                1,
-            )
-    cv2.putText(
-        vis,
-        f"estado: {fsm_out.state.value}",
-        (8, 28),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.7,
-        (0, 255, 0),
-        2,
-    )
-    cv2.putText(
-        vis,
-        f"MOG2 px={mov.pixel_count} mov={mov.hay_mov}",
-        (8, 56),
-        cv2.FONT_HERSHEY_SIMPLEX,
-        0.55,
-        (0, 255, 255),
-        1,
-    )
-    return vis
-
-
-def _quit_requested() -> bool:
-    """True si el usuario pulso 'q' en la ventana OpenCV (requiere display activo)."""
-    return cv2.waitKey(1) & 0xFF == ord("q")
-
-
 def _release_face_detector(face: FaceDetector | None) -> None:
     """Libera runtime del detector si expone release() (p. ej. RKNNLite en RK3568)."""
     if face is None:
@@ -280,9 +192,8 @@ def main() -> int:
             "RetinaFace desactivado (INFERENCE_BACKEND=%s)", s.INFERENCE_BACKEND
         )
 
-    if s.DISPLAY_IS_ENABLE:
-        cv2.namedWindow(WINDOW_NAME, cv2.WINDOW_NORMAL)
-        logging.info("Display activo (q en ventana para salir).")
+    display = PipelineDisplay.from_settings()
+    display.setup()
 
     capture = CaptureCameras().start()
     try:
@@ -309,16 +220,13 @@ def main() -> int:
 
                 # Proximo paso: embedder sobre dets.dets (ya top-N rankeadas)
 
-                if s.DISPLAY_IS_ENABLE:
-                    cv2.imshow(
-                        WINDOW_NAME,
-                        _draw_overlay(frame, fsm_out, mov, dets),
-                    )
-                    if _quit_requested():
-                        logging.info("Salida solicitada desde ventana (q).")
-                        break
+                view = FrameView(mov=mov, fsm=fsm_out, dets=dets)
+                display.show(frame, view)
+                if display.poll_quit():
+                    logging.info("Salida solicitada desde ventana (q).")
+                    break
             else:
-                if s.DISPLAY_IS_ENABLE and _quit_requested():
+                if display.poll_quit():
                     logging.info("Salida solicitada desde ventana (q).")
                     break
                 time.sleep(0.001)
@@ -332,8 +240,7 @@ def main() -> int:
         logging.info("Liberando hardware y sockets...")
         _release_face_detector(face)
         capture.stop()
-        if s.DISPLAY_IS_ENABLE:
-            cv2.destroyAllWindows()
+        display.teardown()
         logging.info("Proceso terminado.")
 
     return 0
