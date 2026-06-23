@@ -73,8 +73,8 @@ MOG2_WARMUP_TIMEOUT_S = float(os.getenv("MOG2_WARMUP_TIMEOUT_S", "120"))
 FSM_TIMEOUT_MOV_S = float(os.getenv("FSM_TIMEOUT_MOV_S", "10"))
 FSM_TIMEOUT_FACE_S = float(os.getenv("FSM_TIMEOUT_FACE_S", "10"))
 
-# 6. INFERENCIA (RetinaFace; MobileFaceNet pendiente)
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "pc").lower()  # "pc", "rk3568"
+# 6. INFERENCIA (RetinaFace + MobileFaceNet)
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "pc").lower()  # "none", "pc", "rk3568"
 RETINAFACE_MODEL_PC = os.getenv(
     "RETINAFACE_MODEL_PC",
     "models_onnx/RetinaFace_mobile320.onnx",
@@ -90,10 +90,29 @@ RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 # false (defecto): nunca warpAffine; siempre crop bbox + resize (export_models).
 # true: hibrido; align si |roll ojos| > FACE_ROLL_MAX_DEG, si no crop.
 FACE_ALIGNMENT_ENABLE = (
-    os.getenv("FACE_ALIGNMENT_ENABLE", "false").lower() == "true"
+    os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
 )
 FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "10"))
 FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
+
+# 6.2 Embedding en FACE_PROCESSED (reglas de score y cooldown)
+# Sin EMBED_MIN_SCORE en env: default RETINAFACE_SCORE_DETECCION (misma linea abajo).
+# Debe cumplirse RETINAFACE_SCORE_DETECCION <= EMBED_MIN_SCORE (warning en validar_todo).
+EMBED_MIN_SCORE = float(
+    os.getenv("EMBED_MIN_SCORE", str(RETINAFACE_SCORE_DETECCION))
+)
+# RetinaFace/FSM siguen activos; embed como maximo cada EMBED_COOLDOWN_S. 0 = cada tick con cara.
+EMBED_COOLDOWN_S = float(os.getenv("EMBED_COOLDOWN_S", "2.0"))
+
+# 6.3 MobileFaceNet (rutas segun INFERENCE_BACKEND)
+MOBILEFACENET_MODEL_PC = os.getenv(
+    "MOBILEFACENET_MODEL_PC",
+    "models_onnx/MobileFaceNet.onnx",
+)
+MOBILEFACENET_MODEL_RK3568 = os.getenv(
+    "MOBILEFACENET_MODEL_RK3568",
+    "models/MobileFaceNet.rknn",
+)
 
 def retinaface_model_pc_path() -> str:
     """Ruta absoluta al ONNX RetinaFace (defecto: models_onnx/RetinaFace_mobile320.onnx)."""
@@ -104,9 +123,15 @@ def retinaface_model_rk3568_path() -> str:
     """Ruta absoluta al RKNN RetinaFace (defecto: models/RetinaFace_mobile320.rknn)."""
     return str(resolve_repo_path(RETINAFACE_MODEL_RK3568))
 
-# 7. RUTAS DE LOS MODELOS RKNN (legacy / futuro embed)
-#RETINAFACE_MODEL = os.getenv("RETINAFACE_PATH", "./models/retinaface.rknn")
-#MOBILEFACENET_MODEL = os.getenv("MOBILEFACENET_PATH", "./models/mobilefacenet.rknn")
+
+def mobilefacenet_model_pc_path() -> str:
+    """Ruta absoluta al ONNX MobileFaceNet (defecto: models_onnx/MobileFaceNet.onnx)."""
+    return str(resolve_repo_path(MOBILEFACENET_MODEL_PC))
+
+
+def mobilefacenet_model_rk3568_path() -> str:
+    """Ruta absoluta al RKNN MobileFaceNet (defecto: models/MobileFaceNet.rknn)."""
+    return str(resolve_repo_path(MOBILEFACENET_MODEL_RK3568))
 
 
 def validar_todo():
@@ -164,6 +189,14 @@ def validar_todo():
             )
             sys.exit(1)
         logging.info("RetinaFace PC: %s", pc_path)
+        mfn_pc = mobilefacenet_model_pc_path()
+        if not os.path.isfile(mfn_pc):
+            logging.critical(
+                "CONFIG ERROR: INFERENCE_BACKEND=pc pero no existe "
+                f"MOBILEFACENET_MODEL_PC: {mfn_pc}"
+            )
+            sys.exit(1)
+        logging.info("MobileFaceNet PC: %s", mfn_pc)
 
     if INFERENCE_BACKEND == "rk3568":
         rk_path = retinaface_model_rk3568_path()
@@ -174,6 +207,14 @@ def validar_todo():
             )
             sys.exit(1)
         logging.info("RetinaFace RK3568: %s", rk_path)
+        mfn_rk = mobilefacenet_model_rk3568_path()
+        if not os.path.isfile(mfn_rk):
+            logging.critical(
+                "CONFIG ERROR: INFERENCE_BACKEND=rk3568 pero no existe "
+                f"MOBILEFACENET_MODEL_RK3568: {mfn_rk}"
+            )
+            sys.exit(1)
+        logging.info("MobileFaceNet RK3568: %s", mfn_rk)
 
     if FACE_PROCESS_TOP_N < 1:
         logging.critical("CONFIG ERROR: FACE_PROCESS_TOP_N debe ser >= 1.")
@@ -209,3 +250,46 @@ def validar_todo():
             "Preproceso cara: solo crop bbox (sin align, margen=%.2f)",
             FACE_CROP_MARGIN_FRAC,
         )
+
+    if EMBED_MIN_SCORE <= 0.0 or EMBED_MIN_SCORE > 1.0:
+        logging.critical(
+            "CONFIG ERROR: EMBED_MIN_SCORE debe estar en (0, 1] (got %.2f).",
+            EMBED_MIN_SCORE,
+        )
+        sys.exit(1)
+
+    if RETINAFACE_SCORE_DETECCION > EMBED_MIN_SCORE:
+        logging.warning(
+            "RETINAFACE_SCORE_DETECCION (%.2f) > EMBED_MIN_SCORE (%.2f): "
+            "llegaran detecciones al pipeline de embed por debajo del score minimo "
+            "de embed. Subir EMBED_MIN_SCORE o bajar RETINAFACE_SCORE_DETECCION.",
+            RETINAFACE_SCORE_DETECCION,
+            EMBED_MIN_SCORE,
+        )
+
+    if EMBED_COOLDOWN_S < 0:
+        logging.critical(
+            "CONFIG ERROR: EMBED_COOLDOWN_S debe ser >= 0 (got %.2f).",
+            EMBED_COOLDOWN_S,
+        )
+        sys.exit(1)
+
+    if EMBED_COOLDOWN_S == 0:
+        logging.info(
+            "Embed: sin cooldown (cada tick con cara en FACE_PROCESSED; util para metricas)"
+        )
+    else:
+        logging.info(
+            "Embed: cooldown %.1f s (RetinaFace/FSM sin cambios)",
+            EMBED_COOLDOWN_S,
+        )
+
+    if os.getenv("EMBED_MIN_SCORE") is not None:
+        embed_min_src = "EMBED_MIN_SCORE (env)"
+    else:
+        embed_min_src = "RETINAFACE_SCORE_DETECCION (default)"
+    logging.info(
+        "Embed: score minimo %.2f (fuente %s)",
+        EMBED_MIN_SCORE,
+        embed_min_src,
+    )

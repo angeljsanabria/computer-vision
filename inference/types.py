@@ -47,3 +47,14 @@ class FaceSelection:
         if not self.indices:
             return np.zeros((0, 15), dtype=np.float32)
         return dets.dets[list(self.indices)]
+
+
+@dataclass(frozen=True)
+class FaceEmbedding:
+    """Vector de embedding facial L2-normalizado (MobileFaceNet, tipicamente 128-D)."""
+
+    vector: np.ndarray
+
+    @property
+    def dim(self) -> int:
+        return int(self.vector.reshape(-1).size)

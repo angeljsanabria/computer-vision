@@ -18,8 +18,29 @@ alwaysApply: true
 
 ---
 
+## Consistencia antes de implementar
+
+Antes de agregar o modificar codigo en un modulo:
+
+1. **Leer el archivo completo** (y modulos vecinos del mismo dominio) para identificar patrones: naming, lectura de config, estructura de funciones, logging, tipos.
+2. **Un solo estilo por concern**: si el repo ya resuelve X de una forma, la feature nueva usa la misma forma. No introducir un patron alternativo "porque funciona" sin pedirlo al usuario.
+3. **Revision de impacto**: settings ↔ validar_todo ↔ consumidores; no dejar variables huerfanas ni validaciones desalineadas.
+4. **Si hay excepcion**, debe ser explicita en el diff (comentario breve) o acordada con el usuario; nunca por omision.
+5. **Autocheck antes de cerrar**: "¿esto se lee como escrito por el mismo autor que el resto del archivo?" Si no → corregir antes de entregar.
+
+### configs/settings.py
+
+- Un solo patron de lectura: `VAR = <cast>(os.getenv("VAR", "default"))`.
+- No usar `if "VAR" in os.environ` salvo pedido explicito del usuario.
+- Default que depende de otra setting: definir la otra variable antes y usar `os.getenv("VAR", str(OTRA_VAR))`.
+- Booleans: `os.getenv("VAR", "false").lower() == "true"`.
+- Validacion solo en `validar_todo()`; no mezclar logica de negocio en el bloque de asignacion.
+
+---
+
 ## ANTES DE CADA RESPUESTA - CHECKLIST
 - [ ] ¿Expliqué el concepto ANTES de mostrar código?
+- [ ] ¿Leí el archivo/modulo completo y seguí el estilo existente (Consistencia)?
 - [ ] ¿Un solo script/paso (no varios a la vez)?
 - [ ] ¿Sugerí en lugar de modificar sin permiso? (Si modifiqué algo: ¿el usuario dijo explícitamente "aplica"/"modifica"? Si NO → VIOLACION)
 - [ ] ¿Respuesta completa desde el inicio (clara, con detalle, no telegráfica)?
@@ -37,6 +58,7 @@ Si alguna es NO → corregir antes de enviar.
 - [ ] ¿Indiqué variaciones según hardware (UNIHIKER, Raspberry Pi, ESP32-P4)?
 - [ ] ¿Sugerí código en lugar de modificar directamente (a menos que haya permiso explícito)?
 - [ ] ¿Verifiqué dependencias y coherencia del código antes de sugerirlo?
+- [ ] ¿Revise impacto settings ↔ validacion ↔ consumidores si toque config?
 - [ ] ¿Consideré limitaciones de embedded systems?
 - [ ] ¿El objetivo es que el usuario APRENDA, no solo que tenga código funcionando?
 
@@ -52,6 +74,7 @@ Si alguna es NO → corregir antes de enviar.
 
 **NO IGNORAR ESTAS RULES EN NINGUN CASO**. Todas las secciones de este documento deben seguirse estrictamente, especialmente:
 - Sugerir codigo, nunca modificar sin permiso
+- Consistencia con el codigo existente antes de implementar
 - Explicar conceptos antes de implementar
 - Validar dependencias y recursos
 - Considerar limitaciones de embedded

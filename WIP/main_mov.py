@@ -3,14 +3,15 @@ Pipeline edge WIP: captura + MOG2 + FSM.
 
 Responsabilidad de este archivo: orquestar el bucle por frame. La logica de
 movimiento y estados vive en ``mov_detect/``; captura en ``utils/``;
-inferencia (RetinaFace via ``inference/``, MobileFaceNet pendiente); UI en ``ui/``.
+inferencia (RetinaFace + MobileFaceNet via ``inference/``); UI en ``ui/``.
 
 Flujo por frame:
   1. ``CaptureCameras.get_frame()`` — frame BGR canonico.
   2. ``Mog2MotionSensor.evaluate()`` — movimiento sobre frame reducido.
   3. ``MotionFaceFsm.tick_motion()`` — transiciones IDLE / MOV_*.
   4. ``_sync_umbral_mog2()`` — histéresis de umbral MOG2 segun estado FSM.
-  5. Si ``run_face_detector``: ``build_face_detector().detect()`` + ``tick_face()``.
+  5. Si ``run_face_detector``: RetinaFace + ``tick_face()``.
+  6. Si ``run_embedding``: preprocess + MobileFaceNet (cooldown ``EMBED_COOLDOWN_S``).
 
 Estados FSM (resumen):
   IDLE          — sin inferencia facial.
@@ -24,6 +25,9 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   MOG2_* / FSM_*       — umbrales y timeouts
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
   FACE_PROCESS_TOP_N     — 1=mejor cara, 2=mejor+siguiente, ...
+  EMBED_MIN_SCORE        — score minimo RetinaFace para embed
+  EMBED_COOLDOWN_S       — segundos entre embeds (0 = cada tick con cara)
+  FACE_ALIGNMENT_ENABLE  — false=crop; true=hibrido crop/align
 
 Ejemplos:
   cd WIP
@@ -66,9 +70,10 @@ from mov_detect import (  # noqa: E402
     config_from_settings,
 )
 from mov_detect.types import FsmTickResult  # noqa: E402
-from inference import FaceDetector, build_face_detector  # noqa: E402
-from inference.types import FaceDetections  # noqa: E402
-from inference.retinaface.select_best import mejores_caras  # noqa: E402
+from inference import FaceDetector, FaceEmbedder, build_embedder, build_face_detector  # noqa: E402
+from inference.types import FaceDetections, FaceEmbedding  # noqa: E402
+from inference.face_preprocess import prepare_face_patch_from_settings  # noqa: E402
+from inference.retinaface.select_best import distancia_interocular, mejores_caras  # noqa: E402
 from ui import FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 
@@ -163,13 +168,77 @@ def _tick_retinaface_if_needed(
     return dets, fsm_out
 
 
-def _release_face_detector(face: FaceDetector | None) -> None:
-    """Libera runtime del detector si expone release() (p. ej. RKNNLite en RK3568)."""
-    if face is None:
+def _elegir_fila_para_embed(dets: FaceDetections):
+    """
+    Mejor cara para embed entre las que superan ``EMBED_MIN_SCORE``.
+
+    Criterio mov_detect: mayor distancia interocular; desempate implicito por orden.
+    """
+    candidatas = [
+        row
+        for row in dets.dets
+        if float(row[4]) >= s.EMBED_MIN_SCORE
+    ]
+    if not candidatas:
+        return None
+    return max(candidatas, key=distancia_interocular)
+
+
+def _tick_embed_if_needed(
+    embedder: FaceEmbedder | None,
+    frame,
+    dets: FaceDetections | None,
+    fsm_out: FsmTickResult,
+    now: float,
+    t_ultimo_embed: float | None,
+) -> tuple[FaceEmbedding | None, float | None]:
+    """
+    Preprocess + MobileFaceNet solo en ``FACE_PROCESSED`` y si paso cooldown.
+
+    RetinaFace/FSM no se tocan; sin embed no hay crop de embed ni alignment.
+    """
+    if not fsm_out.run_embedding or embedder is None:
+        return None, t_ultimo_embed
+    if dets is None or not dets.has_faces:
+        return None, t_ultimo_embed
+
+    if s.EMBED_COOLDOWN_S > 0 and t_ultimo_embed is not None:
+        if (now - t_ultimo_embed) < s.EMBED_COOLDOWN_S:
+            return None, t_ultimo_embed
+
+    row = _elegir_fila_para_embed(dets)
+    if row is None:
+        return None, t_ultimo_embed
+
+    try:
+        patch = prepare_face_patch_from_settings(frame, row)
+        vector = embedder.embed(patch.bgr)
+    except Exception as exc:
+        logging.warning("[Embed] fallo preprocess o inferencia: %s", exc)
+        return None, t_ultimo_embed
+
+    logging.info(
+        "[Embed] score=%.3f dim=%d align=%s roll=%.1f",
+        float(row[4]),
+        vector.size,
+        patch.used_align,
+        patch.roll_deg,
+    )
+    return FaceEmbedding(vector=vector), now
+
+
+def _release_runtime(obj: FaceDetector | FaceEmbedder | None) -> None:
+    """Libera runtime si el objeto expone release() (p. ej. RKNNLite en RK3568)."""
+    if obj is None:
         return
-    release = getattr(face, "release", None)
+    release = getattr(obj, "release", None)
     if callable(release):
         release()
+
+
+def _release_face_detector(face: FaceDetector | None) -> None:
+    """Libera runtime del detector si expone release() (p. ej. RKNNLite en RK3568)."""
+    _release_runtime(face)
 
 
 def main() -> int:
@@ -192,6 +261,19 @@ def main() -> int:
             "RetinaFace desactivado (INFERENCE_BACKEND=%s)", s.INFERENCE_BACKEND
         )
 
+    embedder = build_embedder()
+    if embedder is not None:
+        logging.info(
+            "MobileFaceNet activo (backend=%s, embed_min_score=%.2f, cooldown=%.1f s)",
+            s.INFERENCE_BACKEND,
+            s.EMBED_MIN_SCORE,
+            s.EMBED_COOLDOWN_S,
+        )
+    else:
+        logging.info(
+            "MobileFaceNet desactivado (INFERENCE_BACKEND=%s)", s.INFERENCE_BACKEND
+        )
+
     display = PipelineDisplay.from_settings()
     display.setup()
 
@@ -204,9 +286,11 @@ def main() -> int:
         )
 
         logging.info(
-            "Pipeline MOG2+FSM+RetinaFace en marcha. Ctrl+C para salir."
+            "Pipeline MOG2+FSM+RetinaFace+Embed en marcha. Ctrl+C para salir."
         )
         #motion.reset_motion_log()
+
+        t_ultimo_embed: float | None = None
 
         while True:
             has_frame, frame = capture.get_frame()
@@ -217,8 +301,9 @@ def main() -> int:
                 dets, fsm_out = _tick_retinaface_if_needed(
                     face, fsm, motion, frame, now, fsm_out
                 )
-
-                # Proximo paso: embedder sobre dets.dets (ya top-N rankeadas)
+                _embedding, t_ultimo_embed = _tick_embed_if_needed(
+                    embedder, frame, dets, fsm_out, now, t_ultimo_embed
+                )
 
                 view = FrameView(mov=mov, fsm=fsm_out, dets=dets)
                 display.show(frame, view)
@@ -239,6 +324,7 @@ def main() -> int:
     finally:
         logging.info("Liberando hardware y sockets...")
         _release_face_detector(face)
+        _release_runtime(embedder)
         capture.stop()
         display.teardown()
         logging.info("Proceso terminado.")
