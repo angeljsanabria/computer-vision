@@ -86,6 +86,15 @@ RETINAFACE_MODEL_RK3568 = os.getenv(
 RETINAFACE_SCORE_DETECCION = float(os.getenv("RETINAFACE_SCORE_DETECCION", "0.5"))
 RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 
+# 6.1 Preproceso cara para embedding (crop vs align)
+# false (defecto): nunca warpAffine; siempre crop bbox + resize (export_models).
+# true: hibrido; align si |roll ojos| > FACE_ROLL_MAX_DEG, si no crop.
+FACE_ALIGNMENT_ENABLE = (
+    os.getenv("FACE_ALIGNMENT_ENABLE", "false").lower() == "true"
+)
+FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "10"))
+FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
+
 def retinaface_model_pc_path() -> str:
     """Ruta absoluta al ONNX RetinaFace (defecto: models_onnx/RetinaFace_mobile320.onnx)."""
     return str(resolve_repo_path(RETINAFACE_MODEL_PC))
@@ -174,3 +183,29 @@ def validar_todo():
         FACE_PROCESS_TOP_N,
         RETINAFACE_SCORE_DETECCION,
     )
+
+    if FACE_ROLL_MAX_DEG < 0 or FACE_ROLL_MAX_DEG > 45:
+        logging.critical(
+            "CONFIG ERROR: FACE_ROLL_MAX_DEG debe estar entre 0 y 45 (got %.1f).",
+            FACE_ROLL_MAX_DEG,
+        )
+        sys.exit(1)
+
+    if FACE_CROP_MARGIN_FRAC < 0 or FACE_CROP_MARGIN_FRAC >= 1.0:
+        logging.critical(
+            "CONFIG ERROR: FACE_CROP_MARGIN_FRAC debe estar en [0, 1) (got %.2f).",
+            FACE_CROP_MARGIN_FRAC,
+        )
+        sys.exit(1)
+
+    if FACE_ALIGNMENT_ENABLE:
+        logging.info(
+            "Preproceso cara: hibrido (align si |roll| > %.1f deg, margen crop=%.2f)",
+            FACE_ROLL_MAX_DEG,
+            FACE_CROP_MARGIN_FRAC,
+        )
+    else:
+        logging.info(
+            "Preproceso cara: solo crop bbox (sin align, margen=%.2f)",
+            FACE_CROP_MARGIN_FRAC,
+        )
