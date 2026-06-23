@@ -28,7 +28,9 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   FACE_PROCESS_TOP_N     — 1=mejor cara, 2=mejor+siguiente, ...
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
   EMBED_COOLDOWN_S       — segundos entre embeds (0 = cada tick con cara)
-  FACE_ALIGNMENT_ENABLE  — false=crop; true=hibrido crop/align
+  FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
+  FACE_ROT_ALIGNMENT_SIMPLE_ENABLE   — true=hibrido crop/roll-fix
+  FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
   EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.45)
   EMBED_REF_GALLERY_DIR    — carpeta con referencias .npy
 
@@ -229,10 +231,11 @@ def _tick_embed_if_needed(
         return None, t_ultimo_embed
 
     logging.info(
-        "[Embed] score=%.3f dim=%d align=%s roll=%.1f",
+        "[Embed] score=%.3f dim=%d arcface=%s roll_fix=%s roll=%.1f",
         float(row[4]),
         vector.size,
-        patch.used_align,
+        patch.used_arcface_align,
+        patch.used_roll_fix,
         patch.roll_deg,
     )
     return FaceEmbedding(vector=vector), now

@@ -17,7 +17,8 @@ Ejemplo:
   python export_models/face_embedding_from_image.py
   python export_models/face_embedding_from_image.py --img test/otra.jpg
   python export_models/face_embedding_from_image.py --embedding-dir /tmp/mis_emb
-  python export_models/face_embedding_from_image.py --embedding-out /ruta/custom.npy
+  python export_models/face_embedding_from_image.py --preprocess arcface_align --img test/angel1.jpg
+  python export_models/face_embedding_from_image.py --preprocess roll_fix --embedding-dir embeddings_roll
 """
 import argparse
 import json
@@ -60,6 +61,7 @@ from utils.aux_tools_retinaface import (  # noqa: E402
     retinaface_dets_desde_rknn_outputs,
 )
 from utils.image_utils import letterbox_bgr  # noqa: E402
+from inference.face_preprocess import prepare_face_patch  # noqa: E402
 
 RETINAFACE_MEAN_BGR = np.array([104.0, 117.0, 123.0], dtype=np.float32)
 RETINAFACE_SCORE_PRE_NMS = 0.02
@@ -172,10 +174,20 @@ def main() -> None:
         help="Ruta completa del .npy (si vacio: <embedding-dir>/<mismo nombre base que la imagen>.npy).",
     )
     p.add_argument(
-        "--save-crop",
+        "--preprocess",
         type=str,
-        default="",
-        help="Si se indica ruta, guarda el recorte BGR antes del resize (debug).",
+        choices=("crop", "roll_fix", "arcface_align"),
+        default="crop",
+        help=(
+            "Parche 112x112 antes del embedder: crop (defecto), roll_fix hibrido "
+            "o arcface_align (mismo criterio que FACE_ALIGNMENT_ENABLE en runtime)."
+        ),
+    )
+    p.add_argument(
+        "--roll-max-deg",
+        type=float,
+        default=10.0,
+        help="Umbral |roll| para roll_fix (solo si --preprocess roll_fix).",
     )
     p.add_argument(
         "--margin",
@@ -262,19 +274,28 @@ def main() -> None:
             "en export_models/face_embedding_from_image.py"
         )
 
-    x1, y1, x2, y2 = _bbox_crop_with_margin(best, w, h, args.margin)
-    crop = img[y1 : y2 + 1, x1 : x2 + 1].copy()
+    arcface = args.preprocess == "arcface_align"
+    roll_fix = args.preprocess == "roll_fix"
+    patch = prepare_face_patch(
+        img,
+        best,
+        arcface_align_enable=arcface,
+        rot_align_simple_enable=roll_fix,
+        max_abs_roll_deg=args.roll_max_deg,
+        crop_margin_frac=args.margin,
+    )
+    face112 = patch.bgr
     if args.save_crop:
         Path(args.save_crop).parent.mkdir(parents=True, exist_ok=True)
-        cv2.imwrite(args.save_crop, crop)
+        cv2.imwrite(args.save_crop, face112)
         print("[save-crop]", args.save_crop)
 
-    feed = _crop_bgr_to_mobilefacenet_nchw(crop)
+    feed = _crop_bgr_to_mobilefacenet_nchw(face112)
     emb = sess_mfn.run([mfn_out], {mfn_in_name: feed})[0]
 
     if args.flip_avg:
-        crop_flip = cv2.flip(crop, 1)
-        feed2 = _crop_bgr_to_mobilefacenet_nchw(crop_flip)
+        face_flip = cv2.flip(face112, 1)
+        feed2 = _crop_bgr_to_mobilefacenet_nchw(face_flip)
         emb2 = sess_mfn.run([mfn_out], {mfn_in_name: feed2})[0]
         emb = emb + emb2
 
@@ -290,6 +311,7 @@ def main() -> None:
     np.save(str(out_npy), emb)
 
     print("score_mejor_cara:", score)
+    print("preprocess:", args.preprocess, "roll_deg:", round(patch.roll_deg, 2))
     print("embedding_shape:", emb.shape, "L2_norm:", float(np.linalg.norm(emb)))
     print("[guardado]", out_npy.resolve())
 
@@ -299,7 +321,10 @@ def main() -> None:
             "retinaface_onnx": str(rf_onnx.resolve()),
             "mobilefacenet_onnx": str(mfn_onnx.resolve()),
             "score": score,
-            "crop_box_xyxy": [x1, y1, x2, y2],
+            "preprocess": args.preprocess,
+            "roll_deg": patch.roll_deg,
+            "used_arcface_align": patch.used_arcface_align,
+            "used_roll_fix": patch.used_roll_fix,
             "embedding_npy": str(out_npy.resolve()),
             "flip_avg": bool(args.flip_avg),
         }

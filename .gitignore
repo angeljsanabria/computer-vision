@@ -45,3 +45,5 @@ rknn_model_zoo/
 camera_snap/
 camara_snap/
 
+# referencias para crear embeddings
+embeddings/faces/

@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
 MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, SNAP, USB
-MAX_FPS = float(os.getenv("MAX_FPS", 2.0))
+MAX_FPS = float(os.getenv("MAX_FPS", 5.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
     os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
@@ -86,13 +86,18 @@ RETINAFACE_MODEL_RK3568 = os.getenv(
 RETINAFACE_SCORE_DETECCION = float(os.getenv("RETINAFACE_SCORE_DETECCION", "0.5"))
 RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 
-# 6.1 Preproceso cara para embedding (crop vs align)
-# false (defecto): nunca warpAffine; siempre crop bbox + resize (export_models).
-# true: hibrido; align si |roll ojos| > FACE_ROLL_MAX_DEG, si no crop.
+# 6.1 Preproceso cara para embedding
+# Solo crop (defecto): ningun flag activo.
+# FACE_ROT_ALIGNMENT_SIMPLE_ENABLE: hibrido crop / roll-fix si |roll| > FACE_ROLL_MAX_DEG.
+# FACE_ALIGNMENT_ENABLE: siempre align ArcFace 5 pt (galeria .npy enrolada igual).
+# Si ambos true, gana ArcFace (warning en validar_todo).
 FACE_ALIGNMENT_ENABLE = (
-    os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
+    os.getenv("FACE_ALIGNMENT_ENABLE", "false").lower() == "true"
 )
-FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "6"))
+FACE_ROT_ALIGNMENT_SIMPLE_ENABLE = (
+    os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"
+)
+FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "10"))
 FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
 
 # 6.2 Embedding en FACE_PROCESSED (reglas de score y cooldown)
@@ -102,7 +107,7 @@ EMBED_MIN_SCORE = float(
     os.getenv("EMBED_MIN_SCORE", str(RETINAFACE_SCORE_DETECCION))
 )
 # RetinaFace/FSM siguen activos; embed como maximo cada EMBED_COOLDOWN_S. 0 = cada tick con cara.
-EMBED_COOLDOWN_S = float(os.getenv("EMBED_COOLDOWN_S", "2.0"))
+EMBED_COOLDOWN_S = float(os.getenv("EMBED_COOLDOWN_S", "1.0"))  # 2.0 default
 
 # 6.3 MobileFaceNet (rutas segun INFERENCE_BACKEND)
 MOBILEFACENET_MODEL_PC = os.getenv(
@@ -115,7 +120,7 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
 )
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
-EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.45"))
+EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.57"))
 EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "embeddings")
 
 def retinaface_model_pc_path() -> str:
@@ -248,15 +253,27 @@ def validar_todo():
         )
         sys.exit(1)
 
+    if FACE_ALIGNMENT_ENABLE and FACE_ROT_ALIGNMENT_SIMPLE_ENABLE:
+        logging.warning(
+            "Preproceso: FACE_ALIGNMENT_ENABLE y FACE_ROT_ALIGNMENT_SIMPLE_ENABLE "
+            "activos; se usa solo align ArcFace (roll-fix ignorado)."
+        )
+
     if FACE_ALIGNMENT_ENABLE:
         logging.info(
-            "Preproceso cara: hibrido (align si |roll| > %.1f deg, margen crop=%.2f)",
+            "Preproceso cara: align ArcFace siempre (margen crop=%.2f). "
+            "Enrolar refs con --preprocess arcface_align.",
+            FACE_CROP_MARGIN_FRAC,
+        )
+    elif FACE_ROT_ALIGNMENT_SIMPLE_ENABLE:
+        logging.info(
+            "Preproceso cara: hibrido roll-fix (si |roll| > %.1f deg, margen=%.2f)",
             FACE_ROLL_MAX_DEG,
             FACE_CROP_MARGIN_FRAC,
         )
     else:
         logging.info(
-            "Preproceso cara: solo crop bbox (sin align, margen=%.2f)",
+            "Preproceso cara: solo crop bbox (margen=%.2f)",
             FACE_CROP_MARGIN_FRAC,
         )
 
