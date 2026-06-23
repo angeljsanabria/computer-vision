@@ -92,7 +92,7 @@ RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 FACE_ALIGNMENT_ENABLE = (
     os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
 )
-FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "10"))
+FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "6"))
 FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
 
 # 6.2 Embedding en FACE_PROCESSED (reglas de score y cooldown)
@@ -114,6 +114,10 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
     "models/MobileFaceNet.rknn",
 )
 
+# 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
+EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.45"))
+EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "embeddings")
+
 def retinaface_model_pc_path() -> str:
     """Ruta absoluta al ONNX RetinaFace (defecto: models_onnx/RetinaFace_mobile320.onnx)."""
     return str(resolve_repo_path(RETINAFACE_MODEL_PC))
@@ -132,6 +136,11 @@ def mobilefacenet_model_pc_path() -> str:
 def mobilefacenet_model_rk3568_path() -> str:
     """Ruta absoluta al RKNN MobileFaceNet (defecto: models/MobileFaceNet.rknn)."""
     return str(resolve_repo_path(MOBILEFACENET_MODEL_RK3568))
+
+
+def embed_ref_gallery_dir_path() -> str:
+    """Ruta absoluta a la galeria de referencias .npy (defecto: embeddings/)."""
+    return str(resolve_repo_path(EMBED_REF_GALLERY_DIR))
 
 
 def validar_todo():
@@ -293,3 +302,34 @@ def validar_todo():
         EMBED_MIN_SCORE,
         embed_min_src,
     )
+
+    if EMBED_SIM_MIN_MATCH < -1.0 or EMBED_SIM_MIN_MATCH > 1.0:
+        logging.critical(
+            "CONFIG ERROR: EMBED_SIM_MIN_MATCH debe estar en [-1, 1] (got %.2f).",
+            EMBED_SIM_MIN_MATCH,
+        )
+        sys.exit(1)
+
+    gallery_path = embed_ref_gallery_dir_path()
+    if INFERENCE_BACKEND in ("pc", "rk3568"):
+        if not os.path.isdir(gallery_path):
+            logging.warning(
+                "Galeria identidad: no existe directorio %s (EMBED_REF_GALLERY_DIR)",
+                gallery_path,
+            )
+        else:
+            n_npy = len(
+                [f for f in os.listdir(gallery_path) if f.lower().endswith(".npy")]
+            )
+            if n_npy == 0:
+                logging.warning(
+                    "Galeria identidad: sin archivos .npy en %s",
+                    gallery_path,
+                )
+            else:
+                logging.info(
+                    "Galeria identidad: %s (%d .npy), sim_min_match=%.2f",
+                    gallery_path,
+                    n_npy,
+                    EMBED_SIM_MIN_MATCH,
+                )

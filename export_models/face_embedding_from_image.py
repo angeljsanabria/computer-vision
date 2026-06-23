@@ -19,8 +19,6 @@ Ejemplo:
   python export_models/face_embedding_from_image.py --embedding-dir /tmp/mis_emb
   python export_models/face_embedding_from_image.py --embedding-out /ruta/custom.npy
 """
-from __future__ import annotations
-
 import argparse
 import json
 import sys

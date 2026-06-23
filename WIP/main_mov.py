@@ -12,6 +12,7 @@ Flujo por frame:
   4. ``_sync_umbral_mog2()`` — histéresis de umbral MOG2 segun estado FSM.
   5. Si ``run_face_detector``: RetinaFace + ``tick_face()``.
   6. Si ``run_embedding``: preprocess + MobileFaceNet (cooldown ``EMBED_COOLDOWN_S``).
+  7. Tras embed: matcher coseno vs galeria ``EMBED_REF_GALLERY_DIR`` (``.npy``).
 
 Estados FSM (resumen):
   IDLE          — sin inferencia facial.
@@ -28,6 +29,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
   EMBED_COOLDOWN_S       — segundos entre embeds (0 = cada tick con cara)
   FACE_ALIGNMENT_ENABLE  — false=crop; true=hibrido crop/align
+  EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.45)
+  EMBED_REF_GALLERY_DIR    — carpeta con referencias .npy
 
 Ejemplos:
   cd WIP
@@ -70,7 +73,15 @@ from mov_detect import (  # noqa: E402
     config_from_settings,
 )
 from mov_detect.types import FsmTickResult  # noqa: E402
-from inference import FaceDetector, FaceEmbedder, build_embedder, build_face_detector  # noqa: E402
+import numpy as np  # noqa: E402
+from inference import (  # noqa: E402
+    FaceDetector,
+    FaceEmbedder,
+    build_embedder,
+    build_face_detector,
+    build_identity_matcher,
+)
+from inference.identity.types import IdentityMatch  # noqa: E402
 from inference.types import FaceDetections, FaceEmbedding  # noqa: E402
 from inference.face_preprocess import prepare_face_patch_from_settings  # noqa: E402
 from inference.retinaface.select_best import distancia_interocular, mejores_caras  # noqa: E402
@@ -168,7 +179,7 @@ def _tick_retinaface_if_needed(
     return dets, fsm_out
 
 
-def _elegir_fila_para_embed(dets: FaceDetections):
+def _elegir_fila_para_embed(dets: FaceDetections) -> np.ndarray | None:
     """
     Mejor cara para embed entre las que superan ``EMBED_MIN_SCORE``.
 
@@ -274,6 +285,14 @@ def main() -> int:
             "MobileFaceNet desactivado (INFERENCE_BACKEND=%s)", s.INFERENCE_BACKEND
         )
 
+    matcher = build_identity_matcher()
+    if matcher is not None and matcher.count > 0:
+        logging.info(
+            "Matcher identidad activo (refs=%d, sim_min=%.2f)",
+            matcher.count,
+            s.EMBED_SIM_MIN_MATCH,
+        )
+
     display = PipelineDisplay.from_settings()
     display.setup()
 
@@ -286,11 +305,12 @@ def main() -> int:
         )
 
         logging.info(
-            "Pipeline MOG2+FSM+RetinaFace+Embed en marcha. Ctrl+C para salir."
+            "Pipeline MOG2+FSM+RetinaFace+Embed+ID en marcha. Ctrl+C para salir."
         )
         #motion.reset_motion_log()
 
         t_ultimo_embed: float | None = None
+        last_identity: IdentityMatch | None = None
 
         while True:
             has_frame, frame = capture.get_frame()
@@ -301,11 +321,27 @@ def main() -> int:
                 dets, fsm_out = _tick_retinaface_if_needed(
                     face, fsm, motion, frame, now, fsm_out
                 )
-                _embedding, t_ultimo_embed = _tick_embed_if_needed(
+                embedding, t_ultimo_embed = _tick_embed_if_needed(
                     embedder, frame, dets, fsm_out, now, t_ultimo_embed
                 )
+                if embedding is not None and matcher is not None:
+                    matched = matcher.match(embedding.vector)
+                    if matched is not None:
+                        last_identity = matched
+                        tag = "MATCH" if matched.is_match else "NO_MATCH"
+                        logging.info(
+                            "[ID] %s sim=%.3f %s",
+                            matched.label,
+                            matched.similarity,
+                            tag,
+                        )
 
-                view = FrameView(mov=mov, fsm=fsm_out, dets=dets)
+                view = FrameView(
+                    mov=mov,
+                    fsm=fsm_out,
+                    dets=dets,
+                    identity=last_identity,
+                )
                 display.show(frame, view)
                 if display.poll_quit():
                     logging.info("Salida solicitada desde ventana (q).")

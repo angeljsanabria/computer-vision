@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from inference.identity.types import IdentityMatch
 from inference.types import FaceDetections
 from mov_detect.types import FsmTickResult, MotionResult
 
@@ -14,3 +15,4 @@ class FrameView:
     mov: MotionResult
     fsm: FsmTickResult
     dets: FaceDetections | None = None
+    identity: IdentityMatch | None = None

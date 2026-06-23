@@ -75,6 +75,20 @@ def build_embedder() -> FaceEmbedder | None:
     return None
 
 
+def build_identity_matcher() -> "FaceGalleryMatcher | None":
+    """
+    Matcher 1:N vs galeria .npy. ``None`` si ``INFERENCE_BACKEND=none``.
+    """
+    from configs import settings as s
+
+    if s.INFERENCE_BACKEND == "none":
+        return None
+
+    from inference.identity.matcher import FaceGalleryMatcher
+
+    return FaceGalleryMatcher.from_settings()
+
+
 __all__ = [
     "FaceDetections",
     "FaceDetector",
@@ -83,4 +97,5 @@ __all__ = [
     "FaceSelection",
     "build_embedder",
     "build_face_detector",
+    "build_identity_matcher",
 ]

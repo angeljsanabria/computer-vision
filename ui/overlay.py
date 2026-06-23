@@ -78,3 +78,24 @@ class DebugOverlay:
             (0, 255, 255),
             1,
         )
+        self._draw_identity(vis, view)
+
+    def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:
+        if view.identity is None:
+            return
+        idm = view.identity
+        tag = "MATCH" if idm.is_match else "NO_MATCH"
+        color = (0, 200, 0) if idm.is_match else (0, 140, 255)
+        bar = f"{idm.label} sim={idm.similarity:.3f} {tag}"
+        h, w = vis.shape[:2]
+        cv2.rectangle(vis, (0, h - 32), (w, h), (0, 0, 0), -1)
+        cv2.putText(
+            vis,
+            bar,
+            (6, h - 10),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.55,
+            color,
+            1,
+            cv2.LINE_AA,
+        )
