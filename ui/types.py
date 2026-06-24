@@ -16,3 +16,4 @@ class FrameView:
     fsm: FsmTickResult
     dets: FaceDetections | None = None
     identity: IdentityMatch | None = None
+    identity_is_stale: bool = False

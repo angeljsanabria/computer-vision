@@ -8,7 +8,7 @@ from pathlib import Path
 
 import numpy as np
 
-from inference.identity.types import IdentityMatch
+from inference.identity.types import GalleryEntry, IdentityMatch
 from inference.mobilefacenet.constants import EMBED_DIM
 
 GALLERY_NPY_NAME = "gallery.npy"
@@ -19,7 +19,7 @@ DATA_NORMALIZADA_OK = 1
 
 @dataclass(frozen=True)
 class _GalleryLoad:
-    refs: tuple[tuple[str, np.ndarray], ...]
+    entries: tuple[GalleryEntry, ...]
     matrix: np.ndarray | None
 
 
@@ -29,7 +29,8 @@ class FaceGalleryMatcher:
     por identidad (legacy).
 
     Referencias y vector live deben venir ya L2-normalizados. El JSON debe incluir
-    ``data_normalizada: 1`` (sin recalcular norma en placa). Similitud = producto punto.
+    ``data_normalizada: 1`` (sin recalcular norma en placa). Similitud = producto punto
+    via ``gallery @ live`` -> ``argmax`` vs ``min_similarity``.
     """
 
     def __init__(
@@ -39,16 +40,28 @@ class FaceGalleryMatcher:
     ) -> None:
         self._min_similarity = float(min_similarity)
         loaded = self._load_gallery(gallery_dir)
-        self._refs = loaded.refs
+        self._entries = loaded.entries
         self._matrix = loaded.matrix
-        if self._refs:
-            labels = ", ".join(label for label, _ in self._refs)
-            logging.info(
-                "Galeria identidad: %d refs en %s (%s)",
-                len(self._refs),
-                gallery_dir,
-                labels,
-            )
+        if self._entries:
+            if self._matrix is not None:
+                n, d = self._matrix.shape
+                logging.info(
+                    "Galeria identidad: %d refs matriz (%d, %d) en %s | sim_min=%.2f",
+                    len(self._entries),
+                    n,
+                    d,
+                    gallery_dir,
+                    self._min_similarity,
+                )
+            else:
+                labels = ", ".join(e.person_id for e in self._entries)
+                logging.info(
+                    "Galeria identidad: %d refs legacy en %s (%s) | sim_min=%.2f",
+                    len(self._entries),
+                    gallery_dir,
+                    labels,
+                    self._min_similarity,
+                )
         else:
             logging.warning(
                 "Galeria identidad vacia o inexistente: %s (sin MATCH posible)",
@@ -67,14 +80,28 @@ class FaceGalleryMatcher:
     @staticmethod
     def _load_gallery(gallery_dir: Path) -> _GalleryLoad:
         if not gallery_dir.is_dir():
-            return _GalleryLoad(refs=(), matrix=None)
+            return _GalleryLoad(entries=(), matrix=None)
 
         matrix_load = FaceGalleryMatcher._try_load_gallery_matrix(gallery_dir)
         if matrix_load is not None:
             return matrix_load
 
-        refs = FaceGalleryMatcher._load_gallery_legacy(gallery_dir)
-        return _GalleryLoad(refs=tuple(refs), matrix=None)
+        return FaceGalleryMatcher._load_gallery_legacy(gallery_dir)
+
+    @staticmethod
+    def _parse_entry(entry: object, index: int) -> GalleryEntry:
+        if not isinstance(entry, dict):
+            raise ValueError(f"{GALLERY_META_NAME}: entries[{index}] no es objeto")
+        person_id = entry.get("id")
+        if not person_id:
+            raise ValueError(f"{GALLERY_META_NAME}: entries[{index}] sin id")
+        nombre = str(entry.get("nombre") or person_id)
+        rotacion = str(entry.get("rotacion") or "")
+        return GalleryEntry(
+            person_id=str(person_id),
+            nombre=nombre,
+            rotacion=rotacion,
+        )
 
     @staticmethod
     def _try_load_gallery_matrix(gallery_dir: Path) -> _GalleryLoad | None:
@@ -99,35 +126,32 @@ class FaceGalleryMatcher:
             )
 
         gallery = np.load(str(npy_path)).astype(np.float32, copy=False)
+        gallery = np.ascontiguousarray(gallery)
         if gallery.ndim != 2 or gallery.shape[1] != EMBED_DIM:
             raise ValueError(
                 f"{GALLERY_NPY_NAME} shape invalida {gallery.shape!r}, "
                 f"esperado (N, {EMBED_DIM})"
             )
 
-        entries = meta.get("entries")
-        if not isinstance(entries, list):
+        entries_raw = meta.get("entries")
+        if not isinstance(entries_raw, list):
             raise ValueError(f"{GALLERY_META_NAME}: entries debe ser un array JSON")
-        if len(entries) != gallery.shape[0]:
+        if len(entries_raw) != gallery.shape[0]:
             raise ValueError(
-                f"{GALLERY_META_NAME}: len(entries)={len(entries)} != "
+                f"{GALLERY_META_NAME}: len(entries)={len(entries_raw)} != "
                 f"filas gallery={gallery.shape[0]}"
             )
 
-        refs: list[tuple[str, np.ndarray]] = []
-        for i, entry in enumerate(entries):
-            if not isinstance(entry, dict):
-                raise ValueError(f"{GALLERY_META_NAME}: entries[{i}] no es objeto")
-            person_id = entry.get("id")
-            if not person_id:
-                raise ValueError(f"{GALLERY_META_NAME}: entries[{i}] sin id")
-            refs.append((str(person_id), gallery[i]))
-
-        return _GalleryLoad(refs=tuple(refs), matrix=gallery)
+        entries = tuple(
+            FaceGalleryMatcher._parse_entry(entry, i)
+            for i, entry in enumerate(entries_raw)
+        )
+        return _GalleryLoad(entries=entries, matrix=gallery)
 
     @staticmethod
-    def _load_gallery_legacy(gallery_dir: Path) -> list[tuple[str, np.ndarray]]:
-        refs: list[tuple[str, np.ndarray]] = []
+    def _load_gallery_legacy(gallery_dir: Path) -> _GalleryLoad:
+        entries: list[GalleryEntry] = []
+        vectors: list[np.ndarray] = []
         for path in sorted(gallery_dir.glob("*.npy")):
             if path.name == GALLERY_NPY_NAME:
                 continue
@@ -140,27 +164,34 @@ class FaceGalleryMatcher:
                     EMBED_DIM,
                 )
                 continue
-            refs.append((path.stem, vec))
+            stem = path.stem
+            entries.append(
+                GalleryEntry(person_id=stem, nombre=stem, rotacion="")
+            )
+            vectors.append(vec)
 
-        return refs
+        if not entries:
+            return _GalleryLoad(entries=(), matrix=None)
+
+        matrix = np.ascontiguousarray(np.stack(vectors, axis=0))
+        return _GalleryLoad(entries=tuple(entries), matrix=matrix)
 
     @property
     def count(self) -> int:
-        return len(self._refs)
+        return len(self._entries)
 
     def match(self, vector: np.ndarray) -> IdentityMatch | None:
         """
-        Devuelve la identidad con mayor similitud y si alcanza ``min_similarity``.
+        Similitudes: ``sims = gallery @ live`` (N,). Mejor fila = ``argmax(sims)``.
 
-        ``vector`` debe ser el retorno de ``embedder.embed()``: float32, shape
-        (EMBED_DIM,), ya L2-normalizado. No se re-normaliza aqui.
-
-        ``None`` si la galeria esta vacia o el vector live no tiene dimension valida.
+        ``vector`` debe ser float32 L2-normalizado, shape (EMBED_DIM,).
+        ``is_match`` es True si ``sims[best_i] >= min_similarity``.
+        Metadatos (id, nombre, rotacion) vienen de ``entries[best_i]``.
         """
-        if not self._refs:
+        if not self._entries or self._matrix is None:
             return None
 
-        live = vector.reshape(-1)
+        live = np.ascontiguousarray(vector.reshape(-1), dtype=np.float32)
         if live.size != EMBED_DIM:
             logging.warning(
                 "Match: vector live size=%d, esperado %d; omitiendo",
@@ -169,22 +200,16 @@ class FaceGalleryMatcher:
             )
             return None
 
-        if self._matrix is not None:
-            sims = self._matrix @ live
-            best_i = int(np.argmax(sims))
-            best_sim = float(sims[best_i])
-            best_label = self._refs[best_i][0]
-        else:
-            best_label = self._refs[0][0]
-            best_sim = -1.0
-            for label, ref in self._refs:
-                sim = float(np.dot(ref, live))
-                if sim > best_sim:
-                    best_sim = sim
-                    best_label = label
+        sims = self._matrix @ live
+        best_i = int(np.argmax(sims))
+        best_sim = float(sims[best_i])
+        entry = self._entries[best_i]
 
         return IdentityMatch(
-            label=best_label,
+            person_id=entry.person_id,
+            nombre=entry.nombre,
+            rotacion=entry.rotacion,
+            row_index=best_i,
             similarity=best_sim,
             is_match=best_sim >= self._min_similarity,
         )

@@ -29,6 +29,11 @@ LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "10"))
 # 1.3 Procesamiento de imagen (RGA RK3568; legacy OpenCV por defecto)
 USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 
+# 1.4 Identidad reconocida (FSM FACE_RECOGNIZED)
+# Intervalo entre embeds en FACE_RECOGNIZED; cada MATCH renueva el timer de identidad.
+# NO_MATCH con timer activo mantiene el ultimo MATCH; timer vencido -> FACE_PROCESSED.
+FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "15"))
+
 # 2. HARDWARE LOCAL (CAMARA USB)
 USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 
@@ -187,6 +192,13 @@ def validar_todo():
     if FSM_TIMEOUT_MOV_S <= 0 or FSM_TIMEOUT_FACE_S <= 0:
         logging.critical("CONFIG ERROR: FSM_TIMEOUT_MOV_S y FSM_TIMEOUT_FACE_S > 0.")
         sys.exit(1)
+    if FSM_RECOGNIZED_REFRESH_S <= 0:
+        logging.critical("CONFIG ERROR: FSM_RECOGNIZED_REFRESH_S debe ser > 0.")
+        sys.exit(1)
+    logging.info(
+        "Identidad FSM: retencion MATCH %.1f s (FSM_RECOGNIZED_REFRESH_S)",
+        FSM_RECOGNIZED_REFRESH_S,
+    )
 
     if INFERENCE_BACKEND not in ("none", "pc", "rk3568"):
         logging.critical(
@@ -335,18 +347,33 @@ def validar_todo():
                 gallery_path,
             )
         else:
-            n_npy = len(
-                [f for f in os.listdir(gallery_path) if f.lower().endswith(".npy")]
+            npy_path = os.path.join(gallery_path, "gallery.npy")
+            meta_path = os.path.join(gallery_path, "gallery_meta.json")
+            has_matrix = os.path.isfile(npy_path) and os.path.isfile(meta_path)
+            n_legacy = len(
+                [
+                    f
+                    for f in os.listdir(gallery_path)
+                    if f.lower().endswith(".npy") and f != "gallery.npy"
+                ]
             )
-            if n_npy == 0:
-                logging.warning(
-                    "Galeria identidad: sin archivos .npy en %s",
+            if has_matrix:
+                logging.info(
+                    "Galeria identidad: %s (gallery.npy + gallery_meta.json), "
+                    "sim_min_match=%.2f",
                     gallery_path,
+                    EMBED_SIM_MIN_MATCH,
+                )
+            elif n_legacy > 0:
+                logging.info(
+                    "Galeria identidad: %s (%d .npy legacy), sim_min_match=%.2f",
+                    gallery_path,
+                    n_legacy,
+                    EMBED_SIM_MIN_MATCH,
                 )
             else:
-                logging.info(
-                    "Galeria identidad: %s (%d .npy), sim_min_match=%.2f",
+                logging.warning(
+                    "Galeria identidad: sin gallery.npy/gallery_meta.json ni .npy "
+                    "legacy en %s",
                     gallery_path,
-                    n_npy,
-                    EMBED_SIM_MIN_MATCH,
                 )

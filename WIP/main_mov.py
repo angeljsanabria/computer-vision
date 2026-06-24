@@ -12,7 +12,7 @@ Flujo por frame:
   4. ``_sync_umbral_mog2()`` — histéresis de umbral MOG2 segun estado FSM.
   5. Si ``run_face_detector``: RetinaFace + ``tick_face()``.
   6. Si ``run_embedding``: preprocess + MobileFaceNet (cooldown ``EMBED_COOLDOWN_S``).
-  7. Tras embed: matcher coseno vs galeria ``EMBED_REF_GALLERY_DIR`` (``.npy``).
+  7. Tras embed: ``gallery @ live`` vs ``gallery.npy`` + meta ``gallery_meta.json``.
 
 Estados FSM (resumen):
   IDLE          — sin inferencia facial.
@@ -23,7 +23,8 @@ Estados FSM (resumen):
 Variables de entorno utiles (ver ``configs/settings.py``):
   CONFIG_MODO          — USB | RTSP | SNAP
   DISPLAY_IS_ENABLE    — true/false (overlay OpenCV)
-  MOG2_* / FSM_*       — umbrales y timeouts
+  MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
+  FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
   FACE_PROCESS_TOP_N     — 1=mejor cara, 2=mejor+siguiente, ...
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
@@ -31,8 +32,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
   FACE_ROT_ALIGNMENT_SIMPLE_ENABLE   — true=hibrido crop/roll-fix
   FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
-  EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.45)
-  EMBED_REF_GALLERY_DIR    — carpeta con referencias .npy
+  EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.57)
+  EMBED_REF_GALLERY_DIR    — carpeta con gallery.npy + gallery_meta.json
 
 Ejemplos:
   cd WIP
@@ -206,18 +207,22 @@ def _tick_embed_if_needed(
     t_ultimo_embed: float | None,
 ) -> tuple[FaceEmbedding | None, float | None]:
     """
-    Preprocess + MobileFaceNet solo en ``FACE_PROCESSED`` y si paso cooldown.
-
-    RetinaFace/FSM no se tocan; sin embed no hay crop de embed ni alignment.
+    Preprocess + MobileFaceNet en FACE_PROCESSED (cooldown EMBED_COOLDOWN_S)
+    o en FACE_RECOGNIZED cada FSM_RECOGNIZED_REFRESH_S para refrescar identidad.
     """
     if not fsm_out.run_embedding or embedder is None:
         return None, t_ultimo_embed
     if dets is None or not dets.has_faces:
         return None, t_ultimo_embed
 
-    if s.EMBED_COOLDOWN_S > 0 and t_ultimo_embed is not None:
-        if (now - t_ultimo_embed) < s.EMBED_COOLDOWN_S:
-            return None, t_ultimo_embed
+    skip_cooldown = fsm_out.state == FlowState.FACE_RECOGNIZED
+    if (
+        not skip_cooldown
+        and s.EMBED_COOLDOWN_S > 0
+        and t_ultimo_embed is not None
+        and (now - t_ultimo_embed) < s.EMBED_COOLDOWN_S
+    ):
+        return None, t_ultimo_embed
 
     row = _elegir_fila_para_embed(dets)
     if row is None:
@@ -291,7 +296,7 @@ def main() -> int:
     matcher = build_identity_matcher()
     if matcher is not None and matcher.count > 0:
         logging.info(
-            "Matcher identidad activo (refs=%d, sim_min=%.2f)",
+            "Matcher identidad activo (refs=%d, sim_min=%.2f, match=gallery@live)",
             matcher.count,
             s.EMBED_SIM_MIN_MATCH,
         )
@@ -327,23 +332,78 @@ def main() -> int:
                 embedding, t_ultimo_embed = _tick_embed_if_needed(
                     embedder, frame, dets, fsm_out, now, t_ultimo_embed
                 )
+                live_identity: IdentityMatch | None = None
                 if embedding is not None and matcher is not None:
                     matched = matcher.match(embedding.vector)
                     if matched is not None:
-                        last_identity = matched
-                        tag = "MATCH" if matched.is_match else "NO_MATCH"
-                        logging.info(
-                            "[ID] %s sim=%.3f %s",
-                            matched.label,
-                            matched.similarity,
-                            tag,
-                        )
+                        live_identity = matched
+                        if matched.is_match:
+                            last_identity = matched
+                            _log_transitions(
+                                fsm.notify_embed_match(
+                                    matched.person_id, True, now
+                                )
+                            )
+                            logging.info(
+                                "[ID] MATCH fila=%d id=%s nombre=%r rotacion=%s "
+                                "sim=%.3f (>=%.2f)",
+                                matched.row_index,
+                                matched.person_id,
+                                matched.nombre,
+                                matched.rotacion,
+                                matched.similarity,
+                                s.EMBED_SIM_MIN_MATCH,
+                            )
+                        else:
+                            state_antes = fsm.state
+                            _log_transitions(
+                                fsm.notify_embed_match("", False, now)
+                            )
+                            if fsm.state == FlowState.FACE_PROCESSED:
+                                last_identity = None
+                            elif state_antes == FlowState.FACE_RECOGNIZED:
+                                logging.info(
+                                    "[ID] NO_MATCH refresh (timer activo, "
+                                    "se mantiene ultimo MATCH)"
+                                )
+                            logging.info(
+                                "[ID] NO_MATCH fila=%d id=%s nombre=%r sim=%.3f "
+                                "< umbral %.2f",
+                                matched.row_index,
+                                matched.person_id,
+                                matched.nombre,
+                                matched.similarity,
+                                s.EMBED_SIM_MIN_MATCH,
+                            )
+
+                fsm_out = fsm.refresh_outputs(now)
+
+                if fsm_out.state == FlowState.IDLE:
+                    last_identity = None
+                    display_identity = None
+                    identity_stale = False
+                elif fsm_out.state == FlowState.FACE_RECOGNIZED and last_identity:
+                    display_identity = last_identity
+                    identity_stale = False
+                elif (
+                    live_identity is not None
+                    and fsm_out.state == FlowState.FACE_PROCESSED
+                ):
+                    display_identity = live_identity
+                    identity_stale = False
+                elif last_identity is not None:
+                    display_identity = last_identity
+                    identity_stale = True
+                else:
+                    display_identity = None
+                    identity_stale = False
 
                 view = FrameView(
                     mov=mov,
                     fsm=fsm_out,
                     dets=dets,
-                    identity=last_identity,
+                    identity=display_identity,
+                    identity_is_stale=identity_stale,
                 )
                 display.show(frame, view)
                 if display.poll_quit():

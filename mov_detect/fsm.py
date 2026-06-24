@@ -8,10 +8,14 @@ class MotionFaceFsm:
     """
     FSM pura: sin OpenCV ni modelos.
 
-    Uso por frame (desde main):
-      1. ``tick_motion(hay_mov, now)`` tras MOG2
-      2. Si ``run_face_detector``: inferir RetinaFace
-      3. ``tick_face(hay_cara, now)`` solo si se inferio
+    FACE_RECOGNIZED (sesion de identidad confirmada):
+      - Entrada: unico MATCH en FACE_PROCESSED (notify_embed_match).
+      - Salida: unico timer de identidad vencido -> FACE_PROCESSED.
+      - No reacciona a hay_cara / MOG2 / FSM_TIMEOUT_FACE_S.
+      - Embed cada recognized_refresh_s; MATCH renueva timer; NO_MATCH no expulsa
+        mientras el timer siga activo.
+
+    FACE_PROCESSED / FACE_OUT siguen las reglas de deteccion de cara (RetinaFace).
     """
 
     _FACE_INFER_STATES = frozenset(
@@ -19,6 +23,7 @@ class MotionFaceFsm:
             FlowState.MOV_DETECTED,
             FlowState.MOV_OUT,
             FlowState.FACE_PROCESSED,
+            FlowState.FACE_RECOGNIZED,
             FlowState.FACE_OUT,
         }
     )
@@ -27,70 +32,111 @@ class MotionFaceFsm:
         cfg = config or FsmConfig()
         self._t_mov = float(cfg.timeout_mov_s)
         self._t_face = float(cfg.timeout_face_s)
+        self._t_refresh = float(cfg.recognized_refresh_s)
         self.state = FlowState.IDLE
         self._t_ultimo_mov: float | None = None
         self._t_ultima_cara: float | None = None
+        self._recognized_id: str | None = None
+        self._t_timer_hasta: float | None = None
+        self._t_ultimo_embed: float | None = None
+
+    def _clear_recognition(self) -> None:
+        self._recognized_id = None
+        self._t_timer_hasta = None
+        self._t_ultimo_embed = None
+
+    def _sin_cara_timeout(self, now: float) -> bool:
+        return (
+            self._t_ultima_cara is not None
+            and (now - self._t_ultima_cara) >= self._t_face
+        )
+
+    def _timer_activo(self, now: float) -> bool:
+        return self._t_timer_hasta is not None and now < self._t_timer_hasta
+
+    def _renovar_timer(self, now: float) -> None:
+        self._t_timer_hasta = now + self._t_refresh
+        self._t_ultimo_embed = now
+
+    def _embed_periodico_vencido(self, now: float) -> bool:
+        if self._t_ultimo_embed is None:
+            return True
+        return (now - self._t_ultimo_embed) >= self._t_refresh
+
+    def _salir_recognized_si_timer_vencido(
+        self, now: float, events: list[str]
+    ) -> None:
+        if self.state != FlowState.FACE_RECOGNIZED or self._timer_activo(now):
+            return
+        self._clear_recognition()
+        self.state = FlowState.FACE_PROCESSED
+        events.append(
+            "[FSM] FACE_RECOGNIZED -> FACE_PROCESSED (timer identidad vencido)"
+        )
 
     def tick_motion(self, hay_mov: bool, now: float) -> FsmTickResult:
-        """Transiciones y timeouts por sensor MOG2."""
+        """Transiciones MOG2. Tambien vence timer de identidad (cada frame)."""
         events: list[str] = []
+
+        self._salir_recognized_si_timer_vencido(now, events)
 
         if hay_mov:
             self._t_ultimo_mov = now
 
-        sin_mov_mog2 = (
+        sin_mov = (
             self._t_ultimo_mov is not None
             and (now - self._t_ultimo_mov) >= self._t_mov
         )
-
-        if sin_mov_mog2 and self.state in (
-            FlowState.MOV_DETECTED,
-            FlowState.MOV_OUT,
-        ):
+        if sin_mov and self.state in (FlowState.MOV_DETECTED, FlowState.MOV_OUT):
             s_antes = self.state
             self.state = FlowState.IDLE
             self._t_ultima_cara = None
+            self._clear_recognition()
             events.append(
-                "[FSM] {} -> IDLE (timeout {:.1f} s sin movimiento MOG2)".format(
+                "[FSM] {} -> IDLE (timeout {:.1f}s MOG2)".format(
                     s_antes.value, self._t_mov
                 )
             )
 
-        s_antes_mog2 = self.state
-        if self.state == FlowState.IDLE:
-            if hay_mov:
-                self.state = FlowState.MOV_DETECTED
-        elif self.state == FlowState.MOV_DETECTED:
-            if not hay_mov:
-                self.state = FlowState.MOV_OUT
-        elif self.state == FlowState.MOV_OUT:
-            if hay_mov:
-                self.state = FlowState.MOV_DETECTED
+        s_antes = self.state
+        if self.state == FlowState.IDLE and hay_mov:
+            self.state = FlowState.MOV_DETECTED
+        elif self.state == FlowState.MOV_DETECTED and not hay_mov:
+            self.state = FlowState.MOV_OUT
+        elif self.state == FlowState.MOV_OUT and hay_mov:
+            self.state = FlowState.MOV_DETECTED
 
-        if self.state != s_antes_mog2:
+        if self.state != s_antes:
             events.append(
-                "[FSM] {} -> {} (MOG2)".format(s_antes_mog2.value, self.state.value)
+                "[FSM] {} -> {} (MOG2)".format(s_antes.value, self.state.value)
             )
-
-        return self._snapshot(events)
+        return self._snapshot(events, now)
 
     def tick_face(self, hay_cara: bool, now: float) -> FsmTickResult:
-        """Transiciones tras RetinaFace (llamar solo si se inferio este frame)."""
+        """Transiciones RetinaFace. FACE_RECOGNIZED no usa hay_cara para salir."""
         events: list[str] = []
         s_antes = self.state
+
+        self._salir_recognized_si_timer_vencido(now, events)
+
+        if self.state == FlowState.FACE_RECOGNIZED:
+            if hay_cara:
+                self._t_ultima_cara = now
+                self._t_ultimo_mov = now
+            return self._snapshot(events, now)
 
         if hay_cara:
             self._t_ultima_cara = now
             self._t_ultimo_mov = now
-            self.state = FlowState.FACE_PROCESSED
+            if self.state in (FlowState.MOV_DETECTED, FlowState.MOV_OUT):
+                self._clear_recognition()
+                self.state = FlowState.FACE_PROCESSED
+            elif self.state == FlowState.FACE_OUT:
+                self.state = FlowState.FACE_PROCESSED
         elif self.state == FlowState.FACE_PROCESSED:
             self.state = FlowState.FACE_OUT
-        elif self.state == FlowState.FACE_OUT:
-            if (
-                self._t_ultima_cara is not None
-                and (now - self._t_ultima_cara) >= self._t_face
-            ):
-                self.state = FlowState.FACE_PROCESSED_TIMEOUT
+        elif self.state == FlowState.FACE_OUT and self._sin_cara_timeout(now):
+            self.state = FlowState.FACE_PROCESSED_TIMEOUT
 
         if self.state != s_antes:
             events.append(
@@ -99,19 +145,81 @@ class MotionFaceFsm:
 
         if self.state == FlowState.FACE_PROCESSED_TIMEOUT:
             events.append(
-                "[FSM] {} -> IDLE (sin cara durante {:.1f} s)".format(
+                "[FSM] {} -> IDLE (sin cara {:.1f}s)".format(
                     FlowState.FACE_PROCESSED_TIMEOUT.value, self._t_face
                 )
             )
             self.state = FlowState.IDLE
             self._t_ultima_cara = None
+            self._clear_recognition()
 
-        return self._snapshot(events)
+        return self._snapshot(events, now)
 
-    def _snapshot(self, events: list[str]) -> FsmTickResult:
+    def notify_embed_match(
+        self,
+        person_id: str,
+        is_match: bool,
+        now: float,
+    ) -> tuple[str, ...]:
+        """
+        Entrada a FACE_RECOGNIZED: solo MATCH desde FACE_PROCESSED.
+        En FACE_RECOGNIZED: MATCH renueva timer; NO_MATCH no expulsa si timer activo.
+        """
+        events: list[str] = []
+
+        if is_match:
+            s_antes = self.state
+            self._recognized_id = person_id
+            self._renovar_timer(now)
+            if s_antes == FlowState.FACE_PROCESSED:
+                self.state = FlowState.FACE_RECOGNIZED
+                events.append(
+                    "[FSM] {} -> FACE_RECOGNIZED (id={})".format(
+                        s_antes.value, person_id
+                    )
+                )
+            elif s_antes == FlowState.FACE_RECOGNIZED:
+                events.append(
+                    "[FSM] FACE_RECOGNIZED refresh MATCH id={} (timer renovado)".format(
+                        person_id
+                    )
+                )
+            return tuple(events)
+
+        if self.state != FlowState.FACE_RECOGNIZED:
+            return tuple(events)
+
+        self._t_ultimo_embed = now
+        if self._timer_activo(now):
+            events.append(
+                "[FSM] FACE_RECOGNIZED refresh NO_MATCH (timer activo, id={})".format(
+                    self._recognized_id or "?"
+                )
+            )
+            return tuple(events)
+
+        self._clear_recognition()
+        self.state = FlowState.FACE_PROCESSED
+        events.append(
+            "[FSM] FACE_RECOGNIZED -> FACE_PROCESSED (NO_MATCH y timer vencido)"
+        )
+        return tuple(events)
+
+    def refresh_outputs(self, now: float) -> FsmTickResult:
+        """Snapshot tras notify_embed_match (mismo frame)."""
+        return self._snapshot((), now)
+
+    def _run_embedding(self, now: float) -> bool:
+        if self.state == FlowState.FACE_PROCESSED:
+            return True
+        if self.state == FlowState.FACE_RECOGNIZED:
+            return self._embed_periodico_vencido(now)
+        return False
+
+    def _snapshot(self, events: list[str], now: float) -> FsmTickResult:
         return FsmTickResult(
             state=self.state,
             run_face_detector=self.state in self._FACE_INFER_STATES,
-            run_embedding=self.state == FlowState.FACE_PROCESSED,
+            run_embedding=self._run_embedding(now),
             transitions=tuple(events),
         )

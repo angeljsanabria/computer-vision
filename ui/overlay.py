@@ -81,14 +81,44 @@ class DebugOverlay:
         self._draw_identity(vis, view)
 
     def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:
-        if view.identity is None:
-            return
-        idm = view.identity
-        tag = "MATCH" if idm.is_match else "NO_MATCH"
-        color = (0, 200, 0) if idm.is_match else (0, 140, 255)
-        bar = f"{idm.label} sim={idm.similarity:.3f} {tag}"
         h, w = vis.shape[:2]
         cv2.rectangle(vis, (0, h - 32), (w, h), (0, 0, 0), -1)
+
+        if view.identity is None:
+            cv2.putText(
+                vis,
+                "Sin identidad",
+                (6, h - 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.55,
+                (160, 160, 160),
+                1,
+                cv2.LINE_AA,
+            )
+            return
+
+        idm = view.identity
+        rot = f" rot={idm.rotacion}" if idm.rotacion else ""
+
+        if view.identity_is_stale:
+            bar = (
+                f"ultima: {idm.nombre} id={idm.person_id}{rot} "
+                f"sim={idm.similarity:.3f} MATCH"
+            )
+            color = (0, 0, 255)
+        elif idm.is_match:
+            bar = (
+                f"{idm.nombre} id={idm.person_id}{rot} "
+                f"sim={idm.similarity:.3f} MATCH"
+            )
+            color = (0, 200, 0)
+        else:
+            bar = (
+                f"{idm.nombre} id={idm.person_id}{rot} "
+                f"sim={idm.similarity:.3f} NO_MATCH"
+            )
+            color = (0, 140, 255)
+
         cv2.putText(
             vis,
             bar,

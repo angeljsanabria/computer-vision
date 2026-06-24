@@ -37,5 +37,6 @@ def config_from_settings() -> tuple[Mog2Config, FsmConfig]:
     fsm = FsmConfig(
         timeout_mov_s=s.FSM_TIMEOUT_MOV_S,
         timeout_face_s=s.FSM_TIMEOUT_FACE_S,
+        recognized_refresh_s=s.FSM_RECOGNIZED_REFRESH_S,
     )
     return mog2, fsm

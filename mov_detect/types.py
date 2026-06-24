@@ -10,6 +10,7 @@ class FlowState(str, Enum):
     MOV_DETECTED = "MOV_DETECTED"
     MOV_OUT = "MOV_OUT"
     FACE_PROCESSED = "FACE_PROCESSED"
+    FACE_RECOGNIZED = "FACE_RECOGNIZED"
     FACE_OUT = "FACE_OUT"
     FACE_PROCESSED_TIMEOUT = "FACE_PROCESSED_TIMEOUT"
 
@@ -29,6 +30,8 @@ class Mog2Config:
 class FsmConfig:
     timeout_mov_s: float = 10.0
     timeout_face_s: float = 10.0
+    # Runtime: configs.settings.FSM_RECOGNIZED_REFRESH_S (seccion 1.4)
+    recognized_refresh_s: float = 5.0
 
 
 @dataclass(frozen=True)
