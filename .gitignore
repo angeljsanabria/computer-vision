@@ -46,4 +46,5 @@ camera_snap/
 camara_snap/
 
 # referencias para crear embeddings
-embeddings/faces/
+embeddings/faces
+embeddings/faces_upd
