@@ -13,6 +13,8 @@ from inference.mobilefacenet.constants import EMBED_DIM
 
 GALLERY_NPY_NAME = "gallery.npy"
 GALLERY_META_NAME = "gallery_meta.json"
+GALLERY_ALIGN_NPY_NAME = "gallery_align.npy"
+GALLERY_ALIGN_META_NAME = "gallery_meta_align.json"
 DATA_NORMALIZADA_KEY = "data_normalizada"
 DATA_NORMALIZADA_OK = 1
 
@@ -37,9 +39,11 @@ class FaceGalleryMatcher:
         self,
         gallery_dir: Path,
         min_similarity: float,
+        npy_name: str = GALLERY_NPY_NAME,
+        meta_name: str = GALLERY_META_NAME,
     ) -> None:
         self._min_similarity = float(min_similarity)
-        loaded = self._load_gallery(gallery_dir)
+        loaded = self._load_gallery(gallery_dir, npy_name, meta_name)
         self._entries = loaded.entries
         self._matrix = loaded.matrix
         if self._entries:
@@ -72,29 +76,42 @@ class FaceGalleryMatcher:
     def from_settings(cls) -> FaceGalleryMatcher:
         from configs import settings as s
 
+        if s.FACE_ALIGNMENT_ENABLE:
+            npy_name = GALLERY_ALIGN_NPY_NAME
+            meta_name = GALLERY_ALIGN_META_NAME
+        else:
+            npy_name = GALLERY_NPY_NAME
+            meta_name = GALLERY_META_NAME
+
         return cls(
             gallery_dir=Path(s.embed_ref_gallery_dir_path()),
             min_similarity=s.EMBED_SIM_MIN_MATCH,
+            npy_name=npy_name,
+            meta_name=meta_name,
         )
 
     @staticmethod
-    def _load_gallery(gallery_dir: Path) -> _GalleryLoad:
+    def _load_gallery(
+        gallery_dir: Path, npy_name: str, meta_name: str
+    ) -> _GalleryLoad:
         if not gallery_dir.is_dir():
             return _GalleryLoad(entries=(), matrix=None)
 
-        matrix_load = FaceGalleryMatcher._try_load_gallery_matrix(gallery_dir)
+        matrix_load = FaceGalleryMatcher._try_load_gallery_matrix(
+            gallery_dir, npy_name, meta_name
+        )
         if matrix_load is not None:
             return matrix_load
 
         return FaceGalleryMatcher._load_gallery_legacy(gallery_dir)
 
     @staticmethod
-    def _parse_entry(entry: object, index: int) -> GalleryEntry:
+    def _parse_entry(entry: object, index: int, meta_name: str) -> GalleryEntry:
         if not isinstance(entry, dict):
-            raise ValueError(f"{GALLERY_META_NAME}: entries[{index}] no es objeto")
+            raise ValueError(f"{meta_name}: entries[{index}] no es objeto")
         person_id = entry.get("id")
         if not person_id:
-            raise ValueError(f"{GALLERY_META_NAME}: entries[{index}] sin id")
+            raise ValueError(f"{meta_name}: entries[{index}] sin id")
         nombre = str(entry.get("nombre") or person_id)
         rotacion = str(entry.get("rotacion") or "")
         return GalleryEntry(
@@ -104,15 +121,17 @@ class FaceGalleryMatcher:
         )
 
     @staticmethod
-    def _try_load_gallery_matrix(gallery_dir: Path) -> _GalleryLoad | None:
-        npy_path = gallery_dir / GALLERY_NPY_NAME
-        meta_path = gallery_dir / GALLERY_META_NAME
+    def _try_load_gallery_matrix(
+        gallery_dir: Path, npy_name: str, meta_name: str
+    ) -> _GalleryLoad | None:
+        npy_path = gallery_dir / npy_name
+        meta_path = gallery_dir / meta_name
         if not npy_path.is_file() and not meta_path.is_file():
             return None
         if not npy_path.is_file() or not meta_path.is_file():
             raise ValueError(
                 f"Galeria incompleta en {gallery_dir}: requiere "
-                f"{GALLERY_NPY_NAME} y {GALLERY_META_NAME} juntos"
+                f"{npy_name} y {meta_name} juntos"
             )
 
         with meta_path.open(encoding="utf-8") as fh:
@@ -120,30 +139,30 @@ class FaceGalleryMatcher:
 
         if meta.get(DATA_NORMALIZADA_KEY) != DATA_NORMALIZADA_OK:
             raise ValueError(
-                f"{GALLERY_META_NAME} invalido: falta {DATA_NORMALIZADA_KEY}="
+                f"{meta_name} invalido: falta {DATA_NORMALIZADA_KEY}="
                 f"{DATA_NORMALIZADA_OK} (got {meta.get(DATA_NORMALIZADA_KEY)!r}). "
-                "Regenerar con embeddings/face_embeddings_npy_from_images_folder.py"
+                "Regenerar con embeddings/enroll_gallery.py"
             )
 
         gallery = np.load(str(npy_path)).astype(np.float32, copy=False)
         gallery = np.ascontiguousarray(gallery)
         if gallery.ndim != 2 or gallery.shape[1] != EMBED_DIM:
             raise ValueError(
-                f"{GALLERY_NPY_NAME} shape invalida {gallery.shape!r}, "
+                f"{npy_name} shape invalida {gallery.shape!r}, "
                 f"esperado (N, {EMBED_DIM})"
             )
 
         entries_raw = meta.get("entries")
         if not isinstance(entries_raw, list):
-            raise ValueError(f"{GALLERY_META_NAME}: entries debe ser un array JSON")
+            raise ValueError(f"{meta_name}: entries debe ser un array JSON")
         if len(entries_raw) != gallery.shape[0]:
             raise ValueError(
-                f"{GALLERY_META_NAME}: len(entries)={len(entries_raw)} != "
+                f"{meta_name}: len(entries)={len(entries_raw)} != "
                 f"filas gallery={gallery.shape[0]}"
             )
 
         entries = tuple(
-            FaceGalleryMatcher._parse_entry(entry, i)
+            FaceGalleryMatcher._parse_entry(entry, i, meta_name)
             for i, entry in enumerate(entries_raw)
         )
         return _GalleryLoad(entries=entries, matrix=gallery)
@@ -153,7 +172,7 @@ class FaceGalleryMatcher:
         entries: list[GalleryEntry] = []
         vectors: list[np.ndarray] = []
         for path in sorted(gallery_dir.glob("*.npy")):
-            if path.name == GALLERY_NPY_NAME:
+            if path.name in (GALLERY_NPY_NAME, GALLERY_ALIGN_NPY_NAME):
                 continue
             vec = np.load(str(path)).astype(np.float32).reshape(-1)
             if vec.size != EMBED_DIM:

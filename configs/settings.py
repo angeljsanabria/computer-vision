@@ -102,7 +102,7 @@ RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 # FACE_ALIGNMENT_ENABLE: siempre align ArcFace 5 pt (galeria .npy enrolada igual).
 # Si ambos true, gana ArcFace (warning en validar_todo).
 FACE_ALIGNMENT_ENABLE = (
-    os.getenv("FACE_ALIGNMENT_ENABLE", "false").lower() == "true"
+    os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
 )
 FACE_ROT_ALIGNMENT_SIMPLE_ENABLE = (
     os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"
@@ -133,7 +133,7 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
 )
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
-EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.57"))
+EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
 EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "embeddings")
 
 def retinaface_model_pc_path() -> str:
@@ -356,21 +356,27 @@ def validar_todo():
                 gallery_path,
             )
         else:
-            npy_path = os.path.join(gallery_path, "gallery.npy")
-            meta_path = os.path.join(gallery_path, "gallery_meta.json")
+            if FACE_ALIGNMENT_ENABLE:
+                npy_name, meta_name = "gallery_align.npy", "gallery_meta_align.json"
+            else:
+                npy_name, meta_name = "gallery.npy", "gallery_meta.json"
+            npy_path = os.path.join(gallery_path, npy_name)
+            meta_path = os.path.join(gallery_path, meta_name)
             has_matrix = os.path.isfile(npy_path) and os.path.isfile(meta_path)
+            _gallery_npy_all = {"gallery.npy", "gallery_align.npy"}
             n_legacy = len(
                 [
                     f
                     for f in os.listdir(gallery_path)
-                    if f.lower().endswith(".npy") and f != "gallery.npy"
+                    if f.lower().endswith(".npy") and f not in _gallery_npy_all
                 ]
             )
             if has_matrix:
                 logging.info(
-                    "Galeria identidad: %s (gallery.npy + gallery_meta.json), "
-                    "sim_min_match=%.2f",
+                    "Galeria identidad: %s (%s + %s), sim_min_match=%.2f",
                     gallery_path,
+                    npy_name,
+                    meta_name,
                     EMBED_SIM_MIN_MATCH,
                 )
             elif n_legacy > 0:
@@ -382,7 +388,8 @@ def validar_todo():
                 )
             else:
                 logging.warning(
-                    "Galeria identidad: sin gallery.npy/gallery_meta.json ni .npy "
-                    "legacy en %s",
+                    "Galeria identidad: sin %s/%s ni .npy legacy en %s",
+                    npy_name,
+                    meta_name,
                     gallery_path,
                 )

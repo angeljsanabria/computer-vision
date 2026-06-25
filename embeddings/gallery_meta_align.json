@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "embed_dim": 128,
+  "preprocess": "arcface_align",
+  "data_normalizada": 1,
+  "generated_at": "2026-06-25T19:35:15.151341+00:00",
+  "entries": [
+    {
+      "id": "0000000102",
+      "nombre": "Jose Forguez",
+      "img": "faces_upd/102_Jose-Forguez_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.9956,
+      "roll_deg": -1.6,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
+      "id": "0000000001",
+      "nombre": "Angel Sanabria",
+      "img": "faces_upd/1_Angel-Sanabria_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.9998,
+      "roll_deg": 1.3,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    }
+  ],
+  "detecciones": [
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    }
+  ]
+}

@@ -1,10 +1,13 @@
 """
-Orquesta el enrolamiento de galeria en dos pasos:
+Orquesta el enrolamiento de galeria en tres pasos:
 
   1. prepare_faces_refs.py       faces/ -> faces_upd/
-  2. face_embeddings_npy_from_images_folder.py  faces_upd/ -> gallery.npy
+  2. face_embeddings_npy_from_images_folder.py        faces_upd/ -> gallery.npy
+  3. face_embeddings_align_npy_from_images_folder.py  faces_upd/ -> gallery_align.npy
 
-Si el paso 1 falla, no se ejecuta el paso 2.
+Genera ambas galerias (crop y alineada ArcFace) desde el mismo faces_upd/, para
+elegir en runtime via configs.settings FACE_ALIGNMENT_ENABLE. Si un paso falla,
+no se ejecutan los siguientes.
 
 Ejemplo:
   python embeddings/enroll_gallery.py
@@ -17,6 +20,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 PREPARE_SCRIPT = SCRIPT_DIR / "prepare_faces_refs.py"
 EMBED_SCRIPT = SCRIPT_DIR / "face_embeddings_npy_from_images_folder.py"
+EMBED_ALIGN_SCRIPT = SCRIPT_DIR / "face_embeddings_align_npy_from_images_folder.py"
 
 
 def _run_step(label: str, cmd: list[str]) -> None:
@@ -30,10 +34,14 @@ def main() -> None:
 
     python = sys.executable
     steps: list[tuple[str, list[str]]] = [
-        ("Paso 1/2: prepare_faces_refs", [python, str(PREPARE_SCRIPT)]),
+        ("Paso 1/3: prepare_faces_refs", [python, str(PREPARE_SCRIPT)]),
         (
-            "Paso 2/2: face_embeddings_npy_from_images_folder",
+            "Paso 2/3: face_embeddings_npy_from_images_folder (crop)",
             [python, str(EMBED_SCRIPT)],
+        ),
+        (
+            "Paso 3/3: face_embeddings_align_npy_from_images_folder (arcface_align)",
+            [python, str(EMBED_ALIGN_SCRIPT)],
         ),
     ]
 
@@ -44,9 +52,8 @@ def main() -> None:
             raise SystemExit(exc.returncode) from exc
 
     logging.info(
-        "Enrolamiento completo: %s y %s en %s",
-        "gallery.npy",
-        "gallery_meta.json",
+        "Enrolamiento completo en %s: gallery.npy + gallery_meta.json (crop) y "
+        "gallery_align.npy + gallery_meta_align.json (arcface_align)",
         SCRIPT_DIR.resolve(),
     )
 
