@@ -314,7 +314,7 @@ Primera version: recorte con margen (`FACE_CROP_MARGIN_FRAC`) + resize a 112x112
 Aun sin `FACE_STABLE`, **no** embedear en cada frame de `FACE_PROCESSED`:
 
 ```text
-if (now - t_ultimo_embed) >= EMBED_COOLDOWN_S:
+if (now - t_ultimo_embed) >= EMBED_AND_FACEDETEC_COOLDOWN_S:
     calcular y comparar
 ```
 

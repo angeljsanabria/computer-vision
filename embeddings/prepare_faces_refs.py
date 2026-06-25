@@ -6,8 +6,11 @@ Por cada imagen en embeddings/faces/:
   2. Si |roll| > MAX_ABS_ROLL_DEG (25): warning, prefijo err_ en nombres y marca X roja.
   3. Si |roll| > MAX_TOLERANCE_ABS_ROLL_DEG (3): rota la imagen completa a 0 deg.
   4. Si |roll| <= 3: copia sin rotar.
-  5. Crop bbox con margen segun flags ENABLE_* (_zero, _der, _izq, or/).
-  6. Guarda recortes habilitados en embeddings/faces_upd/ y faces_upd/or/.
+  5. Genera variantes rotadas de la imagen COMPLETA segun flags ENABLE_*
+     (_zero a 0 deg, _der -7 deg, _izq +7 deg). No recorta la cara.
+  6. Valida que la cara siga detectable y guarda las imagenes completas en
+     embeddings/faces_upd/ (el recorte unico de cara lo hace el enrolamiento,
+     igual que el pipeline live). faces_upd/or/ guarda la original completa.
 
 Ejemplo:
   python embeddings/prepare_faces_refs.py
@@ -25,14 +28,14 @@ import numpy as np
 # Constantes (solo este script; no van a settings.py)
 MAX_ABS_ROLL_DEG = 25.0
 MAX_TOLERANCE_ABS_ROLL_DEG = 3.0
-APPLY_ROT_ABS_ROLL_DEG = 7.0
+APPLY_ROT_ABS_ROLL_DEG = 9.0
 MIN_RETINAFACE_SCORE = 0.90
 
 # Para habilitar las imagenes de salida
 ENABLE_PROCESS_ROLL_ZERO = True
 ENABLE_PROCESS_ROLL_DER = True
 ENABLE_PROCESS_ROLL_IZQ = True
-ENABLE_SAVE_CROP_ORIGINAL = True
+ENABLE_SAVE_ORIGINAL = True
 
 _ROLL_EXCEEDED_COLOR_BGR = (0, 0, 255)
 _ROLL_EXCEEDED_LINE_THICKNESS = 2
@@ -80,7 +83,7 @@ def _validate_dirs() -> None:
         raise SystemExit(f"No existe carpeta de entrada: {FACES_DIR}")
     if not FACES_UPD_DIR.is_dir():
         raise SystemExit(f"No existe carpeta de salida: {FACES_UPD_DIR}")
-    if ENABLE_SAVE_CROP_ORIGINAL:
+    if ENABLE_SAVE_ORIGINAL:
         FACES_OR_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -89,7 +92,7 @@ def _any_output_enabled() -> bool:
         ENABLE_PROCESS_ROLL_ZERO
         or ENABLE_PROCESS_ROLL_DER
         or ENABLE_PROCESS_ROLL_IZQ
-        or ENABLE_SAVE_CROP_ORIGINAL
+        or ENABLE_SAVE_ORIGINAL
     )
 
 
@@ -219,49 +222,31 @@ def _crop_best_face(
     return crop, score
 
 
-def _crop_from_det_row(frame_bgr: np.ndarray, det_row: np.ndarray) -> np.ndarray | None:
-    """Recorte bbox desde una deteccion ya conocida (sin nueva inferencia)."""
-    h, w = frame_bgr.shape[:2]
-    x1, y1, x2, y2 = bbox_crop_with_margin(
-        det_row, w, h, s.FACE_CROP_MARGIN_FRAC
-    )
-    crop = frame_bgr[y1 : y2 + 1, x1 : x2 + 1]
-    if crop.size == 0:
-        return None
-    return crop
-
-
-def _save_original_crop(
+def _save_original_full(
     frame_bgr: np.ndarray,
-    det_row: np.ndarray,
     out_path: Path,
     *,
     det_score: float,
     img_name: str,
     mark_roll_exceeded: bool,
 ) -> bool:
-    """Crop de la imagen original sin rotar (faces_upd/or/, sin sufijo _or)."""
-    crop = _crop_from_det_row(frame_bgr, det_row)
-    if crop is None:
-        logging.warning("[ERROR] crop vacio (_or): %s", img_name)
-        return False
-    if mark_roll_exceeded:
-        crop = _draw_roll_exceeded_mark(crop)
-    if not _save_bgr(out_path, crop):
+    """Imagen original completa sin rotar (faces_upd/or/, referencia, no se enrola)."""
+    out = _draw_roll_exceeded_mark(frame_bgr) if mark_roll_exceeded else frame_bgr
+    if not _save_bgr(out_path, out):
         logging.warning("[ERROR] no se pudo guardar: %s", out_path.name)
         return False
-    ch, cw = crop.shape[:2]
+    h, w = out.shape[:2]
     logging.info(
-        "     original or/ -> %s crop=%dx%d score=%.3f",
+        "     original or/ -> %s full=%dx%d score=%.3f",
         out_path.name,
-        cw,
-        ch,
+        w,
+        h,
         det_score,
     )
     return True
 
 
-def _save_rotated_crop(
+def _save_rotated_full(
     detector,
     frame_bgr: np.ndarray,
     out_path: Path,
@@ -270,33 +255,36 @@ def _save_rotated_crop(
     img_name: str,
     mark_roll_exceeded: bool,
 ) -> tuple[int, int] | None:
-    """Detecta cara, crop bbox y guarda. Retorna (h, w) del crop o None si falla."""
+    """
+    Valida que la cara siga detectable tras la rotacion y guarda la imagen
+    COMPLETA (sin recortar). El recorte unico de cara lo hace el enrolamiento.
+    Retorna (h, w) de la imagen o None si la cara no es valida.
+    """
     result = _crop_best_face(detector, frame_bgr)
     if result is None:
         logging.warning(
-            "[ERROR] sin cara valida tras %s (crop): %s",
+            "[ERROR] sin cara valida tras %s: %s",
             variant_label,
             img_name,
         )
         return None
 
-    crop, crop_score = result
-    if mark_roll_exceeded:
-        crop = _draw_roll_exceeded_mark(crop)
-    if not _save_bgr(out_path, crop):
+    _, crop_score = result
+    out = _draw_roll_exceeded_mark(frame_bgr) if mark_roll_exceeded else frame_bgr
+    if not _save_bgr(out_path, out):
         logging.warning("[ERROR] no se pudo guardar: %s", out_path.name)
         return None
 
-    ch, cw = crop.shape[:2]
+    h, w = out.shape[:2]
     logging.info(
-        "     %s -> %s crop=%dx%d score=%.3f",
+        "     %s -> %s full=%dx%d score=%.3f",
         variant_label,
         out_path.name,
-        cw,
-        ch,
+        w,
+        h,
         crop_score,
     )
-    return ch, cw
+    return h, w
 
 
 def _process_image(
@@ -382,10 +370,9 @@ def _process_image(
 
     saved_any = False
 
-    if ENABLE_SAVE_CROP_ORIGINAL:
-        if not _save_original_crop(
+    if ENABLE_SAVE_ORIGINAL:
+        if not _save_original_full(
             img,
-            row,
             or_path,
             det_score=score,
             img_name=img_path.name,
@@ -416,7 +403,7 @@ def _process_image(
         )
 
     for variant_label, frame, out_path in variants:
-        if _save_rotated_crop(
+        if _save_rotated_full(
             detector,
             frame,
             out_path,
@@ -444,7 +431,7 @@ def main() -> None:
     if not _any_output_enabled():
         raise SystemExit(
             "Ninguna salida habilitada: activar al menos un ENABLE_PROCESS_* "
-            "o ENABLE_SAVE_CROP_ORIGINAL."
+            "o ENABLE_SAVE_ORIGINAL."
         )
 
     _validate_dirs()
@@ -457,22 +444,21 @@ def main() -> None:
 
     logging.info("Entrada: %s (%d imagenes)", FACES_DIR.resolve(), len(images))
     logging.info("Salida enrolable: %s", FACES_UPD_DIR.resolve())
-    if ENABLE_SAVE_CROP_ORIGINAL:
+    if ENABLE_SAVE_ORIGINAL:
         logging.info("Salida referencia original: %s", FACES_OR_DIR.resolve())
     logging.info(
-        "Salidas: zero=%s der=%s izq=%s original=%s",
+        "Salidas (imagenes completas): zero=%s der=%s izq=%s original=%s",
         ENABLE_PROCESS_ROLL_ZERO,
         ENABLE_PROCESS_ROLL_DER,
         ENABLE_PROCESS_ROLL_IZQ,
-        ENABLE_SAVE_CROP_ORIGINAL,
+        ENABLE_SAVE_ORIGINAL,
     )
     logging.info(
         "Umbrales: tolerancia=%.1f deg (corregir si |roll| >), max=%.1f deg (marca X si |roll| >), "
-        "augment=+/-%.1f deg (_zero/_der/_izq), crop_margin=%.2f",
+        "augment=+/-%.1f deg (_zero/_der/_izq). Recorte de cara: en el enrolamiento.",
         MAX_TOLERANCE_ABS_ROLL_DEG,
         MAX_ABS_ROLL_DEG,
         APPLY_ROT_ABS_ROLL_DEG,
-        s.FACE_CROP_MARGIN_FRAC,
     )
     logging.info("Backend: %s", s.INFERENCE_BACKEND)
 

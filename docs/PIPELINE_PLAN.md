@@ -98,7 +98,7 @@ De `cara_detectada_pipeline.md` (M1–M13). Sin estado `FACE_STABLE`; reglas den
 | Regla | Estado |
 |-------|--------|
 | M1 score minimo embed | [x] `EMBED_MIN_SCORE` |
-| M10 cooldown embed | [x] `EMBED_COOLDOWN_S` |
+| M10 cooldown embed | [x] `EMBED_AND_FACEDETEC_COOLDOWN_S` |
 | M2 tamano bbox minimo | [ ] |
 | M7 nitidez / blur | [ ] |
 | Gate roll (no embed si `\|roll\|` alto) | [ ] parcial: roll en log, sin rechazo |
@@ -109,7 +109,11 @@ De `cara_detectada_pipeline.md` (M1–M13). Sin estado `FACE_STABLE`; reglas den
 - [ ] `requirements-pc.txt` / `requirements-rk3568.txt` (`opencv-python` vs `opencv-python-headless`)
 - [ ] SIGINT/SIGTERM en `main_mov.py` (cierre limpio con systemd)
 - [ ] E2E headless en placa (`INFERENCE_BACKEND=rk3568`)
-- [ ] Latencia por etapa (`eval_modelos/`)
+- [ ] **Profiler de latencia por etapa** (MOG2 / RetinaFace / embed / match / FPS).
+  Pendiente; se deja para el final porque ensucia el bucle. Plan: modulo aparte
+  (`utils/profiler.py`, context manager / decorador) controlado por un setting
+  `PROFILER_ENABLE` (default `false`) para que no moleste ni afecte el runtime
+  cuando no se usa. Medir aca antes de pasar a RGA (Fase 7).
 
 ## Fase 7 — RGA (optimizacion)
 
@@ -160,8 +164,9 @@ Calibrar EMBED_SIM_MIN_MATCH
 | `FACE_ROT_ALIGNMENT_SIMPLE_ENABLE` | `false` | Hibrido crop / roll-fix |
 | `FACE_ROLL_MAX_DEG` | `10` | Umbral roll-fix |
 | `EMBED_MIN_SCORE` | `RETINAFACE_SCORE_DETECCION` | Score min RetinaFace para embed |
-| `EMBED_COOLDOWN_S` | `1.0` | Segundos entre embeds |
+| `EMBED_AND_FACEDETEC_COOLDOWN_S` | `3.0` | Segundos entre embeds (y deteccion en FACE_RECOGNIZED sin full-rate) |
 | `EMBED_SIM_MIN_MATCH` | `0.60` | Umbral coseno MATCH |
 | `EMBED_REF_GALLERY_DIR` | `embeddings` | Galeria `.npy` |
+| `PROFILER_ENABLE` | `false` | (pendiente) Activa el profiler de latencia por etapa |
 
-Ultima actualizacion: 2026-06-08.
+Ultima actualizacion: 2026-06-25.

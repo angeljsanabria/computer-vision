@@ -12,9 +12,9 @@ class MotionFaceFsm:
       - Entrada: unico MATCH en FACE_PROCESSED (notify_embed_match).
       - Salida: timer de identidad vencido -> FACE_PROCESSED (refresca cara/mov).
       - No reacciona a hay_cara / MOG2 / FSM_TIMEOUT_FACE_S.
-      - Embed igual que FACE_PROCESSED (cooldown EMBED_COOLDOWN_S en main_mov);
-        cada MATCH renueva el timer a recognized_refresh_s; NO_MATCH no expulsa
-        mientras el timer siga activo.
+      - Embed igual que FACE_PROCESSED (cooldown EMBED_AND_FACEDETEC_COOLDOWN_S
+        en main_mov); cada MATCH renueva el timer a recognized_refresh_s; NO_MATCH
+        no expulsa mientras el timer siga activo.
 
     FACE_PROCESSED / FACE_OUT siguen las reglas de deteccion de cara (RetinaFace).
     """
@@ -204,6 +204,12 @@ class MotionFaceFsm:
         """Snapshot tras notify_embed_match (mismo frame)."""
         del now  # firma estable para main_mov; el snapshot ya no depende de now
         return self._snapshot(())
+
+    def tick_identity_timer(self, now: float) -> FsmTickResult:
+        """Solo evalua la expiracion del timer de FACE_RECOGNIZED (sin RetinaFace)."""
+        events: list[str] = []
+        self._salir_recognized_si_timer_vencido(now, events)
+        return self._snapshot(events)
 
     def _run_embedding(self) -> bool:
         return self.state in (

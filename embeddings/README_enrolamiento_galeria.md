@@ -5,7 +5,7 @@ Scripts en `embeddings/`:
 | Script | Rol |
 |--------|-----|
 | `enroll_gallery.py` | **Entrada unica:** ejecuta prepare y luego enrolamiento (en ese orden) |
-| `prepare_faces_refs.py` | Prepara fotos: corrige roll, genera variantes y recortes → `faces_upd/` |
+| `prepare_faces_refs.py` | Prepara fotos: corrige roll y genera variantes de pose como **imagenes completas** (sin recortar) → `faces_upd/` |
 | `face_embeddings_npy_from_images_folder.py` | Enrola embeddings desde `faces_upd/` → `gallery.npy` + `gallery_meta.json` |
 
 El reconocimiento en vivo lo hace `WIP/main_mov.py` via `inference/identity/matcher.py`.
@@ -23,11 +23,13 @@ Equivalente manual (mismo orden que `enroll_gallery.py`):
 
 ```text
 1. Fotos crudas          -> embeddings/faces/
-2. prepare_faces_refs    -> embeddings/faces_upd/  (3 recortes enrolables + or/ referencia)
+2. prepare_faces_refs    -> embeddings/faces_upd/  (3 imagenes completas enrolables + or/ referencia)
 3. face_embeddings_...   -> gallery.npy + gallery_meta.json  (lee faces_upd/ directamente)
 ```
 
-Los scripts individuales sirven para depurar un solo paso. No hace falta copiar recortes a `faces/` si usas el flujo completo: el enrolamiento lee `faces_upd/`.
+Los scripts individuales sirven para depurar un solo paso. No hace falta copiar nada a `faces/` si usas el flujo completo: el enrolamiento lee `faces_upd/`.
+
+> **Preprocess consistente:** `prepare_faces_refs` ya **no recorta** la cara. Guarda imagenes completas (roll-fix + variantes). El recorte unico de cara (`prepare_face_patch`) lo hace el enrolamiento, identico al pipeline live, para que galeria y vivo compartan el mismo encuadre.
 
 ---
 
@@ -39,18 +41,18 @@ Ambas carpetas deben existir antes de ejecutar.
 Por cada imagen en `faces/`:
 
 1. RetinaFace detecta la mejor cara y mide roll (linea entre ojos).
-2. Si `|roll| > 25°` (`MAX_ABS_ROLL_DEG`): **warning**, se procesa igual; los recortes llevan prefijo `err_`, marca **X roja** (diagonales punta a punta) y **no deben enrolarse**.
+2. Si `|roll| > 25°` (`MAX_ABS_ROLL_DEG`): **warning**, se procesa igual; las imagenes llevan prefijo `err_`, marca **X roja** (diagonales punta a punta) y **no deben enrolarse**.
 3. Si `|roll| > 3°` (`MAX_TOLERANCE_ABS_ROLL_DEG`): rota el frame completo a ~0°.
 4. Si `|roll| ≤ 3°`: usa el frame sin corregir.
-5. Segun flags `ENABLE_*`, genera variantes rotadas; en cada una vuelve a detectar y **recorta bbox** (margen `FACE_CROP_MARGIN_FRAC`). Opcionalmente guarda crop de la imagen original sin rotar en `faces_upd/or/`.
-6. Guarda en `faces_upd/`:
+5. Segun flags `ENABLE_*`, genera variantes rotadas de la **imagen completa**; en cada una vuelve a detectar **solo para validar** que la cara siga siendo detectable (no recorta). Opcionalmente guarda la imagen original completa sin rotar en `faces_upd/or/`.
+6. Guarda en `faces_upd/` (imagenes completas; el recorte de cara es del enrolamiento):
 
 | Archivo salida | Contenido | Enrolar |
 |----------------|-----------|---------|
-| `or/{id}_{nombre}.jpg` | Crop de la imagen original (sin corregir roll) | No |
-| `{id}_{nombre}_zero.jpg` | Crop del frame a 0° (centrado) | Si |
-| `{id}_{nombre}_der.jpg` | Crop rotado -7° desde 0° | Si |
-| `{id}_{nombre}_izq.jpg` | Crop rotado +7° desde 0° | Si |
+| `or/{id}_{nombre}.jpg` | Imagen original completa (sin corregir roll) | No |
+| `{id}_{nombre}_zero.jpg` | Imagen completa a 0° (roll corregido) | Si |
+| `{id}_{nombre}_der.jpg` | Imagen completa rotada -7° desde 0° | Si |
+| `{id}_{nombre}_izq.jpg` | Imagen completa rotada +7° desde 0° | Si |
 
 Si `|roll| > 25°`, los nombres anteriores pasan a `err_{...}` (p. ej. `err_1_Angel-Sanabria_zero.jpg`, `or/err_1_Angel-Sanabria.jpg`).
 
@@ -69,7 +71,7 @@ Constantes (solo en el script):
 | `ENABLE_PROCESS_ROLL_ZERO` | `True` | Guardar `{stem}_zero` |
 | `ENABLE_PROCESS_ROLL_DER` | `True` | Guardar `{stem}_der` |
 | `ENABLE_PROCESS_ROLL_IZQ` | `True` | Guardar `{stem}_izq` |
-| `ENABLE_SAVE_CROP_ORIGINAL` | `True` | Guardar crop original en `or/` |
+| `ENABLE_SAVE_ORIGINAL` | `True` | Guardar imagen original completa en `or/` |
 
 Al menos un `ENABLE_*` debe estar en `True`. La correccion de roll a 0° solo corre si alguna variante `_zero`/`_der`/`_izq` esta habilitada.
 

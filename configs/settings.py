@@ -15,6 +15,11 @@ WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
     os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
 )
+# RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
+# FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
+FACE_DETECT_FULLRATE = (
+    os.getenv("FACE_DETECT_FULLRATE", str(DISPLAY_IS_ENABLE)).lower() == "true"
+)
 # Cuantas caras rankeadas procesar (1=mejor, 2=mejor+siguiente, ...).
 FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 2))
 
@@ -111,8 +116,11 @@ FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
 EMBED_MIN_SCORE = float(
     os.getenv("EMBED_MIN_SCORE", str(RETINAFACE_SCORE_DETECCION))
 )
-# RetinaFace/FSM siguen activos; embed como maximo cada EMBED_COOLDOWN_S. 0 = cada tick con cara.
-EMBED_COOLDOWN_S = float(os.getenv("EMBED_COOLDOWN_S", "3.0"))  # 2.0 default
+# Embed (FACE_PROCESSED/RECOGNIZED) y, sin FACE_DETECT_FULLRATE, RetinaFace en
+# FACE_RECOGNIZED: como maximo cada EMBED_AND_FACEDETEC_COOLDOWN_S. 0 = cada tick con cara.
+EMBED_AND_FACEDETEC_COOLDOWN_S = float(
+    os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S", "1.0")
+)
 
 # 6.3 MobileFaceNet (rutas segun INFERENCE_BACKEND)
 MOBILEFACENET_MODEL_PC = os.getenv(
@@ -305,21 +313,22 @@ def validar_todo():
             EMBED_MIN_SCORE,
         )
 
-    if EMBED_COOLDOWN_S < 0:
+    if EMBED_AND_FACEDETEC_COOLDOWN_S < 0:
         logging.critical(
-            "CONFIG ERROR: EMBED_COOLDOWN_S debe ser >= 0 (got %.2f).",
-            EMBED_COOLDOWN_S,
+            "CONFIG ERROR: EMBED_AND_FACEDETEC_COOLDOWN_S debe ser >= 0 (got %.2f).",
+            EMBED_AND_FACEDETEC_COOLDOWN_S,
         )
         sys.exit(1)
 
-    if EMBED_COOLDOWN_S == 0:
+    if EMBED_AND_FACEDETEC_COOLDOWN_S == 0:
         logging.info(
-            "Embed: sin cooldown (cada tick con cara en FACE_PROCESSED; util para metricas)"
+            "Embed/deteccion: sin cooldown (cada tick con cara; util para metricas)"
         )
     else:
         logging.info(
-            "Embed: cooldown %.1f s (RetinaFace/FSM sin cambios)",
-            EMBED_COOLDOWN_S,
+            "Embed/deteccion: cooldown %.1f s (RetinaFace full rate=%s)",
+            EMBED_AND_FACEDETEC_COOLDOWN_S,
+            FACE_DETECT_FULLRATE,
         )
 
     if os.getenv("EMBED_MIN_SCORE") is not None:

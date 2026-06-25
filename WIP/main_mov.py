@@ -11,7 +11,7 @@ Flujo por frame:
   3. ``MotionFaceFsm.tick_motion()`` — transiciones IDLE / MOV_*.
   4. ``_sync_umbral_mog2()`` — histéresis de umbral MOG2 segun estado FSM.
   5. Si ``run_face_detector``: RetinaFace + ``tick_face()``.
-  6. Si ``run_embedding``: preprocess + MobileFaceNet (cooldown ``EMBED_COOLDOWN_S``).
+  6. Si ``run_embedding``: preprocess + MobileFaceNet (cooldown ``EMBED_AND_FACEDETEC_COOLDOWN_S``).
   7. Tras embed: ``gallery @ live`` vs ``gallery.npy`` + meta ``gallery_meta.json``.
 
 Estados FSM (resumen):
@@ -28,7 +28,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
   FACE_PROCESS_TOP_N     — 1=mejor cara, 2=mejor+siguiente, ...
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
-  EMBED_COOLDOWN_S       — segundos entre embeds (0 = cada tick con cara)
+  EMBED_AND_FACEDETEC_COOLDOWN_S — segundos entre embeds/deteccion (0 = cada tick con cara)
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
   FACE_ROT_ALIGNMENT_SIMPLE_ENABLE   — true=hibrido crop/roll-fix
   FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
@@ -153,7 +153,12 @@ def _tick_mog2_fsm(
     """
     estado_antes = fsm.state
     if estado_antes in (FlowState.FACE_PROCESSED, FlowState.FACE_RECOGNIZED):
-        return MotionResult(hay_mov=True, pixel_count=-1), fsm.refresh_outputs(now)
+        if estado_antes == FlowState.FACE_RECOGNIZED:
+            fsm_out = fsm.tick_identity_timer(now)
+            _log_transitions(fsm_out.transitions)
+        else:
+            fsm_out = fsm.refresh_outputs(now)
+        return MotionResult(hay_mov=True, pixel_count=-1), fsm_out
 
     mov = motion.evaluate(frame)
     motion.log_motion_if_changed(mov)
@@ -165,6 +170,20 @@ def _tick_mog2_fsm(
     return mov, fsm_out
 
 
+def _debe_saltar_deteccion(
+    state: FlowState, now: float, t_ultimo_embed: float | None
+) -> bool:
+    """En FACE_RECOGNIZED sin full-rate, RetinaFace sigue el cooldown de embed."""
+    if s.FACE_DETECT_FULLRATE or state != FlowState.FACE_RECOGNIZED:
+        return False
+    if s.EMBED_AND_FACEDETEC_COOLDOWN_S <= 0:
+        return False
+    return (
+        t_ultimo_embed is not None
+        and (now - t_ultimo_embed) < s.EMBED_AND_FACEDETEC_COOLDOWN_S
+    )
+
+
 def _tick_retinaface_if_needed(
     face: FaceDetector | None,
     fsm: MotionFaceFsm,
@@ -172,6 +191,7 @@ def _tick_retinaface_if_needed(
     frame,
     now: float,
     fsm_out: FsmTickResult,
+    t_ultimo_embed: float | None,
 ) -> tuple[FaceDetections | None, FsmTickResult]:
     """
     RetinaFace + ranking + tick_face cuando la FSM lo indica.
@@ -180,6 +200,8 @@ def _tick_retinaface_if_needed(
     La FSM usa ``hay_cara`` sobre todas las detecciones del modelo, no solo las filtradas.
     """
     if not fsm_out.run_face_detector or face is None:
+        return None, fsm_out
+    if _debe_saltar_deteccion(fsm_out.state, now, t_ultimo_embed):
         return None, fsm_out
 
     raw = face.detect(frame)
@@ -217,7 +239,7 @@ def _tick_embed_if_needed(
 ) -> tuple[FaceEmbedding | None, float | None]:
     """
     Preprocess + MobileFaceNet en FACE_PROCESSED y FACE_RECOGNIZED; en ambos
-    estados se respeta el cooldown EMBED_COOLDOWN_S. En FACE_RECOGNIZED cada MATCH
+    estados se respeta el cooldown EMBED_AND_FACEDETEC_COOLDOWN_S. En FACE_RECOGNIZED cada MATCH
     renueva el timer de sesion (FSM_RECOGNIZED_REFRESH_S).
     """
     if not fsm_out.run_embedding or embedder is None:
@@ -226,9 +248,9 @@ def _tick_embed_if_needed(
         return None, t_ultimo_embed
 
     if (
-        s.EMBED_COOLDOWN_S > 0
+        s.EMBED_AND_FACEDETEC_COOLDOWN_S > 0
         and t_ultimo_embed is not None
-        and (now - t_ultimo_embed) < s.EMBED_COOLDOWN_S
+        and (now - t_ultimo_embed) < s.EMBED_AND_FACEDETEC_COOLDOWN_S
     ):
         return None, t_ultimo_embed
 
@@ -294,7 +316,7 @@ def main() -> int:
             "MobileFaceNet activo (backend=%s, embed_min_score=%.2f, cooldown=%.1f s)",
             s.INFERENCE_BACKEND,
             s.EMBED_MIN_SCORE,
-            s.EMBED_COOLDOWN_S,
+            s.EMBED_AND_FACEDETEC_COOLDOWN_S,
         )
     else:
         logging.info(
@@ -335,7 +357,7 @@ def main() -> int:
                 now = time.monotonic()
                 mov, fsm_out = _tick_mog2_fsm(motion, fsm, frame, now)
                 dets, fsm_out = _tick_retinaface_if_needed(
-                    face, fsm, motion, frame, now, fsm_out
+                    face, fsm, motion, frame, now, fsm_out, t_ultimo_embed
                 )
                 embedding, t_ultimo_embed = _tick_embed_if_needed(
                     embedder, frame, dets, fsm_out, now, t_ultimo_embed
@@ -353,12 +375,10 @@ def main() -> int:
                                 )
                             )
                             logging.info(
-                                "[ID] MATCH fila=%d id=%s nombre=%r rotacion=%s "
-                                "sim=%.3f (>=%.2f)",
+                                "[ID] MATCH fila=%d id=%s nombre=%r sim=%.3f (>=%.2f)",
                                 matched.row_index,
                                 matched.person_id,
                                 matched.nombre,
-                                matched.rotacion,
                                 matched.similarity,
                                 s.EMBED_SIM_MIN_MATCH,
                             )

@@ -6,7 +6,7 @@ Entrada recomendada: **`enroll_gallery.py`** (ejecuta los dos pasos en orden).
 
 Scripts subyacentes en `embeddings/`:
 
-1. **`prepare_faces_refs.py`** — prepara recortes en `faces_upd/` (roll, variantes ±7°, crop, flags `ENABLE_*`).
+1. **`prepare_faces_refs.py`** — prepara imagenes completas en `faces_upd/` (roll-fix + variantes ±7°, sin recortar; flags `ENABLE_*`). El recorte de cara lo hace el enrolamiento.
 2. **`face_embeddings_npy_from_images_folder.py`** — genera `gallery.npy` + `gallery_meta.json` desde `faces_upd/`.
 
 ---
@@ -41,7 +41,7 @@ embeddings/
 
 Referencia original: `faces_upd/or/{stem}.ext` (no va a `faces/` ni a la galeria).
 
-Roll excedido (`|roll| > 25°` en prepare): prefijo `err_` + X roja en el crop; **no copiar** a `faces/` ni enrolar.
+Roll excedido (`|roll| > 25°` en prepare): prefijo `err_` + X roja en la imagen; **no enrolar** (el enrolamiento los descarta por prefijo).
 
 El campo **`rotacion`** va siempre en cada entrada del JSON.  
 Varias fotos del mismo `id`/`nombre` (cero, der, izq) producen **varias filas** en la galeria.
@@ -64,12 +64,12 @@ Orquestado: python embeddings/enroll_gallery.py
 
 | Archivo | Contenido | Enrolar |
 |---------|-----------|---------|
-| `or/{stem}.jpg` | Recorte de la imagen original (sin rotar) | No |
-| `{stem}_zero.jpg` | Recorte a 0° (centrado) | Si |
-| `{stem}_der.jpg` | Recorte rotado -7° desde 0° | Si |
-| `{stem}_izq.jpg` | Recorte rotado +7° desde 0° | Si |
+| `or/{stem}.jpg` | Imagen original completa (sin rotar) | No |
+| `{stem}_zero.jpg` | Imagen completa a 0° (roll corregido) | Si |
+| `{stem}_der.jpg` | Imagen completa rotada -7° desde 0° | Si |
+| `{stem}_izq.jpg` | Imagen completa rotada +7° desde 0° | Si |
 
-Si `|roll| > MAX_ABS_ROLL_DEG` (25°): warning, prefijo `err_` en todos los nombres anteriores y **X roja** en cada recorte (diagonal `(0,0)-(max_x,max_y)` y `(0,max_y)-(max_x,0)`).
+Si `|roll| > MAX_ABS_ROLL_DEG` (25°): warning, prefijo `err_` en todos los nombres anteriores y **X roja** en cada imagen (diagonal `(0,0)-(max_x,max_y)` y `(0,max_y)-(max_x,0)`).
 
 Flags opcionales (default `True`): `ENABLE_PROCESS_ROLL_ZERO`, `ENABLE_PROCESS_ROLL_DER`, `ENABLE_PROCESS_ROLL_IZQ`, `ENABLE_SAVE_CROP_ORIGINAL`.
 
