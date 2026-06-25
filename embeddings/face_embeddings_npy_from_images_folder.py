@@ -14,11 +14,7 @@ prepare_face_patch (margen FACE_CROP_MARGIN_FRAC en settings).
 
 Ejemplo:
   python embeddings/face_embeddings_npy_from_images_folder.py
-  python embeddings/face_embeddings_npy_from_images_folder.py --flip-avg
 """
-from __future__ import annotations
-
-import argparse
 import json
 import logging
 import re
@@ -172,14 +168,13 @@ def _release_inference(*objs) -> None:
             release()
 
 
-def _log_enrollment_config(*, flip_avg: bool) -> None:
+def _log_enrollment_config() -> None:
     logging.info("Entrada: %s", FACES_DIR.resolve())
     logging.info("Salida: %s, %s", GALLERY_NPY.resolve(), GALLERY_META_JSON.resolve())
     logging.info(
-        "Umbrales: score>=%.2f, |roll|<=%.1f deg, flip_avg=%s",
+        "Umbrales: score>=%.2f, |roll|<=%.1f deg",
         MIN_RETINAFACE_SCORE,
         MAX_ABS_ROLL_DEG,
-        flip_avg,
     )
     logging.info("Backend: %s", s.INFERENCE_BACKEND)
 
@@ -207,7 +202,6 @@ def _process_one_image(
     rotacion: str,
     detector,
     embedder,
-    flip_avg: bool,
 ) -> EnrollOk | str:
     """
     Procesa una imagen. Retorna EnrollOk o: skip_roll | skip_score | skip_no_face |
@@ -260,12 +254,7 @@ def _process_one_image(
             crop_margin_frac=s.FACE_CROP_MARGIN_FRAC,
         )
         vec = embedder.embed(patch.bgr)
-        if flip_avg:
-            flip_bgr = cv2.flip(patch.bgr, 1)
-            vec2 = embedder.embed(flip_bgr)
-            vec = l2_normalize(vec + vec2)
-        else:
-            vec = l2_normalize(vec)
+        vec = l2_normalize(vec)
     except Exception as exc:
         logging.warning("[ERROR] embed %s: %s", img_path.name, exc)
         return "error"
@@ -279,7 +268,6 @@ def _process_one_image(
         "roll_deg": round(float(roll_deg), 1),
         "used_arcface_align": False,
         "used_roll_fix": False,
-        "flip_avg": flip_avg,
     }
     vec_arr = np.asarray(vec, dtype=np.float32).reshape(EMBED_DIM)
 
@@ -342,7 +330,6 @@ def _enroll_images(
     skip_err_ref: int,
     detector,
     embedder,
-    flip_avg: bool,
 ) -> tuple[EnrollStats, GalleryBuild]:
     stats = EnrollStats(skip_err_ref=skip_err_ref)
     build = GalleryBuild()
@@ -375,7 +362,6 @@ def _enroll_images(
             rotacion=rotacion,
             detector=detector,
             embedder=embedder,
-            flip_avg=flip_avg,
         )
         _record_result(stats, result, build)
 
@@ -412,19 +398,6 @@ def main() -> None:
         format="%(levelname)s: %(message)s",
     )
 
-    p = argparse.ArgumentParser(
-        description=(
-            "Enrolar gallery.npy + gallery_meta.json desde embeddings/faces_upd/ "
-            "(solo crop)."
-        )
-    )
-    p.add_argument(
-        "--flip-avg",
-        action="store_true",
-        help="Promedio embedding + espejo horizontal (opcional).",
-    )
-    args = p.parse_args()
-
     s.validar_todo()
     if s.INFERENCE_BACKEND == "none":
         raise SystemExit(
@@ -447,7 +420,7 @@ def main() -> None:
             f"Sin imagenes en {FACES_DIR} (sufijos: {_IMAGE_SUFFIXES})"
         )
 
-    _log_enrollment_config(flip_avg=args.flip_avg)
+    _log_enrollment_config()
 
     detector = build_face_detector()
     embedder = build_embedder()
@@ -460,7 +433,6 @@ def main() -> None:
             skip_err_ref=skip_err_ref,
             detector=detector,
             embedder=embedder,
-            flip_avg=args.flip_avg,
         )
     finally:
         _release_inference(embedder, detector)

@@ -24,7 +24,7 @@ CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 640))   #  High 2560    Mediu
 CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  #  High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
-LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "10"))
+LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
 
 # 1.3 Procesamiento de imagen (RGA RK3568; legacy OpenCV por defecto)
 USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
@@ -112,7 +112,7 @@ EMBED_MIN_SCORE = float(
     os.getenv("EMBED_MIN_SCORE", str(RETINAFACE_SCORE_DETECCION))
 )
 # RetinaFace/FSM siguen activos; embed como maximo cada EMBED_COOLDOWN_S. 0 = cada tick con cara.
-EMBED_COOLDOWN_S = float(os.getenv("EMBED_COOLDOWN_S", "1.0"))  # 2.0 default
+EMBED_COOLDOWN_S = float(os.getenv("EMBED_COOLDOWN_S", "3.0"))  # 2.0 default
 
 # 6.3 MobileFaceNet (rutas segun INFERENCE_BACKEND)
 MOBILEFACENET_MODEL_PC = os.getenv(

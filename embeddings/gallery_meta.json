@@ -3,74 +3,8 @@
   "embed_dim": 128,
   "preprocess": "crop",
   "data_normalizada": 1,
-  "generated_at": "2026-06-24T18:33:47.759184+00:00",
+  "generated_at": "2026-06-25T15:09:15.652761+00:00",
   "entries": [
-    {
-      "id": "0000001001",
-      "nombre": "AngelO Derecha",
-      "img": "faces_upd/1001_AngelO-Derecha_der.jpg",
-      "rotacion": "derecha",
-      "score": 0.9997,
-      "roll_deg": 8.2,
-      "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
-    },
-    {
-      "id": "0000001001",
-      "nombre": "AngelO Derecha",
-      "img": "faces_upd/1001_AngelO-Derecha_izq.jpg",
-      "rotacion": "izquierda",
-      "score": 0.9998,
-      "roll_deg": -7.6,
-      "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
-    },
-    {
-      "id": "0000001001",
-      "nombre": "AngelO Derecha",
-      "img": "faces_upd/1001_AngelO-Derecha_zero.jpg",
-      "rotacion": "cero",
-      "score": 0.9996,
-      "roll_deg": -0.7,
-      "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
-    },
-    {
-      "id": "0000001002",
-      "nombre": "Angeluz Izquierda",
-      "img": "faces_upd/1002_Angeluz-Izquierda_der.jpg",
-      "rotacion": "derecha",
-      "score": 0.9997,
-      "roll_deg": 8.2,
-      "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
-    },
-    {
-      "id": "0000001002",
-      "nombre": "Angeluz Izquierda",
-      "img": "faces_upd/1002_Angeluz-Izquierda_izq.jpg",
-      "rotacion": "izquierda",
-      "score": 0.9998,
-      "roll_deg": -7.4,
-      "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
-    },
-    {
-      "id": "0000001002",
-      "nombre": "Angeluz Izquierda",
-      "img": "faces_upd/1002_Angeluz-Izquierda_zero.jpg",
-      "rotacion": "cero",
-      "score": 0.9997,
-      "roll_deg": 0.6,
-      "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
-    },
     {
       "id": "0000000102",
       "nombre": "Jose Forguez",
@@ -79,8 +13,7 @@
       "score": 0.9996,
       "roll_deg": 2.9,
       "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
+      "used_roll_fix": false
     },
     {
       "id": "0000000102",
@@ -90,8 +23,7 @@
       "score": 0.9994,
       "roll_deg": -10.6,
       "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
+      "used_roll_fix": false
     },
     {
       "id": "0000000102",
@@ -101,8 +33,7 @@
       "score": 0.9995,
       "roll_deg": -5.6,
       "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
+      "used_roll_fix": false
     },
     {
       "id": "0000000001",
@@ -112,8 +43,7 @@
       "score": 0.9997,
       "roll_deg": 9.5,
       "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
+      "used_roll_fix": false
     },
     {
       "id": "0000000001",
@@ -123,8 +53,7 @@
       "score": 0.9998,
       "roll_deg": -4.9,
       "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
+      "used_roll_fix": false
     },
     {
       "id": "0000000001",
@@ -134,47 +63,10 @@
       "score": 0.9996,
       "roll_deg": 1.4,
       "used_arcface_align": false,
-      "used_roll_fix": false,
-      "flip_avg": false
+      "used_roll_fix": false
     }
   ],
   "detecciones": [
-    {
-      "count": 0,
-      "last_seen": null,
-      "autorizaciones_validas": 0,
-      "autorizaciones_denegadas": 0
-    },
-    {
-      "count": 0,
-      "last_seen": null,
-      "autorizaciones_validas": 0,
-      "autorizaciones_denegadas": 0
-    },
-    {
-      "count": 0,
-      "last_seen": null,
-      "autorizaciones_validas": 0,
-      "autorizaciones_denegadas": 0
-    },
-    {
-      "count": 0,
-      "last_seen": null,
-      "autorizaciones_validas": 0,
-      "autorizaciones_denegadas": 0
-    },
-    {
-      "count": 0,
-      "last_seen": null,
-      "autorizaciones_validas": 0,
-      "autorizaciones_denegadas": 0
-    },
-    {
-      "count": 0,
-      "last_seen": null,
-      "autorizaciones_validas": 0,
-      "autorizaciones_denegadas": 0
-    },
     {
       "count": 0,
       "last_seen": null,

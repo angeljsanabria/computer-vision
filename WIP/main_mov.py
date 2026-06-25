@@ -207,18 +207,17 @@ def _tick_embed_if_needed(
     t_ultimo_embed: float | None,
 ) -> tuple[FaceEmbedding | None, float | None]:
     """
-    Preprocess + MobileFaceNet en FACE_PROCESSED (cooldown EMBED_COOLDOWN_S)
-    o en FACE_RECOGNIZED cada FSM_RECOGNIZED_REFRESH_S para refrescar identidad.
+    Preprocess + MobileFaceNet en FACE_PROCESSED y FACE_RECOGNIZED; en ambos
+    estados se respeta el cooldown EMBED_COOLDOWN_S. En FACE_RECOGNIZED cada MATCH
+    renueva el timer de sesion (FSM_RECOGNIZED_REFRESH_S).
     """
     if not fsm_out.run_embedding or embedder is None:
         return None, t_ultimo_embed
     if dets is None or not dets.has_faces:
         return None, t_ultimo_embed
 
-    skip_cooldown = fsm_out.state == FlowState.FACE_RECOGNIZED
     if (
-        not skip_cooldown
-        and s.EMBED_COOLDOWN_S > 0
+        s.EMBED_COOLDOWN_S > 0
         and t_ultimo_embed is not None
         and (now - t_ultimo_embed) < s.EMBED_COOLDOWN_S
     ):

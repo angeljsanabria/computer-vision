@@ -2,10 +2,12 @@
 
 Referencia detallada: [`README_enrolamiento_galeria.md`](README_enrolamiento_galeria.md).
 
-Dos scripts en `embeddings/`:
+Entrada recomendada: **`enroll_gallery.py`** (ejecuta los dos pasos en orden).
+
+Scripts subyacentes en `embeddings/`:
 
 1. **`prepare_faces_refs.py`** — prepara recortes en `faces_upd/` (roll, variantes ±7°, crop, flags `ENABLE_*`).
-2. **`face_embeddings_npy_from_images_folder.py`** — genera `gallery.npy` + `gallery_meta.json`.
+2. **`face_embeddings_npy_from_images_folder.py`** — genera `gallery.npy` + `gallery_meta.json` desde `faces_upd/`.
 
 ---
 
@@ -13,10 +15,11 @@ Dos scripts en `embeddings/`:
 
 ```text
 embeddings/
+  enroll_gallery.py
   prepare_faces_refs.py
   face_embeddings_npy_from_images_folder.py
-  faces/                    # entrada prepare + enrolamiento
-  faces_upd/                # salida prepare (enrolables en raiz)
+  faces/                    # entrada prepare (fotos crudas)
+  faces_upd/                # salida prepare; entrada del enrolamiento
     or/                     # referencia original (no enrolar)
   gallery.npy
   gallery_meta.json
@@ -50,11 +53,11 @@ Varias fotos del mismo `id`/`nombre` (cero, der, izq) producen **varias filas** 
 ```text
 faces/  --prepare_faces_refs-->  faces_upd/  (+ or/ referencia)
                                       |
-                    (copiar a faces/ solo *_zero, *_der, *_izq sin err_)
-                                      |
                     face_embeddings_npy_from_images_folder.py
                                       |
                               gallery.npy + gallery_meta.json
+
+Orquestado: python embeddings/enroll_gallery.py
 ```
 
 ### Salida de `prepare_faces_refs` (por foto procesada)
@@ -75,7 +78,7 @@ Flags opcionales (default `True`): `ENABLE_PROCESS_ROLL_ZERO`, `ENABLE_PROCESS_R
 ## Flujo de enrolamiento (por imagen)
 
 ```text
-Imagen en faces/
+Imagen en faces_upd/
     -> RetinaFace
     -> score >= 0.90, |roll| <= 5°
     -> crop 112x112 (sin align)
@@ -106,6 +109,12 @@ Imagen en faces/
 ## Ejecucion
 
 ```bash
+python embeddings/enroll_gallery.py
+```
+
+Paso a paso (equivalente):
+
+```bash
 python embeddings/prepare_faces_refs.py
 python embeddings/face_embeddings_npy_from_images_folder.py
 ```
@@ -116,4 +125,4 @@ Requisito: `INFERENCE_BACKEND=pc` o `rk3568`.
 
 ## Resumen
 
-Prepara recortes con `prepare_faces_refs`, copia a `faces/` solo variantes validas (sin `err_*` ni `or/`), enrola con `face_embeddings_npy_from_images_folder.py`, y usa la galeria matriz en `main_mov` via el matcher.
+Pon fotos crudas en `faces/`, ejecuta `enroll_gallery.py` (o los dos scripts en orden), y usa la galeria matriz en `main_mov` via el matcher. El enrolamiento lee `faces_upd/`; excluye automaticamente `err_*` y `or/`.

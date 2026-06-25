@@ -4,8 +4,9 @@ Scripts en `embeddings/`:
 
 | Script | Rol |
 |--------|-----|
+| `enroll_gallery.py` | **Entrada unica:** ejecuta prepare y luego enrolamiento (en ese orden) |
 | `prepare_faces_refs.py` | Prepara fotos: corrige roll, genera variantes y recortes → `faces_upd/` |
-| `face_embeddings_npy_from_images_folder.py` | Enrola embeddings → `gallery.npy` + `gallery_meta.json` |
+| `face_embeddings_npy_from_images_folder.py` | Enrola embeddings desde `faces_upd/` → `gallery.npy` + `gallery_meta.json` |
 
 El reconocimiento en vivo lo hace `WIP/main_mov.py` via `inference/identity/matcher.py`.
 
@@ -14,11 +15,19 @@ El reconocimiento en vivo lo hace `WIP/main_mov.py` via `inference/identity/matc
 ## Flujo recomendado
 
 ```text
+1. Fotos crudas       -> embeddings/faces/
+2. enroll_gallery.py  -> prepare (faces/ -> faces_upd/) + enrolar (faces_upd/ -> gallery.npy)
+```
+
+Equivalente manual (mismo orden que `enroll_gallery.py`):
+
+```text
 1. Fotos crudas          -> embeddings/faces/
 2. prepare_faces_refs    -> embeddings/faces_upd/  (3 recortes enrolables + or/ referencia)
-3. Copiar a faces/       -> solo *_zero, *_der, *_izq sin prefijo err_ (no copiar or/ ni err_*)
-4. face_embeddings_...   -> gallery.npy + gallery_meta.json
+3. face_embeddings_...   -> gallery.npy + gallery_meta.json  (lee faces_upd/ directamente)
 ```
+
+Los scripts individuales sirven para depurar un solo paso. No hace falta copiar recortes a `faces/` si usas el flujo completo: el enrolamiento lee `faces_upd/`.
 
 ---
 
@@ -72,7 +81,7 @@ Usa `build_face_detector()` (`INFERENCE_BACKEND=pc` o `rk3568`).
 
 ### Que hace (resumen)
 
-1. Lee imagenes validas en `embeddings/faces/`.
+1. Lee imagenes validas en `embeddings/faces_upd/`.
 2. Por cada foto: RetinaFace, valida score y roll.
 3. Crop 112x112 (sin align ni roll-fix) → vector 128-D L2-normalizado.
 4. Escribe `gallery.npy` y `gallery_meta.json`.
@@ -81,20 +90,21 @@ No modifica las fotos de entrada. Si `|roll| > 5°` al enrolar, omite la foto (w
 
 ---
 
-## Entrada: carpeta `faces/`
+## Entrada: carpetas `faces/` y `faces_upd/`
 
 ```text
 embeddings/
+  enroll_gallery.py
   prepare_faces_refs.py
   face_embeddings_npy_from_images_folder.py
-  faces/
+  faces/                            # entrada de prepare (fotos crudas)
     1_Angel-Sanabria_zero.jpg         # rotacion: cero
     1_Angel-Sanabria_der.jpg          # rotacion: derecha
     1_Angel-Sanabria_izq.jpg          # rotacion: izquierda
   faces_upd/                          # salida prepare (enrolables en raiz)
     1_Angel-Sanabria_zero.jpg
-    err_2_Juan-Perez_zero.jpg         # roll > 25 deg: no copiar a faces/
-    or/                               # referencia original (no copiar a faces/)
+    err_2_Juan-Perez_zero.jpg         # roll > 25 deg: no se enrola
+    or/                               # referencia original (no se enrola)
   gallery.npy
   gallery_meta.json
 ```
@@ -112,7 +122,7 @@ Patron:
 | `id` | Solo digitos, hasta el primer `_` |
 | `nombre` | Texto entre `_` y el sufijo opcional; `-` → espacio en JSON |
 | Sufijo | Opcional: `_zero`, `_der`, `_izq` |
-| Prefijo | No usar `err_` en `faces/` (salida de prepare con roll excedido) |
+| Prefijo | `err_*` en `faces_upd/` no se enrolan (roll excedido en prepare) |
 | `ext` | `.jpg`, `.jpeg`, `.png`, `.bmp`, `.webp` |
 
 El `id` en JSON: `str(numero).zfill(10)` (maximo 10 digitos en el archivo).
@@ -130,7 +140,7 @@ Siempre presente en cada `entries[i]`:
 
 Las referencias originales viven en `faces_upd/or/` (`{id}_{nombre}.jpg` o `err_{id}_{nombre}.jpg`) y **no se enrolan**.
 
-Los archivos `err_*` (roll original > 25° en prepare) tampoco se enrolan: el patron exige `{id}_...` con digitos al inicio; al copiar a `faces/` excluirlos explicitamente.
+Los archivos `err_*` (roll original > 25° en prepare) tampoco se enrolan: el script de enrolamiento los descarta por prefijo.
 
 Una misma persona (`id` + `nombre`) puede tener **varias filas** en la galeria (p. ej. cero + der + izq).
 
@@ -141,7 +151,7 @@ Ejemplos:
 | `1_Angel-Sanabria.jpg` | `0000000001` | `Angel Sanabria` | `cero` |
 | `1_Angel-Sanabria_der.jpg` | `0000000001` | `Angel Sanabria` | `derecha` |
 
-Relacion con `prepare_faces_refs`: copiar a `faces/` solo los `*_zero`, `*_der` e `*_izq` **sin** prefijo `err_` de la raiz de `faces_upd/`; no copiar `faces_upd/or/` ni archivos `err_*`.
+Relacion con `prepare_faces_refs`: el enrolamiento lee la raiz de `faces_upd/` (solo `*_zero`, `*_der`, `*_izq` validos); ignora `or/` y archivos `err_*`.
 
 ---
 
@@ -212,12 +222,18 @@ Cabecera JSON: `"data_normalizada": 1`. Si falta o ≠ 1, el matcher falla al ar
 ## Uso
 
 ```bash
+# Flujo completo (recomendado)
+python embeddings/enroll_gallery.py
+```
+
+Paso a paso (equivalente al comando anterior):
+
+```bash
 # 1. Preparar recortes (faces/ -> faces_upd/)
 python embeddings/prepare_faces_refs.py
 
-# 2. Enrolar (faces/ -> gallery.npy + JSON)
+# 2. Enrolar (faces_upd/ -> gallery.npy + JSON)
 python embeddings/face_embeddings_npy_from_images_folder.py
-python embeddings/face_embeddings_npy_from_images_folder.py --flip-avg
 ```
 
 ---
@@ -237,6 +253,7 @@ Pendiente: UI con `nombre`, `rotacion`, `detecciones[i]`; borrar `.npy` legacy.
 
 | Componente | Ruta |
 |------------|------|
+| Pipeline completo | `embeddings/enroll_gallery.py` |
 | Preparar fotos | `embeddings/prepare_faces_refs.py` |
 | Enrolamiento batch | `embeddings/face_embeddings_npy_from_images_folder.py` |
 | Enrolamiento 1 foto (legacy) | `export_models/face_embedding_from_image.py` |
@@ -250,6 +267,7 @@ Pendiente: UI con `nombre`, `rotacion`, `detecciones[i]`; borrar `.npy` legacy.
 
 | Item | Estado |
 |------|--------|
+| `enroll_gallery.py` | Hecho |
 | `prepare_faces_refs.py` | Hecho |
 | `faces/` + parsing id/nombre/rotacion | Hecho |
 | Campo `rotacion` en JSON | Hecho |
