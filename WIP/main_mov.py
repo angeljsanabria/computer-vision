@@ -144,8 +144,17 @@ def _tick_mog2_fsm(
     Encapsula evaluate -> tick_motion -> sync umbral -> log. RetinaFace y
     embed iran despues de este bloque, usando ``fsm_out.run_face_detector`` y
     ``fsm_out.run_embedding`` (no dentro de esta funcion).
+
+    Ahorro CPU: en FACE_PROCESSED y FACE_RECOGNIZED no se corre MOG2 (ni evaluate
+    ni tick_motion). Con la cara presente el movimiento no decide transiciones
+    (las maneja RetinaFace) y no actualizar el fondo evita absorber a la persona;
+    el fondo se recalibra luego en FACE_OUT antes de volver a IDLE. Se fuerza
+    hay_mov=True (pixel_count=-1 = no medido) solo para el overlay.
     """
     estado_antes = fsm.state
+    if estado_antes in (FlowState.FACE_PROCESSED, FlowState.FACE_RECOGNIZED):
+        return MotionResult(hay_mov=True, pixel_count=-1), fsm.refresh_outputs(now)
+
     mov = motion.evaluate(frame)
     motion.log_motion_if_changed(mov)
     #_log_mog2(mov, motion.umbral_pixeles)  # ver los de movimiento en cada frame
