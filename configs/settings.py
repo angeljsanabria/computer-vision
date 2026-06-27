@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
 MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, SNAP, USB
-MAX_FPS = float(os.getenv("MAX_FPS", 5.0))
+MAX_FPS = float(os.getenv("MAX_FPS", 60.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
     os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"

@@ -39,8 +39,10 @@ sudo cat /sys/kernel/debug/rknpu/load 2>/dev/null
 
 ## paquetes
 
+sudo apt update
 sudo apt install -y git screen tree nano python3-pip
-apt install sudo git ssh ethtool rsyslog bash-completion htop
+apt install sudo rsyslog bash-completion htop
+apt install sudo git ssh ethtool 
 sudo apt update
 sudo apt install --reinstall ca-certificates
 sudo update-ca-certificates
@@ -55,6 +57,15 @@ hostname -I
 
 ssh myir@192.168.1.8
 123456
+
+## COnfig git
+
+git config --global user.name ""
+git config --global user.email ".com.ar"
+git config --global credential.helper store
+git config --list --global
+git clone https://TU_USUARIO:TU_TOKEN@git.cintelink.com.ar/PATH
+
 
 
 ## Desde PC
@@ -99,9 +110,40 @@ pip show rknn-toolkit2
 
 tengo que instalar el RKNN-toolkit-lite2
 
+-- VIEJO; PARA PYTHON 10
 pip3 install rknn-toolkit-lite/rknn_toolkit_lite2-2.3.2-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
 
-- compruebo:
-python3 -c "from rknnlite.api import RKNNLite; print('RKNNLite OK')"
+## ENTORNO VIRTUAL
+sudo apt install python3.11-venv
+(si ya estoy en con python 11 como base)
+sudo python3 -m venv venvRK
 
+(si estoy con python 10)
+python3.11 -m venv venvRK
+source venvRK/bin/activate
+
+- Entrar: source venvRK/bin/activate
+
+- - CMD: pip3 install rknn-toolkit-lite/rknn_toolkit_lite2-2.3.2-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl
+- - CMD: python3 -c "from rknnlite.api import RKNNLite; print('RKNNLite OK')"
+- Salir: deactivate
+
+
+- compruebo:
 Modificar permisos de uso del toolkit, no funca fuera de root.
+
+
+apt update
+apt install -y python3-venv python3-pip
+sudo apt install python3.11-venv 
+sudo python3 -m venv venvRK
+
+
+### Ver recursos:
+- Ver uso de NPU:
+    - watch -n 0.1 cat /sys/kernel/debug/rknpu/load
+- Ver uso de CPU:
+    - Obtener PID (process id)
+    - pgrep -f main_mov.py
+    - 
+    - pidstat -u -r -p 17478 1
