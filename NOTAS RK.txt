@@ -145,5 +145,6 @@ sudo python3 -m venv venvRK
 - Ver uso de CPU:
     - Obtener PID (process id)
     - pgrep -f main_mov.py
-    - 
-    - pidstat -u -r -p 17478 1
+    - o: 
+        - PID=$(pgrep -f "python3 main_mov.py")
+    - pidstat -u -r -p $PID 1
