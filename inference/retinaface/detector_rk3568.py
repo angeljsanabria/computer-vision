@@ -52,7 +52,7 @@ class RetinaFaceDetectorRk3568:
             self._rknn.release()
             raise RuntimeError(f"init_runtime failed: {path}")
 
-        logging.info("RetinaFace RK3568 (RKNN) cargado: %s", path)
+        logging.debug("RetinaFace RK3568 (RKNN) cargado: %s", path)
 
     @classmethod
     def from_settings(cls) -> RetinaFaceDetectorRk3568:

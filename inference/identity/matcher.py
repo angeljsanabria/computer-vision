@@ -49,7 +49,7 @@ class FaceGalleryMatcher:
         if self._entries:
             if self._matrix is not None:
                 n, d = self._matrix.shape
-                logging.info(
+                logging.debug(
                     "Galeria identidad: %d refs matriz (%d, %d) en %s | sim_min=%.2f",
                     len(self._entries),
                     n,
@@ -59,7 +59,7 @@ class FaceGalleryMatcher:
                 )
             else:
                 labels = ", ".join(e.person_id for e in self._entries)
-                logging.info(
+                logging.debug(
                     "Galeria identidad: %d refs legacy en %s (%s) | sim_min=%.2f",
                     len(self._entries),
                     gallery_dir,

@@ -66,16 +66,17 @@ from utils.capture_cameras import CaptureCameras  # noqa: E402
 
 
 if __name__ == "__main__":
+    s.configure_logging()
     s.validar_todo()
 
     ventana = "pipeline"
     if s.DISPLAY_IS_ENABLE:
         cv2.namedWindow(ventana, cv2.WINDOW_NORMAL)
-        logging.info("Display activo (q en ventana para salir).")
+        logging.debug("Display activo (q en ventana para salir).")
 
     input_manager = CaptureCameras().start()
 
-    logging.info("Pipeline de captura en marcha (sin modelos). Ctrl+C para salir.")
+    logging.debug("Pipeline de captura en marcha (sin modelos). Ctrl+C para salir.")
 
     try:
         while True:
@@ -89,12 +90,12 @@ if __name__ == "__main__":
                 if s.DISPLAY_IS_ENABLE:
                     cv2.imshow(ventana, frame)
                     if cv2.waitKey(1) & 0xFF == ord("q"):
-                        logging.info("Salida solicitada desde ventana (q).")
+                        logging.debug("Salida solicitada desde ventana (q).")
                         break
             else:
                 if s.DISPLAY_IS_ENABLE:
                     if cv2.waitKey(1) & 0xFF == ord("q"):
-                        logging.info("Salida solicitada desde ventana (q).")
+                        logging.debug("Salida solicitada desde ventana (q).")
                         break
                 time.sleep(0.001)
 
@@ -105,9 +106,9 @@ if __name__ == "__main__":
         logging.critical(f"Fallo en el bucle principal: {error_critico}")
 
     finally:
-        logging.info("Liberando hardware y sockets...")
+        logging.debug("Liberando hardware y sockets...")
         input_manager.stop()
         if s.DISPLAY_IS_ENABLE:
             cv2.destroyAllWindows()
-        logging.info("Proceso terminado.")
+        logging.debug("Proceso terminado.")
         sys.exit(0)

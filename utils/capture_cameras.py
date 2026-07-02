@@ -93,7 +93,7 @@ class CaptureCameras:
             dt = (cv2.getTickCount() - self._t0_tick) / cv2.getTickFrequency()
             fps = self._frame_count / dt if dt > 0 else 0.0
             h, w = frame.shape[:2]
-            logging.info(
+            logging.debug(
                 f"[{self.mode}] frame={self._frame_count} "
                 f"size={w}x{h} fps_aprox={fps:.2f}"
             )
@@ -139,7 +139,7 @@ class CaptureCameras:
                         self.cap.grab()
                     self._configurar_buffer(self.cap)
                     self._next_due_tick = cv2.getTickCount()  # reinicia reloj
-                    logging.info("Stream RTSP estabilizado.")
+                    logging.debug("Stream RTSP estabilizado.")
 
                 if not self.cap.grab():
                     raise cv2.error("Grab fallido")
@@ -170,7 +170,7 @@ class CaptureCameras:
                         raise cv2.error("Warmup USB fallido: sin frame valido")
                     self._configurar_buffer(self.cap)
                     self._next_due_tick = cv2.getTickCount()  # reinicia reloj
-                    logging.info("Hardware USB estabilizado.")
+                    logging.debug("Hardware USB estabilizado.")
 
                 if not self.cap.grab():
                     raise cv2.error("Lectura USB fallida")

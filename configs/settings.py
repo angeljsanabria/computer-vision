@@ -9,8 +9,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(me
 
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, SNAP, USB
-MAX_FPS = float(os.getenv("MAX_FPS", 60.0))
+MODO = os.getenv("CONFIG_MODO", "usb").upper()     # RTSP, SNAP, USB
+MAX_FPS = float(os.getenv("MAX_FPS", 30.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
     os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
@@ -45,7 +45,7 @@ USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 # 3. CONFIGURACIONES Camara IP
 _user = os.getenv("IP_CAM_USER", "angelcam")
 _pass = os.getenv("IP_CAM_PASS", "angelCamara")
-_host_ip = os.getenv("IP_CAM", "192.168.1.16")  # info dispositivo; info red
+_host_ip = os.getenv("IP_CAM", "192.168.0.160")  # info dispositivo; info red
 
 # 3.1 RTSP
 _port = os.getenv("IP_CAM_RTSP_PORT", "554")   # info dispositivo; info avanzada
@@ -102,7 +102,7 @@ RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 # FACE_ALIGNMENT_ENABLE: siempre align ArcFace 5 pt (galeria .npy enrolada igual).
 # Si ambos true, gana ArcFace (warning en validar_todo).
 FACE_ALIGNMENT_ENABLE = (
-    os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
+    os.getenv("FACE_ALIGNMENT_ENABLE", "false").lower() == "true"
 )
 FACE_ROT_ALIGNMENT_SIMPLE_ENABLE = (
     os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"

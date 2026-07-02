@@ -33,7 +33,7 @@ class MobileFaceNetEmbedderPc:
         )
         self._input_name = self._session.get_inputs()[0].name
         self._output_name = self._session.get_outputs()[0].name
-        logging.info("MobileFaceNet PC (ONNX) cargado: %s", path)
+        logging.debug("MobileFaceNet PC (ONNX) cargado: %s", path)
 
     @classmethod
     def from_settings(cls) -> MobileFaceNetEmbedderPc:

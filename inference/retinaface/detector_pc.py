@@ -71,7 +71,7 @@ class RetinaFaceDetectorPc:
         inputs = self._session.get_inputs()
         self._input_name = inputs[0].name
         self._inp0_meta = inputs[0]
-        logging.info("RetinaFace PC (ONNX) cargado: %s", path)
+        logging.debug("RetinaFace PC (ONNX) cargado: %s", path)
 
     @classmethod
     def from_settings(cls) -> RetinaFaceDetectorPc:

@@ -34,6 +34,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
   EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.57)
   EMBED_REF_GALLERY_DIR    — carpeta con gallery.npy + gallery_meta.json
+  LOG_LEVEL                — WARNING (prod, silencioso) | DEBUG (telemetria completa)
 
 Ejemplos:
   cd WIP
@@ -103,7 +104,7 @@ ROOT = project_root(_WIP_DIR)
 def _log_transitions(transitions: tuple[str, ...]) -> None:
     """Escribe en log las transiciones FSM que devolvio tick_motion/tick_face."""
     for msg in transitions:
-        logging.info(msg)
+        logging.debug(msg)
 
 
 def _sync_umbral_mog2(
@@ -129,7 +130,7 @@ def _sync_umbral_mog2(
 def _log_mog2(mov: MotionResult, umbral: int) -> None:
     """Log de una lectura MOG2 (pixeles en mascara vs umbral activo)."""
     tag = "MOV_DETECTED" if mov.hay_mov else "NOT_MOV"
-    logging.info("[MOG2] %s pixels=%d umbral=%d", tag, mov.pixel_count, umbral)
+    logging.debug("[MOG2] %s pixels=%d umbral=%d", tag, mov.pixel_count, umbral)
 
 
 def _tick_mog2_fsm(
@@ -265,7 +266,7 @@ def _tick_embed_if_needed(
         logging.warning("[Embed] fallo preprocess o inferencia: %s", exc)
         return None, t_ultimo_embed
 
-    logging.info(
+    logging.debug(
         "[Embed] score=%.3f dim=%d arcface=%s roll_fix=%s roll=%.1f",
         float(row[4]),
         vector.size,
@@ -297,35 +298,35 @@ def main() -> int:
     Retorna 0 si termino bien; 1 si hubo excepcion no controlada en el bucle.
     """
     s.validar_todo()
-    logging.info("Repo root: %s", ROOT)
+    logging.debug("Repo root: %s", ROOT)
 
     mog2_cfg, fsm_cfg = config_from_settings()
     motion = Mog2MotionSensor(mog2_cfg)
     fsm = MotionFaceFsm(fsm_cfg)
     face = build_face_detector()
     if face is not None:
-        logging.info("RetinaFace activo (backend=%s)", s.INFERENCE_BACKEND)
+        logging.debug("RetinaFace activo (backend=%s)", s.INFERENCE_BACKEND)
     else:
-        logging.info(
+        logging.debug(
             "RetinaFace desactivado (INFERENCE_BACKEND=%s)", s.INFERENCE_BACKEND
         )
 
     embedder = build_embedder()
     if embedder is not None:
-        logging.info(
+        logging.debug(
             "MobileFaceNet activo (backend=%s, embed_min_score=%.2f, cooldown=%.1f s)",
             s.INFERENCE_BACKEND,
             s.EMBED_MIN_SCORE,
             s.EMBED_AND_FACEDETEC_COOLDOWN_S,
         )
     else:
-        logging.info(
+        logging.debug(
             "MobileFaceNet desactivado (INFERENCE_BACKEND=%s)", s.INFERENCE_BACKEND
         )
 
     matcher = build_identity_matcher()
     if matcher is not None and matcher.count > 0:
-        logging.info(
+        logging.debug(
             "Matcher identidad activo (refs=%d, sim_min=%.2f, match=gallery@live)",
             matcher.count,
             s.EMBED_SIM_MIN_MATCH,
@@ -342,7 +343,7 @@ def main() -> int:
             timeout_s=s.MOG2_WARMUP_TIMEOUT_S,
         )
 
-        logging.info(
+        logging.debug(
             "Pipeline MOG2+FSM+RetinaFace+Embed+ID en marcha. Ctrl+C para salir."
         )
         #motion.reset_motion_log()
@@ -374,7 +375,7 @@ def main() -> int:
                                     matched.person_id, True, now
                                 )
                             )
-                            logging.info(
+                            logging.debug(
                                 "[ID] MATCH fila=%d id=%s nombre=%r sim=%.3f (>=%.2f)",
                                 matched.row_index,
                                 matched.person_id,
@@ -390,11 +391,11 @@ def main() -> int:
                             if fsm.state == FlowState.FACE_PROCESSED:
                                 last_identity = None
                             elif state_antes == FlowState.FACE_RECOGNIZED:
-                                logging.info(
+                                logging.debug(
                                     "[ID] NO_MATCH refresh (timer activo, "
                                     "se mantiene ultimo MATCH)"
                                 )
-                            logging.info(
+                            logging.debug(
                                 "[ID] NO_MATCH fila=%d id=%s nombre=%r sim=%.3f "
                                 "< umbral %.2f",
                                 matched.row_index,
@@ -435,11 +436,11 @@ def main() -> int:
                 )
                 display.show(frame, view)
                 if display.poll_quit():
-                    logging.info("Salida solicitada desde ventana (q).")
+                    logging.debug("Salida solicitada desde ventana (q).")
                     break
             else:
                 if display.poll_quit():
-                    logging.info("Salida solicitada desde ventana (q).")
+                    logging.debug("Salida solicitada desde ventana (q).")
                     break
                 time.sleep(0.001)
 
@@ -449,12 +450,12 @@ def main() -> int:
         logging.critical("Fallo en el bucle principal: %s", exc, exc_info=True)
         return 1
     finally:
-        logging.info("Liberando hardware y sockets...")
+        logging.debug("Liberando hardware y sockets...")
         _release_face_detector(face)
         _release_runtime(embedder)
         capture.stop()
         display.teardown()
-        logging.info("Proceso terminado.")
+        logging.debug("Proceso terminado.")
 
     return 0
 

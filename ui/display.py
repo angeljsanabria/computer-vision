@@ -47,7 +47,7 @@ class PipelineDisplay:
 
         cv2.namedWindow(self._window_name, cv2.WINDOW_NORMAL)
         self._opened = True
-        logging.info("Display activo (q en ventana para salir).")
+        logging.debug("Display activo (q en ventana para salir).")
 
     def show(self, frame_bgr: np.ndarray, view: FrameView) -> None:
         if not self._enabled or self._overlay is None:

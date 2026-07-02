@@ -93,7 +93,7 @@ class Mog2MotionSensor:
         if target < 1:
             return 0
 
-        logging.info(
+        logging.debug(
             "MOG2 warmup: esperando primer frame (timeout %.0f s)...",
             timeout_s,
         )
@@ -104,7 +104,7 @@ class Mog2MotionSensor:
             )
 
         h, w = first.shape[:2]
-        logging.info(
+        logging.debug(
             "MOG2 warmup: frame %dx%d, aplicando %d veces (learningRate=%.2f)...",
             w,
             h,
@@ -114,9 +114,9 @@ class Mog2MotionSensor:
         for i in range(target):
             self.warmup_frame(first)
             if (i + 1) % max(1, target // 5) == 0 or (i + 1) == target:
-                logging.info("MOG2 warmup: %d / %d", i + 1, target)
+                logging.debug("MOG2 warmup: %d / %d", i + 1, target)
 
-        logging.info("MOG2 warmup listo (%d applies, mismo frame).", target)
+        logging.debug("MOG2 warmup listo (%d applies, mismo frame).", target)
         return target
 
     def evaluate(self, frame_bgr: np.ndarray) -> MotionResult:
@@ -137,7 +137,7 @@ class Mog2MotionSensor:
             return
         self._last_logged_hay_mov = result.hay_mov
         tag = _MOG2_TAG_MOV if result.hay_mov else _MOG2_TAG_NOT
-        logging.info(
+        logging.debug(
             "[MOG2] %s pixels=%d umbral=%d",
             tag,
             result.pixel_count,
