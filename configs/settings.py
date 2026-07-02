@@ -6,7 +6,7 @@ from configs.paths import resolve_repo_path
 
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "usb").upper()     # RTSP, SNAP, USB
+MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 30.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
@@ -35,10 +35,11 @@ USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 # 1.4 Identidad reconocida (FSM FACE_RECOGNIZED)
 # Intervalo entre embeds en FACE_RECOGNIZED; cada MATCH renueva el timer de identidad.
 # NO_MATCH con timer activo mantiene el ultimo MATCH; timer vencido -> FACE_PROCESSED.
-FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "15"))
+FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "3"))        ## en 15
 
 # 2. HARDWARE LOCAL (CAMARA USB)
 USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
+USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
 
 # 3. CONFIGURACIONES Camara IP
 _user = os.getenv("IP_CAM_USER", "angelcam")
@@ -100,7 +101,7 @@ RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 # FACE_ALIGNMENT_ENABLE: siempre align ArcFace 5 pt (galeria .npy enrolada igual).
 # Si ambos true, gana ArcFace (warning en validar_todo).
 FACE_ALIGNMENT_ENABLE = (
-    os.getenv("FACE_ALIGNMENT_ENABLE", "false").lower() == "true"
+    os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
 )
 FACE_ROT_ALIGNMENT_SIMPLE_ENABLE = (
     os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"
@@ -204,6 +205,15 @@ def validar_todo():
     if MODO == "SNAP" and not SNAP_HTTP_URL:
         logging.critical("CONFIG ERROR: Modo SNAP sin URL configurada.")
         sys.exit(1)
+
+    if USB_ROTATE_DEG not in (0, 90, 180, 270):
+        logging.critical(
+            "CONFIG ERROR: USB_ROTATE_DEG debe ser 0, 90, 180 o 270 (got %d).",
+            USB_ROTATE_DEG,
+        )
+        sys.exit(1)
+    if MODO == "USB" and USB_ROTATE_DEG != 0:
+        logging.info("USB: rotacion software %d deg", USB_ROTATE_DEG)
 
     if MOG2_PROCESS_WIDTH < 1 or MOG2_PROCESS_HEIGHT < 1:
         logging.critical("CONFIG ERROR: MOG2_PROCESS_WIDTH/HEIGHT deben ser >= 1.")

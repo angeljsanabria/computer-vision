@@ -56,6 +56,12 @@ class MotionFaceFsm:
     def _renovar_timer(self, now: float) -> None:
         self._t_timer_hasta = now + self._t_refresh
 
+    def recognized_refresh_remaining_s(self, now: float) -> float | None:
+        """Segundos hasta vencer el timer de FACE_RECOGNIZED; None si no hay timer."""
+        if self._t_timer_hasta is None:
+            return None
+        return max(0.0, self._t_timer_hasta - now)
+
     def _volver_a_face_processed(
         self, now: float, motivo: str, events: list[str]
     ) -> None:

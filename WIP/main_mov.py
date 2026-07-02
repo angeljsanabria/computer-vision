@@ -211,6 +211,8 @@ def _tick_retinaface_if_needed(
     fsm_out = fsm.tick_face(hay_cara=raw.has_faces, now=now)
     _sync_umbral_mog2(motion, estado_antes, fsm_out.state)
     _log_transitions(fsm_out.transitions)
+    if estado_antes == FlowState.FACE_OUT and fsm_out.state == FlowState.IDLE:
+        logging.info("Ya no hay detecciones de rostros.")
     return dets, fsm_out
 
 
@@ -375,6 +377,14 @@ def main() -> int:
                                     matched.person_id, True, now
                                 )
                             )
+                            refresh_restante = fsm.recognized_refresh_remaining_s(now)
+                            logging.info(
+                                "[ID] MATCH id=%s nombre=%r "
+                                "refresh_restante=%.1f s",
+                                matched.person_id,
+                                matched.nombre,
+                                refresh_restante if refresh_restante is not None else 0.0,
+                            )
                             logging.debug(
                                 "[ID] MATCH fila=%d id=%s nombre=%r sim=%.3f (>=%.2f)",
                                 matched.row_index,
@@ -404,6 +414,30 @@ def main() -> int:
                                 matched.similarity,
                                 s.EMBED_SIM_MIN_MATCH,
                             )
+
+                        if not matched.is_match:
+                            refresh_restante = fsm.recognized_refresh_remaining_s(now)
+                            if refresh_restante is None or refresh_restante <= 0.0:
+                                n_personas = (
+                                    int(dets.dets.shape[0])
+                                    if dets is not None and dets.has_faces
+                                    else 0
+                                )
+                                if n_personas == 1:
+                                    logging.info("Hay 1 persona, sin identificar.")
+                                else:
+                                    logging.info(
+                                        "Hay %d personas, sin identificar.",
+                                        n_personas,
+                                    )
+                            elif last_identity is not None:
+                                logging.info(
+                                    "[ID] MATCH retenido id=%s nombre=%r "
+                                    "refresh_restante=%.1f s",
+                                    last_identity.person_id,
+                                    last_identity.nombre,
+                                    refresh_restante,
+                                )
 
                 fsm_out = fsm.refresh_outputs(now)
 

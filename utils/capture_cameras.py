@@ -6,6 +6,7 @@ import logging
 import requests
 import numpy as np
 from configs import settings as s
+from utils.image_utils import rotar_frame
 
 
 class CaptureCameras:
@@ -180,6 +181,8 @@ class CaptureCameras:
 
                 ret, frame = self.cap.retrieve()
                 if ret and frame is not None and frame.size > 0:
+                    if s.USB_ROTATE_DEG:
+                        frame = rotar_frame(frame, s.USB_ROTATE_DEG)
                     self._publicar_frame(frame)
 
             except (cv2.error, Exception) as e:
