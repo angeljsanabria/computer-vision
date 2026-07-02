@@ -6,6 +6,7 @@ import logging
 import requests
 import numpy as np
 from configs import settings as s
+from configs.usb_camera_image import aplicar_opencv
 from utils.image_utils import rotar_frame
 
 
@@ -165,6 +166,7 @@ class CaptureCameras:
                     if self.cap is None:
                         raise cv2.error("No se pudo abrir camara USB")
                     self._usb_configurar_res(self.cap)
+                    aplicar_opencv(self.cap)
                     if not self._preparar_usb(self.cap):
                         self.cap.release()
                         self.cap = None

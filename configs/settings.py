@@ -37,7 +37,7 @@ USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 # NO_MATCH con timer activo mantiene el ultimo MATCH; timer vencido -> FACE_PROCESSED.
 FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "3"))        ## en 15
 
-# 2. HARDWARE LOCAL (CAMARA USB)
+# 2. HARDWARE LOCAL (CAMARA USB) - Ajuste de imagen OpenCV en configs/usb_camera_image.py
 USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
 
@@ -214,6 +214,16 @@ def validar_todo():
         sys.exit(1)
     if MODO == "USB" and USB_ROTATE_DEG != 0:
         logging.info("USB: rotacion software %d deg", USB_ROTATE_DEG)
+
+    if MODO == "USB":
+        from configs.usb_camera_image import (
+            USB_CAMERA_IMAGE_MODE,
+            validar_usb_camera_image,
+        )
+
+        validar_usb_camera_image()
+        if USB_CAMERA_IMAGE_MODE == "USE_CUSTOM":
+            logging.info("USB: ajuste imagen OpenCV USE_CUSTOM")
 
     if MOG2_PROCESS_WIDTH < 1 or MOG2_PROCESS_HEIGHT < 1:
         logging.critical("CONFIG ERROR: MOG2_PROCESS_WIDTH/HEIGHT deben ser >= 1.")
