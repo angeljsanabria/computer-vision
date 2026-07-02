@@ -152,6 +152,6 @@ sudo python3 -m venv venvRK
     - pidstat -u -r -p $PID 1
 
 ### Logs (main_mov)
-- Produccion (silencioso; solo WARNING/ERROR): default sin env
+- Produccion (INFO; validar_todo + eventos de negocio): default sin env
 - Depuracion (FSM, MOG2, MATCH, USB, etc.):
-    - LOG_LEVEL=DEBUG python3 main_mov.py
+    - LOG_MODE=DEV python3 main_mov.py

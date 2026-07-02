@@ -4,9 +4,6 @@ import logging
 
 from configs.paths import resolve_repo_path
 
-# Configuracion de logs para produccion
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
-
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
 MODO = os.getenv("CONFIG_MODO", "usb").upper()     # RTSP, SNAP, USB
@@ -30,6 +27,7 @@ CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  #  High 1920    Medi
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
+LOG_MODE = os.getenv("LOG_MODE", "prod").lower()  # prod | dev
 
 # 1.3 Procesamiento de imagen (RGA RK3568; legacy OpenCV por defecto)
 USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
@@ -159,6 +157,24 @@ def mobilefacenet_model_rk3568_path() -> str:
 def embed_ref_gallery_dir_path() -> str:
     """Ruta absoluta a la galeria de referencias .npy (defecto: embeddings/)."""
     return str(resolve_repo_path(EMBED_REF_GALLERY_DIR))
+
+
+_LOG_LEVEL_BY_MODE = {
+    "prod": logging.INFO,
+    "dev": logging.DEBUG,
+}
+
+
+def _resolve_log_level() -> int:
+    return _LOG_LEVEL_BY_MODE.get(LOG_MODE, logging.INFO)
+
+
+def configure_logging() -> None:
+    logging.basicConfig(
+        level=_resolve_log_level(),
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        force=True,
+    )
 
 
 def validar_todo():
@@ -393,3 +409,6 @@ def validar_todo():
                     meta_name,
                     gallery_path,
                 )
+
+
+configure_logging()

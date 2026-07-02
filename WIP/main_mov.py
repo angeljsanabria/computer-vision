@@ -34,7 +34,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
   EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.57)
   EMBED_REF_GALLERY_DIR    — carpeta con gallery.npy + gallery_meta.json
-  LOG_LEVEL                — WARNING (prod, silencioso) | DEBUG (telemetria completa)
+  LOG_MODE                 — PROD (INFO, default) | DEV (DEBUG, telemetria)
 
 Ejemplos:
   cd WIP
