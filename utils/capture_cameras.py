@@ -36,6 +36,11 @@ class CaptureCameras:
         self.lock = threading.Lock()
         self.thread = None
         self.cap = None
+        self._quality_snap = None
+        if s.IMG_QUALITY_CHECK_ENABLE:
+            from utils.img_quality_snap import ImgQualitySnapSaver
+
+            self._quality_snap = ImgQualitySnapSaver()
 
     def start(self):
         self.is_running = True
@@ -90,6 +95,9 @@ class CaptureCameras:
         with self.lock:
             self.latest_frame = frame
             self.new_frame_available = True
+        snap = self._quality_snap
+        if snap is not None:
+            snap.maybe_save(frame)
         self._frame_count += 1
         if self._frame_count % s.LOG_CADA_N_FRAMES == 0:
             dt = (cv2.getTickCount() - self._t0_tick) / cv2.getTickFrequency()

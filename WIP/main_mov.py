@@ -37,6 +37,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   LOG_MODE                 — PROD (INFO, default) | DEV (DEBUG, telemetria)
   ENABLE_ENDPOINT          — true/false (GET /api/v1/vision-status via vision_http)
   HTTP_API_HOST / HTTP_API_PORT — bind del servidor (default 0.0.0.0:8008)
+  IMG_QUALITY_CHECK_ENABLE — true/false snapshot headless (default false)
+  IMG_QUALITY_CHECK_INTERVAL_S — segundos entre guardados (pisa img_snap.jpg)
 
 Ejemplos:
   cd WIP

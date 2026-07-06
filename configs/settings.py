@@ -42,6 +42,15 @@ ENABLE_ENDPOINT = os.getenv("ENABLE_ENDPOINT", "true").lower() == "true"
 HTTP_API_HOST = os.getenv("HTTP_API_HOST", "0.0.0.0")
 HTTP_API_PORT = int(os.getenv("HTTP_API_PORT", "8008"))
 
+# 1.6 Snapshot calidad imagen (headless; pisa img_snap.jpg cada N s en capture)
+IMG_QUALITY_CHECK_ENABLE = (
+    os.getenv("IMG_QUALITY_CHECK_ENABLE", "false").lower() == "true"
+)
+IMG_QUALITY_CHECK_INTERVAL_S = float(
+    os.getenv("IMG_QUALITY_CHECK_INTERVAL_S", "30")
+)
+IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "img_quality_check")
+
 # 2. HARDWARE LOCAL (CAMARA USB) - Ajuste de imagen OpenCV en configs/usb_camera_image.py
 USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
@@ -97,7 +106,7 @@ RETINAFACE_MODEL_RK3568 = os.getenv(
     "RETINAFACE_MODEL_RK3568",
     "models/RetinaFace_mobile320.rknn",
 )
-RETINAFACE_SCORE_DETECCION = float(os.getenv("RETINAFACE_SCORE_DETECCION", "0.5"))
+RETINAFACE_SCORE_DETECCION = float(os.getenv("RETINAFACE_SCORE_DETECCION", "0.8"))
 RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 
 # 6.1 Preproceso cara para embedding
@@ -241,6 +250,19 @@ def validar_todo():
             "API vision: ENABLE_ENDPOINT en %s:%d (/api/v1/vision-status)",
             HTTP_API_HOST,
             HTTP_API_PORT,
+        )
+
+    if IMG_QUALITY_CHECK_ENABLE:
+        if IMG_QUALITY_CHECK_INTERVAL_S <= 0:
+            logging.critical(
+                "CONFIG ERROR: IMG_QUALITY_CHECK_INTERVAL_S debe ser > 0 (got %.3f).",
+                IMG_QUALITY_CHECK_INTERVAL_S,
+            )
+            sys.exit(1)
+        logging.info(
+            "img_quality_check: cada %.1f s -> %s/img_snap.jpg",
+            IMG_QUALITY_CHECK_INTERVAL_S,
+            IMG_QUALITY_CHECK_DIR,
         )
 
     if MOG2_PROCESS_WIDTH < 1 or MOG2_PROCESS_HEIGHT < 1:
