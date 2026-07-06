@@ -28,19 +28,21 @@ def derive_vision_status(
     """Construye el estado publico sin modificar la FSM ni el pipeline."""
     face_count = _face_count(dets)
     state_value = getattr(fsm_state, "value", fsm_state)
+    refresh_int = _refresh_to_int(refresh_remaining_s)
 
-    if state_value == "IDLE" or face_count == 0:
-        return VisionSnapshot.no_deteccion_face()
-
-    if display_identity is not None:
+    # Retencion FSM: FACE_RECOGNIZED gana aunque este frame no haya dets (cooldown).
+    if state_value == "FACE_RECOGNIZED" and display_identity is not None:
         return VisionSnapshot(
             status=VisionPublicStatus.DETECTION_AND_RECOGNIZED,
             person_id=display_identity.person_id,
             nombre=display_identity.nombre,
             face_count=face_count,
-            refresh_remaining_s=_refresh_to_int(refresh_remaining_s),
+            refresh_remaining_s=refresh_int,
             updated_at=now_iso(),
         )
+
+    if state_value == "IDLE" or face_count == 0:
+        return VisionSnapshot.no_deteccion_face()
 
     return VisionSnapshot(
         status=VisionPublicStatus.DETECCION_FACES,

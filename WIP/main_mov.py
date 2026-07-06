@@ -314,7 +314,11 @@ def _publish_vision_http_status(
             derive_vision_status(
                 fsm_state=fsm_out.state,
                 dets=dets,
-                display_identity=last_identity,
+                display_identity=(
+                    last_identity
+                    if fsm_out.state == FlowState.FACE_RECOGNIZED
+                    else None
+                ),
                 refresh_remaining_s=fsm.recognized_refresh_remaining_s(now),
             )
         )

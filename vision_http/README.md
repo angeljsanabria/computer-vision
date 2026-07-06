@@ -141,12 +141,14 @@ Respuesta **200** con objeto plano. Siempre incluye **exactamente** estas 6 clav
 |----------|-------------|----------|--------------|------------------------|
 | `NO_DETECCION_FACE` | `null` | `null` | `0` | `0` |
 | `DETECCION_FACES` | `null` | `null` | `>= 1` | `0` |
-| `DETECTION_AND_RECOGNIZED` | `string` | `string` | `>= 1` | `>= 0` (segundos de retencion activos) |
+| `DETECTION_AND_RECOGNIZED` | `string` | `string` | `>= 0` | `>= 0` (segundos de retencion activos) |
 
 Notas:
 
+- `DETECTION_AND_RECOGNIZED` solo mientras la FSM esta en `FACE_RECOGNIZED` (retencion activa).
+- Durante retencion, `face_count` puede ser `0` si ese frame no corrio RetinaFace (cooldown); la identidad y el timer siguen vigentes.
 - `refresh_remaining_s` es `int()` del timer interno (trunca decimales, nunca negativo).
-- En `DETECTION_AND_RECOGNIZED`, `refresh_remaining_s > 0` indica retencion del ultimo MATCH aunque el rostro actual no re-matchee.
+- En `DETECTION_AND_RECOGNIZED`, `refresh_remaining_s > 0` indica retencion del ultimo MATCH aunque el rostro actual no re-matchee o no haya deteccion en ese frame.
 - `updated_at` ejemplo: `"2026-07-03T15:04:05.123456+00:00"` (UTC, con offset `+00:00`).
 
 #### Ejemplos completos (copiar/pegar)
