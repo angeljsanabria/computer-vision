@@ -35,6 +35,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.57)
   EMBED_REF_GALLERY_DIR    — carpeta con gallery.npy + gallery_meta.json
   LOG_MODE                 — PROD (INFO, default) | DEV (DEBUG, telemetria)
+  ENABLE_ENDPOINT          — true/false (GET /api/v1/vision-status via vision_http)
+  HTTP_API_HOST / HTTP_API_PORT — bind del servidor (default 0.0.0.0:8008)
 
 Ejemplos:
   cd WIP
@@ -293,6 +295,31 @@ def _release_face_detector(face: FaceDetector | None) -> None:
     _release_runtime(face)
 
 
+def _publish_vision_http_status(
+    fsm: MotionFaceFsm,
+    fsm_out: FsmTickResult,
+    dets: FaceDetections | None,
+    last_identity: IdentityMatch | None,
+    now: float,
+) -> None:
+    """Observacion HTTP: publica snapshot sin alterar FSM ni logs."""
+    if not s.ENABLE_ENDPOINT:
+        return
+    try:
+        from vision_http import derive_vision_status, vision_store
+
+        vision_store.publish(
+            derive_vision_status(
+                fsm_state=fsm_out.state,
+                dets=dets,
+                display_identity=last_identity,
+                refresh_remaining_s=fsm.recognized_refresh_remaining_s(now),
+            )
+        )
+    except Exception as exc:
+        logging.warning("API vision: fallo al publicar snapshot: %s", exc)
+
+
 def main() -> int:
     """
     Punto de entrada: valida config, warmup MOG2, bucle por frame, cleanup.
@@ -335,10 +362,17 @@ def main() -> int:
         )
 
     display = PipelineDisplay.from_settings()
-    display.setup()
+    capture: CaptureCameras | None = None
+    exit_code = 0
 
-    capture = CaptureCameras().start()
     try:
+        if s.ENABLE_ENDPOINT:
+            from vision_http import start_api_thread
+
+            start_api_thread()
+
+        display.setup()
+        capture = CaptureCameras().start()
         motion.warmup_from_first_frame(
             capture.get_frame,
             n_frames=mog2_cfg.warmup_frames,
@@ -468,6 +502,9 @@ def main() -> int:
                     identity=display_identity,
                     identity_is_stale=identity_stale,
                 )
+                _publish_vision_http_status(
+                    fsm, fsm_out, dets, last_identity, now
+                )
                 display.show(frame, view)
                 if display.poll_quit():
                     logging.debug("Salida solicitada desde ventana (q).")
@@ -482,16 +519,24 @@ def main() -> int:
         logging.warning("Interrupcion por teclado. Cerrando...")
     except Exception as exc:
         logging.critical("Fallo en el bucle principal: %s", exc, exc_info=True)
-        return 1
+        exit_code = 1
     finally:
         logging.debug("Liberando hardware y sockets...")
+        if s.ENABLE_ENDPOINT:
+            try:
+                from vision_http import stop_api_thread
+
+                stop_api_thread()
+            except Exception as exc:
+                logging.warning("API vision: error en cierre: %s", exc)
         _release_face_detector(face)
         _release_runtime(embedder)
-        capture.stop()
+        if capture is not None:
+            capture.stop()
         display.teardown()
         logging.debug("Proceso terminado.")
 
-    return 0
+    return exit_code
 
 
 if __name__ == "__main__":

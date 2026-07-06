@@ -37,6 +37,11 @@ USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 # NO_MATCH con timer activo mantiene el ultimo MATCH; timer vencido -> FACE_PROCESSED.
 FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "3"))        ## en 15
 
+# 1.5 API HTTP vision (modulo vision_http/; solo si ENABLE_ENDPOINT=true)
+ENABLE_ENDPOINT = os.getenv("ENABLE_ENDPOINT", "true").lower() == "true"
+HTTP_API_HOST = os.getenv("HTTP_API_HOST", "0.0.0.0")
+HTTP_API_PORT = int(os.getenv("HTTP_API_PORT", "8008"))
+
 # 2. HARDWARE LOCAL (CAMARA USB) - Ajuste de imagen OpenCV en configs/usb_camera_image.py
 USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
@@ -224,6 +229,19 @@ def validar_todo():
         validar_usb_camera_image()
         if USB_CAMERA_IMAGE_MODE == "USE_CUSTOM":
             logging.info("USB: ajuste imagen OpenCV USE_CUSTOM")
+
+    if ENABLE_ENDPOINT:
+        if HTTP_API_PORT < 1 or HTTP_API_PORT > 65535:
+            logging.critical(
+                "CONFIG ERROR: HTTP_API_PORT debe estar en [1, 65535] (got %d).",
+                HTTP_API_PORT,
+            )
+            sys.exit(1)
+        logging.info(
+            "API vision: ENABLE_ENDPOINT en %s:%d (/api/v1/vision-status)",
+            HTTP_API_HOST,
+            HTTP_API_PORT,
+        )
 
     if MOG2_PROCESS_WIDTH < 1 or MOG2_PROCESS_HEIGHT < 1:
         logging.critical("CONFIG ERROR: MOG2_PROCESS_WIDTH/HEIGHT deben ser >= 1.")
