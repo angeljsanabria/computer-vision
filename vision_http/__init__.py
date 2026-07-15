@@ -4,11 +4,11 @@ from .store import VisionStatusStore, vision_store
 from .types import VisionPublicStatus, VisionSnapshot, now_iso
 
 
-def start_api_thread():
+def start_api_thread(host: str, port: int):
     """Import lazy: requiere fastapi/uvicorn solo si se arranca la API."""
     from .server import start_api_thread as _start_api_thread
 
-    return _start_api_thread()
+    return _start_api_thread(host, port)
 
 
 def stop_api_thread(timeout_s: float = 5.0):

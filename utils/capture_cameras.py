@@ -5,22 +5,49 @@ import time
 import logging
 import requests
 import numpy as np
-from configs import settings as s
-from configs.usb_camera_image import aplicar_opencv
 from utils.image_utils import rotar_frame
 
 
 class CaptureCameras:
-    def __init__(self):
-        self.mode = s.MODO
-        self.rtsp_url = s.IP_CAM_RTSP_URL
-        self.snap_url = s.SNAP_HTTP_URL
-        self.usb_index = s.USB_INDEX
-        self.warmup_frames = s.WARMUP_FRAMES
-        self.buffer_size = s.BUFFER_SIZE
-        self.reintento_seg = s.REINTENTO_SEG
-        self.http_timeout_s = s.HTTP_TIMEOUT_S
-        self.max_fps = s.MAX_FPS
+    def __init__(
+        self,
+        mode: str,
+        rtsp_url: str,
+        snap_url: str,
+        usb_index: int,
+        warmup_frames: int,
+        buffer_size: int,
+        reintento_seg: float,
+        http_timeout_s: float,
+        max_fps: float,
+        log_cada_n_frames: int,
+        cap_frame_width: int,
+        cap_frame_height: int,
+        usb_rotate_deg: int,
+        usb_camera_image_mode: str,
+        usb_brightness: int,
+        usb_contrast: int,
+        usb_saturation: int,
+        quality_snap=None,
+    ):
+        self.mode = mode
+        self.rtsp_url = rtsp_url
+        self.snap_url = snap_url
+        self.usb_index = usb_index
+        self.warmup_frames = warmup_frames
+        self.buffer_size = buffer_size
+        self.reintento_seg = reintento_seg
+        self.http_timeout_s = http_timeout_s
+        self.max_fps = max_fps
+        self.log_cada_n_frames = log_cada_n_frames
+        self.cap_frame_width = cap_frame_width
+        self.cap_frame_height = cap_frame_height
+        self.usb_rotate_deg = usb_rotate_deg
+        self.usb_camera_image_mode = usb_camera_image_mode
+        self.usb_brightness = usb_brightness
+        self.usb_contrast = usb_contrast
+        self.usb_saturation = usb_saturation
+        self._quality_snap = quality_snap
 
         if self.max_fps > 0:
             self._periodo_ticks = int(cv2.getTickFrequency() / self.max_fps)
@@ -36,11 +63,6 @@ class CaptureCameras:
         self.lock = threading.Lock()
         self.thread = None
         self.cap = None
-        self._quality_snap = None
-        if s.IMG_QUALITY_CHECK_ENABLE:
-            from utils.img_quality_snap import ImgQualitySnapSaver
-
-            self._quality_snap = ImgQualitySnapSaver()
 
     def start(self):
         self.is_running = True
@@ -67,11 +89,18 @@ class CaptureCameras:
 
     def _usb_configurar_res(self, cap: cv2.VideoCapture) -> None:
         try:
-            cap.set(cv2.CAP_PROP_FRAME_WIDTH, s.CAP_FRAME_WIDTH)
-            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, s.CAP_FRAME_HEIGHT)
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.cap_frame_width)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.cap_frame_height)
         except Exception:
             pass
 
+    def set_custom_img_usb(self, cap: cv2.VideoCapture) -> None:
+        """Ajusta brillo/contraste/saturacion OpenCV (perfil Sony) si USE_CUSTOM."""
+        if self.usb_camera_image_mode != "USE_CUSTOM":
+            return
+        cap.set(cv2.CAP_PROP_BRIGHTNESS, self.usb_brightness)
+        cap.set(cv2.CAP_PROP_CONTRAST, self.usb_contrast)
+        cap.set(cv2.CAP_PROP_SATURATION, self.usb_saturation)
 
     def _abrir_usb(self) -> cv2.VideoCapture | None:
         """Solo USB local. Linux: V4L2 primero; Windows: backend por defecto."""
@@ -99,7 +128,7 @@ class CaptureCameras:
         if snap is not None:
             snap.maybe_save(frame)
         self._frame_count += 1
-        if self._frame_count % s.LOG_CADA_N_FRAMES == 0:
+        if self._frame_count % self.log_cada_n_frames == 0:
             dt = (cv2.getTickCount() - self._t0_tick) / cv2.getTickFrequency()
             fps = self._frame_count / dt if dt > 0 else 0.0
             h, w = frame.shape[:2]
@@ -174,7 +203,7 @@ class CaptureCameras:
                     if self.cap is None:
                         raise cv2.error("No se pudo abrir camara USB")
                     self._usb_configurar_res(self.cap)
-                    aplicar_opencv(self.cap)
+                    self.set_custom_img_usb(self.cap)
                     if not self._preparar_usb(self.cap):
                         self.cap.release()
                         self.cap = None
@@ -191,8 +220,8 @@ class CaptureCameras:
 
                 ret, frame = self.cap.retrieve()
                 if ret and frame is not None and frame.size > 0:
-                    if s.USB_ROTATE_DEG:
-                        frame = rotar_frame(frame, s.USB_ROTATE_DEG)
+                    if self.usb_rotate_deg:
+                        frame = rotar_frame(frame, self.usb_rotate_deg)
                     self._publicar_frame(frame)
 
             except (cv2.error, Exception) as e:

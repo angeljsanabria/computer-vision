@@ -37,13 +37,14 @@ class FaceGalleryMatcher:
 
     def __init__(
         self,
-        gallery_dir: Path,
+        gallery_dir: str | Path,
         min_similarity: float,
         npy_name: str = GALLERY_NPY_NAME,
         meta_name: str = GALLERY_META_NAME,
     ) -> None:
         self._min_similarity = float(min_similarity)
-        loaded = self._load_gallery(gallery_dir, npy_name, meta_name)
+        gallery_path = Path(gallery_dir)
+        loaded = self._load_gallery(gallery_path, npy_name, meta_name)
         self._entries = loaded.entries
         self._matrix = loaded.matrix
         if self._entries:
@@ -54,7 +55,7 @@ class FaceGalleryMatcher:
                     len(self._entries),
                     n,
                     d,
-                    gallery_dir,
+                    gallery_path,
                     self._min_similarity,
                 )
             else:
@@ -62,33 +63,15 @@ class FaceGalleryMatcher:
                 logging.debug(
                     "Galeria identidad: %d refs legacy en %s (%s) | sim_min=%.2f",
                     len(self._entries),
-                    gallery_dir,
+                    gallery_path,
                     labels,
                     self._min_similarity,
                 )
         else:
             logging.warning(
                 "Galeria identidad vacia o inexistente: %s (sin MATCH posible)",
-                gallery_dir,
+                gallery_path,
             )
-
-    @classmethod
-    def from_settings(cls) -> FaceGalleryMatcher:
-        from configs import settings as s
-
-        if s.FACE_ALIGNMENT_ENABLE:
-            npy_name = GALLERY_ALIGN_NPY_NAME
-            meta_name = GALLERY_ALIGN_META_NAME
-        else:
-            npy_name = GALLERY_NPY_NAME
-            meta_name = GALLERY_META_NAME
-
-        return cls(
-            gallery_dir=Path(s.embed_ref_gallery_dir_path()),
-            min_similarity=s.EMBED_SIM_MIN_MATCH,
-            npy_name=npy_name,
-            meta_name=meta_name,
-        )
 
     @staticmethod
     def _load_gallery(

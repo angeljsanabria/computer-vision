@@ -31,6 +31,8 @@ class RetinaFaceDetectorRk3568:
         model_path: str | Path,
         score_deteccion: float,
         score_pre_nms: float,
+        *,
+        use_rga: bool = False,
     ) -> None:
         if RKNNLite is None:
             raise RuntimeError(
@@ -45,6 +47,7 @@ class RetinaFaceDetectorRk3568:
 
         self._score_deteccion = float(score_deteccion)
         self._score_pre_nms = float(score_pre_nms)
+        self._use_rga = use_rga
         self._rknn: RKNNLite | None = RKNNLite()
         if self._rknn.load_rknn(str(path)) != 0:
             raise RuntimeError(f"load_rknn failed: {path}")
@@ -53,16 +56,6 @@ class RetinaFaceDetectorRk3568:
             raise RuntimeError(f"init_runtime failed: {path}")
 
         logging.debug("RetinaFace RK3568 (RKNN) cargado: %s", path)
-
-    @classmethod
-    def from_settings(cls) -> RetinaFaceDetectorRk3568:
-        from configs import settings as s
-
-        return cls(
-            model_path=s.retinaface_model_rk3568_path(),
-            score_deteccion=s.RETINAFACE_SCORE_DETECCION,
-            score_pre_nms=s.RETINAFACE_SCORE_PRE_NMS,
-        )
 
     def release(self) -> None:
         if self._rknn is not None:
@@ -84,6 +77,7 @@ class RetinaFaceDetectorRk3568:
             frame_bgr,
             (INPUT_WIDTH, INPUT_HEIGHT),
             LETTERBOX_FILL,
+            use_rga=self._use_rga,
         )
         infer_rgb = cv2.cvtColor(letterbox_img, cv2.COLOR_BGR2RGB)
         if infer_rgb.dtype != np.uint8:

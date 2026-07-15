@@ -14,6 +14,7 @@ from utils.image_utils import resize_frame
 
 GetFrameFn = Callable[[], tuple[bool, Any]]
 
+_NS_PER_S = 1_000_000_000
 _MOG2_TAG_MOV = "MOV_DETECTED"
 _MOG2_TAG_NOT = "NOT_MOV"
 
@@ -27,8 +28,11 @@ class Mog2MotionSensor:
     con frames nuevos del stream con normalidad.
     """
 
-    def __init__(self, config: Mog2Config | None = None) -> None:
+    def __init__(
+        self, config: Mog2Config | None = None, *, use_rga: bool = False
+    ) -> None:
         self._cfg = config or Mog2Config()
+        self._use_rga = use_rga
         self._umbral_base = self._cfg.movimiento_pixeles
         self._umbral_pixeles = self._umbral_base
         self._process_wh = (self._cfg.process_width, self._cfg.process_height)
@@ -58,8 +62,9 @@ class Mog2MotionSensor:
         timeout_s: float,
         poll_s: float,
     ) -> np.ndarray | None:
-        t_ini = time.monotonic()
-        while time.monotonic() - t_ini <= timeout_s:
+        t_ini_ns = time.monotonic_ns()
+        timeout_ns = int(timeout_s * _NS_PER_S)
+        while time.monotonic_ns() - t_ini_ns <= timeout_ns:
             ok, frame = get_frame()
             if ok and frame is not None and getattr(frame, "size", 0) > 0:
                 return np.asarray(frame).copy()
@@ -68,7 +73,12 @@ class Mog2MotionSensor:
 
     def warmup_frame(self, frame_bgr: np.ndarray) -> None:
         """Un frame de calibracion con learning rate alto (fondo)."""
-        small = resize_frame(frame_bgr, self._process_wh, interpolation=cv2.INTER_AREA)
+        small = resize_frame(
+            frame_bgr,
+            self._process_wh,
+            interpolation=cv2.INTER_AREA,
+            use_rga=self._use_rga,
+        )
         self._fgbg.apply(small, learningRate=self._cfg.warmup_learning_rate)
 
     def warmup_from_first_frame(
@@ -121,7 +131,12 @@ class Mog2MotionSensor:
 
     def evaluate(self, frame_bgr: np.ndarray) -> MotionResult:
         """Evalua movimiento en un frame BGR (resolucion de captura)."""
-        small = resize_frame(frame_bgr, self._process_wh, interpolation=cv2.INTER_AREA)
+        small = resize_frame(
+            frame_bgr,
+            self._process_wh,
+            interpolation=cv2.INTER_AREA,
+            use_rga=self._use_rga,
+        )
         mask = self._fgbg.apply(small)
         pixel_count = int(cv2.countNonZero(mask))
         hay_mov = pixel_count > self._umbral_pixeles

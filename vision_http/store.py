@@ -11,7 +11,7 @@ class VisionStatusStore:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._snapshot = VisionSnapshot.no_deteccion_face()
+        self._snapshot = VisionSnapshot.no_face_detection()
 
     def publish(self, snapshot: VisionSnapshot) -> None:
         with self._lock:

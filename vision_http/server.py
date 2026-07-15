@@ -6,12 +6,12 @@ import threading
 
 import uvicorn
 
-from configs import settings as s
-
 from .routes import app
 
 _server: uvicorn.Server | None = None
 _thread: threading.Thread | None = None
+_api_host: str = "0.0.0.0"
+_api_port: int = 8008
 
 
 def _run_server() -> None:
@@ -22,8 +22,8 @@ def _run_server() -> None:
     except OSError as exc:
         logging.error(
             "API vision: no se pudo bind %s:%d — %s",
-            s.HTTP_API_HOST,
-            s.HTTP_API_PORT,
+            _api_host,
+            _api_port,
             exc,
         )
     except Exception as exc:
@@ -32,18 +32,19 @@ def _run_server() -> None:
         logging.debug("API vision: hilo uvicorn finalizado.")
 
 
-def start_api_thread() -> threading.Thread | None:
-    """Inicia uvicorn en hilo si ENABLE_ENDPOINT=true."""
-    global _server, _thread
-    if not s.ENABLE_ENDPOINT:
-        return None
+def start_api_thread(host: str, port: int) -> threading.Thread:
+    """Inicia uvicorn en hilo dedicado."""
+    global _server, _thread, _api_host, _api_port
     if _thread is not None and _thread.is_alive():
         return _thread
 
+    _api_host = host
+    _api_port = port
+
     config = uvicorn.Config(
         app,
-        host=s.HTTP_API_HOST,
-        port=s.HTTP_API_PORT,
+        host=host,
+        port=port,
         log_level=logging.WARNING,
         access_log=False,
         log_config=None,
@@ -55,11 +56,7 @@ def start_api_thread() -> threading.Thread | None:
         daemon=False,
     )
     _thread.start()
-    logging.debug(
-        "API vision: hilo iniciado en %s:%d",
-        s.HTTP_API_HOST,
-        s.HTTP_API_PORT,
-    )
+    logging.debug("API vision: hilo iniciado en %s:%d", host, port)
     return _thread
 
 
@@ -80,4 +77,3 @@ def stop_api_thread(timeout_s: float = 5.0) -> None:
     _server = None
     _thread = None
     logging.debug("API vision: servidor cerrado.")
-

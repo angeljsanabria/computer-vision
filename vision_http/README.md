@@ -46,9 +46,9 @@ Estado publico del pipeline (ultimo frame procesado).
 
 ```json
 {
-  "status": "NO_DETECCION_FACE",
+  "status": "NO_FACE_DETECTION",
   "person_id": null,
-  "nombre": null,
+  "name": null,
   "face_count": 0,
   "refresh_remaining_s": 0,
   "updated_at": "2026-07-03T15:04:05.123456+00:00"
@@ -59,9 +59,9 @@ Estado publico del pipeline (ultimo frame procesado).
 
 ```json
 {
-  "status": "DETECCION_FACES",
+  "status": "FACES_DETECTED",
   "person_id": null,
-  "nombre": null,
+  "name": null,
   "face_count": 1,
   "refresh_remaining_s": 0,
   "updated_at": "2026-07-03T15:04:10.654321+00:00"
@@ -72,9 +72,9 @@ Estado publico del pipeline (ultimo frame procesado).
 
 ```json
 {
-  "status": "DETECTION_AND_RECOGNIZED",
+  "status": "FACE_RECOGNIZED",
   "person_id": "001",
-  "nombre": "Juan Perez",
+  "name": "Juan Perez",
   "face_count": 1,
   "refresh_remaining_s": 42,
   "updated_at": "2026-07-03T15:04:15.987654+00:00"
@@ -83,9 +83,9 @@ Estado publico del pipeline (ultimo frame procesado).
 
 Valores posibles de `status`:
 
-- `NO_DETECCION_FACE` — sin sesion facial / sin caras
-- `DETECCION_FACES` — hay caras, identidad no confirmada
-- `DETECTION_AND_RECOGNIZED` — identidad confirmada o retenida
+- `NO_FACE_DETECTION` — no face session / no faces
+- `FACES_DETECTED` — faces visible, identity not confirmed
+- `FACE_RECOGNIZED` — identity confirmed or retained by refresh timer
 
 ## Contrato API (referencia para consumidores)
 
@@ -122,7 +122,7 @@ Respuesta **200** con objeto plano. Siempre incluye **exactamente** estas 6 clav
 |-------|-----------|----------|-------------|
 | `status` | `string` (enum) | no | Estado de negocio publico |
 | `person_id` | `string` | si | ID en galeria; `null` si no hay identidad confirmada |
-| `nombre` | `string` | si | Nombre asociado al ID; `null` si no hay identidad confirmada |
+| `name` | `string` | si | Display name for the person; `null` if no confirmed identity |
 | `face_count` | `integer` | no | Cantidad de caras detectadas en el ultimo frame (`>= 0`) |
 | `refresh_remaining_s` | `integer` | no | Segundos restantes de retencion del MATCH; entero truncado (`>= 0`) |
 | `updated_at` | `string` | no | Timestamp UTC ISO 8601 del ultimo snapshot publicado |
@@ -131,24 +131,24 @@ Respuesta **200** con objeto plano. Siempre incluye **exactamente** estas 6 clav
 
 | Valor | Significado |
 |-------|-------------|
-| `NO_DETECCION_FACE` | Sin caras en frame, FSM en IDLE, o estado inicial |
-| `DETECCION_FACES` | Hay caras visibles; identidad aun no confirmada |
-| `DETECTION_AND_RECOGNIZED` | Identidad confirmada o retenida por timer de refresh |
+| `NO_FACE_DETECTION` | No faces in frame, FSM in IDLE, or initial state |
+| `FACES_DETECTED` | Faces visible; identity not yet confirmed |
+| `FACE_RECOGNIZED` | Identity confirmed or retained by refresh timer |
 
 #### Reglas por `status`
 
-| `status` | `person_id` | `nombre` | `face_count` | `refresh_remaining_s` |
+| `status` | `person_id` | `name` | `face_count` | `refresh_remaining_s` |
 |----------|-------------|----------|--------------|------------------------|
-| `NO_DETECCION_FACE` | `null` | `null` | `0` | `0` |
-| `DETECCION_FACES` | `null` | `null` | `>= 1` | `0` |
-| `DETECTION_AND_RECOGNIZED` | `string` | `string` | `>= 0` | `>= 0` (segundos de retencion activos) |
+| `NO_FACE_DETECTION` | `null` | `null` | `0` | `0` |
+| `FACES_DETECTED` | `null` | `null` | `>= 1` | `0` |
+| `FACE_RECOGNIZED` | `string` | `string` | `>= 0` | `>= 0` (segundos de retencion activos) |
 
 Notas:
 
-- `DETECTION_AND_RECOGNIZED` solo mientras la FSM esta en `FACE_RECOGNIZED` (retencion activa).
+- `FACE_RECOGNIZED` solo mientras la FSM esta en `FACE_RECOGNIZED` (retencion activa).
 - Durante retencion, `face_count` puede ser `0` si ese frame no corrio RetinaFace (cooldown); la identidad y el timer siguen vigentes.
 - `refresh_remaining_s` es `int()` del timer interno (trunca decimales, nunca negativo).
-- En `DETECTION_AND_RECOGNIZED`, `refresh_remaining_s > 0` indica retencion del ultimo MATCH aunque el rostro actual no re-matchee o no haya deteccion en ese frame.
+- En `FACE_RECOGNIZED`, `refresh_remaining_s > 0` indica retencion del ultimo MATCH aunque el rostro actual no re-matchee o no haya deteccion en ese frame.
 - `updated_at` ejemplo: `"2026-07-03T15:04:05.123456+00:00"` (UTC, con offset `+00:00`).
 
 #### Ejemplos completos (copiar/pegar)
@@ -157,9 +157,9 @@ Notas:
 
 ```json
 {
-  "status": "NO_DETECCION_FACE",
+  "status": "NO_FACE_DETECTION",
   "person_id": null,
-  "nombre": null,
+  "name": null,
   "face_count": 0,
   "refresh_remaining_s": 0,
   "updated_at": "2026-07-03T15:04:05.123456+00:00"
@@ -170,9 +170,9 @@ Notas:
 
 ```json
 {
-  "status": "DETECCION_FACES",
+  "status": "FACES_DETECTED",
   "person_id": null,
-  "nombre": null,
+  "name": null,
   "face_count": 2,
   "refresh_remaining_s": 0,
   "updated_at": "2026-07-03T15:04:10.654321+00:00"
@@ -183,9 +183,9 @@ Notas:
 
 ```json
 {
-  "status": "DETECTION_AND_RECOGNIZED",
+  "status": "FACE_RECOGNIZED",
   "person_id": "001",
-  "nombre": "Juan Perez",
+  "name": "Juan Perez",
   "face_count": 1,
   "refresh_remaining_s": 42,
   "updated_at": "2026-07-03T15:04:15.987654+00:00"
@@ -215,7 +215,7 @@ Recomendacion: timeout de cliente 2–5 s y polling cada 500 ms–1 s segun late
   "required": [
     "status",
     "person_id",
-    "nombre",
+    "name",
     "face_count",
     "refresh_remaining_s",
     "updated_at"
@@ -224,15 +224,15 @@ Recomendacion: timeout de cliente 2–5 s y polling cada 500 ms–1 s segun late
     "status": {
       "type": "string",
       "enum": [
-        "NO_DETECCION_FACE",
-        "DETECCION_FACES",
-        "DETECTION_AND_RECOGNIZED"
+        "NO_FACE_DETECTION",
+        "FACES_DETECTED",
+        "FACE_RECOGNIZED"
       ]
     },
     "person_id": {
       "type": ["string", "null"]
     },
-    "nombre": {
+    "name": {
       "type": ["string", "null"]
     },
     "face_count": {
@@ -260,16 +260,16 @@ from dataclasses import dataclass
 from typing import Literal
 
 VisionStatus = Literal[
-    "NO_DETECCION_FACE",
-    "DETECCION_FACES",
-    "DETECTION_AND_RECOGNIZED",
+    "NO_FACE_DETECTION",
+    "FACES_DETECTED",
+    "FACE_RECOGNIZED",
 ]
 
 @dataclass
 class VisionStatusResponse:
     status: VisionStatus
     person_id: str | None
-    nombre: str | None
+    name: str | None
     face_count: int
     refresh_remaining_s: int
     updated_at: str
@@ -279,14 +279,14 @@ TypeScript:
 
 ```typescript
 type VisionStatus =
-  | "NO_DETECCION_FACE"
-  | "DETECCION_FACES"
-  | "DETECTION_AND_RECOGNIZED";
+  | "NO_FACE_DETECTION"
+  | "FACES_DETECTED"
+  | "FACE_RECOGNIZED";
 
 interface VisionStatusResponse {
   status: VisionStatus;
   person_id: string | null;
-  nombre: string | null;
+  name: string | null;
   face_count: number;
   refresh_remaining_s: number;
   updated_at: string; // ISO 8601 UTC

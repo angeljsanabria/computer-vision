@@ -44,12 +44,6 @@ class MobileFaceNetEmbedderRk3568:
 
         logging.debug("MobileFaceNet RK3568 (RKNN) cargado: %s", path)
 
-    @classmethod
-    def from_settings(cls) -> MobileFaceNetEmbedderRk3568:
-        from configs import settings as s
-
-        return cls(model_path=s.mobilefacenet_model_rk3568_path())
-
     def release(self) -> None:
         if self._rknn is not None:
             self._rknn.release()

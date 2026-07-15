@@ -8,6 +8,10 @@ class MotionFaceFsm:
     """
     FSM pura: sin OpenCV ni modelos.
 
+    FlowState.FACE_LOOKING:
+      - Solo con enable_mov_detection=false: vigilancia facial continua (sin MOG2).
+      - Entrada: desde IDLE (primer tick_motion) o tras FACE_PROCESSED_TIMEOUT.
+      - Salida: cara valida -> FACE_PROCESSED.
     FACE_RECOGNIZED (sesion de identidad confirmada):
       - Entrada: unico MATCH en FACE_PROCESSED (notify_embed_match).
       - Salida: timer de identidad vencido -> FACE_PROCESSED (refresca cara/mov).
@@ -21,6 +25,7 @@ class MotionFaceFsm:
 
     _FACE_INFER_STATES = frozenset(
         {
+            FlowState.FACE_LOOKING,
             FlowState.MOV_DETECTED,
             FlowState.MOV_OUT,
             FlowState.FACE_PROCESSED,
@@ -39,6 +44,7 @@ class MotionFaceFsm:
         self._t_ultima_cara: float | None = None
         self._recognized_id: str | None = None
         self._t_timer_hasta: float | None = None
+        self._enable_mov_detection: bool = cfg.enable_mov_detection
 
     def _clear_recognition(self) -> None:
         self._recognized_id = None
@@ -83,8 +89,13 @@ class MotionFaceFsm:
     def tick_motion(self, hay_mov: bool, now: float) -> FsmTickResult:
         """Transiciones MOG2. Tambien vence timer de identidad (cada frame)."""
         events: list[str] = []
-
         self._salir_recognized_si_timer_vencido(now, events)
+
+        if not self._enable_mov_detection:
+            if self.state == FlowState.IDLE:
+                self.state = FlowState.FACE_LOOKING
+                events.append("[FSM] IDLE -> FACE_LOOKING (MOG2 off)")
+            return self._snapshot(events)
 
         if hay_mov:
             self._t_ultimo_mov = now
@@ -134,7 +145,7 @@ class MotionFaceFsm:
         if hay_cara:
             self._t_ultima_cara = now
             self._t_ultimo_mov = now
-            if self.state in (FlowState.MOV_DETECTED, FlowState.MOV_OUT):
+            if self.state in (FlowState.MOV_DETECTED, FlowState.MOV_OUT, FlowState.FACE_LOOKING,):
                 self._clear_recognition()
                 self.state = FlowState.FACE_PROCESSED
             elif self.state == FlowState.FACE_OUT:
@@ -151,11 +162,19 @@ class MotionFaceFsm:
 
         if self.state == FlowState.FACE_PROCESSED_TIMEOUT:
             events.append(
-                "[FSM] {} -> IDLE (sin cara {:.1f}s)".format(
-                    FlowState.FACE_PROCESSED_TIMEOUT.value, self._t_face
+                "[FSM] {} -> {} (sin cara {:.1f}s)".format(
+                    FlowState.FACE_PROCESSED_TIMEOUT.value,
+                    FlowState.FACE_LOOKING.value
+                    if not self._enable_mov_detection
+                    else FlowState.IDLE.value,
+                    self._t_face,
                 )
             )
-            self.state = FlowState.IDLE
+            self.state = (
+                FlowState.FACE_LOOKING
+                if not self._enable_mov_detection
+                else FlowState.IDLE
+            )
             self._t_ultima_cara = None
             self._clear_recognition()
 

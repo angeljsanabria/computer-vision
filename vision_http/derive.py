@@ -33,21 +33,21 @@ def derive_vision_status(
     # Retencion FSM: FACE_RECOGNIZED gana aunque este frame no haya dets (cooldown).
     if state_value == "FACE_RECOGNIZED" and display_identity is not None:
         return VisionSnapshot(
-            status=VisionPublicStatus.DETECTION_AND_RECOGNIZED,
+            status=VisionPublicStatus.FACE_RECOGNIZED,
             person_id=display_identity.person_id,
-            nombre=display_identity.nombre,
+            name=display_identity.nombre,
             face_count=face_count,
             refresh_remaining_s=refresh_int,
             updated_at=now_iso(),
         )
 
     if state_value == "IDLE" or face_count == 0:
-        return VisionSnapshot.no_deteccion_face()
+        return VisionSnapshot.no_face_detection()
 
     return VisionSnapshot(
-        status=VisionPublicStatus.DETECCION_FACES,
+        status=VisionPublicStatus.FACES_DETECTED,
         person_id=None,
-        nombre=None,
+        name=None,
         face_count=face_count,
         refresh_remaining_s=0,
         updated_at=now_iso(),

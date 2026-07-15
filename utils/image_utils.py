@@ -10,7 +10,6 @@ from typing import NamedTuple
 
 import cv2
 import numpy as np
-from configs import settings as s
 
 
 class LetterboxMeta(NamedTuple):
@@ -31,16 +30,19 @@ def resize_frame(
     frame: np.ndarray,
     out_wh: tuple[int, int],
     interpolation: int = cv2.INTER_AREA,
+    *,
+    use_rga: bool = False,
 ) -> np.ndarray:
     """
-    Redimensiona un frame (H, W, C). OpenCV por defecto; RGA si ``settings.USE_RGA``.
+    Redimensiona un frame (H, W, C). OpenCV por defecto; RGA si ``use_rga``.
 
     Args:
         frame: Array numpy (alto, ancho, canales).
         out_wh: (ancho, alto) destino, convencion OpenCV.
         interpolation: Flag ``cv2.INTER_*`` (solo aplica en ruta OpenCV legacy).
+        use_rga: Si True, ruta RGA de Rockchip (pendiente; hoy usa OpenCV).
     """
-    if s.USE_RGA:
+    if use_rga:
         # TODO: completar con toolkit de Rockchip (RGA resize).
         return cv2.resize(frame, out_wh, interpolation=interpolation)
     return cv2.resize(frame, out_wh, interpolation=interpolation)
@@ -50,6 +52,8 @@ def letterbox_bgr(
     image_bgr: np.ndarray,
     out_wh: tuple[int, int],
     fill_value: int,
+    *,
+    use_rga: bool = False,
 ) -> tuple[np.ndarray, LetterboxMeta]:
     """
     Letterbox en espacio BGR: escala la imagen manteniendo aspect ratio, centra el
@@ -93,7 +97,12 @@ def letterbox_bgr(
     new_width = int(image_width * aspect_ratio)
     new_height = int(image_height * aspect_ratio)
 
-    resized = resize_frame(image_bgr, (new_width, new_height), interpolation=cv2.INTER_AREA)
+    resized = resize_frame(
+        image_bgr,
+        (new_width, new_height),
+        interpolation=cv2.INTER_AREA,
+        use_rga=use_rga,
+    )
 
     canvas = (np.ones((target_height, target_width, 3), dtype=np.uint8) * fill_value).astype(
         np.uint8
@@ -106,7 +115,9 @@ def letterbox_bgr(
     return canvas, meta
 
 
-def ajustar_frame_manteniendo_aspect_ratio(frame, max_ancho, max_alto):
+def ajustar_frame_manteniendo_aspect_ratio(
+    frame, max_ancho, max_alto, *, use_rga: bool = False
+):
     """
     Ajusta el frame manteniendo el aspect ratio original.
     Agrega barras negras (letterboxing/pillarboxing) si es necesario.
@@ -136,7 +147,10 @@ def ajustar_frame_manteniendo_aspect_ratio(frame, max_ancho, max_alto):
     
     # Redimensionar manteniendo aspect ratio
     frame_redimensionado = resize_frame(
-        frame, (nuevo_ancho, nuevo_alto), interpolation=cv2.INTER_LINEAR
+        frame,
+        (nuevo_ancho, nuevo_alto),
+        interpolation=cv2.INTER_LINEAR,
+        use_rga=use_rga,
     )
     
     # Crear imagen negra del tamano de la ventana usando numpy

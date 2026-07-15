@@ -7,6 +7,7 @@ from enum import Enum
 
 class FlowState(str, Enum):
     IDLE = "IDLE"
+    FACE_LOOKING = "FACE_LOOKING"
     MOV_DETECTED = "MOV_DETECTED"
     MOV_OUT = "MOV_OUT"
     FACE_PROCESSED = "FACE_PROCESSED"
@@ -30,8 +31,8 @@ class Mog2Config:
 class FsmConfig:
     timeout_mov_s: float = 10.0
     timeout_face_s: float = 10.0
-    # Runtime: configs.settings.FSM_RECOGNIZED_REFRESH_S (seccion 1.4)
     recognized_refresh_s: float = 5.0
+    enable_mov_detection: bool = True
 
 
 @dataclass(frozen=True)

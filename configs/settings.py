@@ -2,15 +2,13 @@ import os
 import sys
 import logging
 
-from configs.paths import resolve_repo_path
-
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
 MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, SNAP, USB
-MAX_FPS = float(os.getenv("MAX_FPS", 30.0))
+MAX_FPS = float(os.getenv("MAX_FPS", 3.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
-    os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
+    os.getenv("DISPLAY_IS_ENABLE", "false").lower() == "true"
 )
 # RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
 # FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
@@ -33,9 +31,9 @@ LOG_MODE = os.getenv("LOG_MODE", "prod").lower()  # prod | dev
 USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 
 # 1.4 Identidad reconocida (FSM FACE_RECOGNIZED)
-# Intervalo entre embeds en FACE_RECOGNIZED; cada MATCH renueva el timer de identidad.
+# Intervalo entre embeds en FACE_RECOGED; cada MATCH renueva el timer de identidad.
 # NO_MATCH con timer activo mantiene el ultimo MATCH; timer vencido -> FACE_PROCESSED.
-FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "3"))        ## en 15
+FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "15"))
 
 # 1.5 API HTTP vision (modulo vision_http/; solo si ENABLE_ENDPOINT=true)
 ENABLE_ENDPOINT = os.getenv("ENABLE_ENDPOINT", "true").lower() == "true"
@@ -49,42 +47,48 @@ IMG_QUALITY_CHECK_ENABLE = (
 IMG_QUALITY_CHECK_INTERVAL_S = float(
     os.getenv("IMG_QUALITY_CHECK_INTERVAL_S", "30")
 )
-IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "img_quality_check")
+IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "../data")
 
-# 2. HARDWARE LOCAL (CAMARA USB) - Ajuste de imagen OpenCV en configs/usb_camera_image.py
-USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
+# 2. HARDWARE LOCAL (CAMARA USB)
+# Perfil de imagen OpenCV validado en camara Sony IMX179 /dev/video10 en RK3568.
+# USE_DEFAULT: no modifica props de la camara.
+# USE_CUSTOM: cap.set brillo/contraste/saturacion (valores abajo).
+# Referencia V4L2 no usada por OpenCV aqui:
+#   hue min=-180 max=180 default=0
+#   gamma min=100 max=500 default=300
+#   sharpness min=0 max=100 default=80
+#   auto_exposure menu 0-3 default=3
+#   focus_automatic_continuous default=1
+USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 10))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
+USB_CAMERA_IMAGE_MODE = os.getenv("USB_CAMERA_IMAGE_MODE", "USE_DEFAULT").upper()
+USB_BRIGHTNESS = int(os.getenv("USB_BRIGHTNESS", "0"))  # SONY: min=-64 max=64 default=0
+USB_CONTRAST = int(os.getenv("USB_CONTRAST", "51"))  # SONY: min=0 max=100 default=51
+USB_SATURATION = int(os.getenv("USB_SATURATION", "64"))  # SONY: min=0 max=100 default=64
 
-# 3. CONFIGURACIONES Camara IP
-_user = os.getenv("IP_CAM_USER", "angelcam")
-_pass = os.getenv("IP_CAM_PASS", "angelCamara")
-_host_ip = os.getenv("IP_CAM", "192.168.0.160")  # info dispositivo; info red
+# 3. CONFIGURACIONES Camara IP (URLs en utils/ip_cam_urls.py)
+IP_CAM_USER = os.getenv("IP_CAM_USER", "angelcam")
+IP_CAM_PASS = os.getenv("IP_CAM_PASS", "angelCamara")
+IP_CAM_HOST = os.getenv("IP_CAM", "172.16.243.10")
 
 # 3.1 RTSP
-_port = os.getenv("IP_CAM_RTSP_PORT", "554")   # info dispositivo; info avanzada
-_route_rtsp_quality_low = os.getenv("IP_CAM_RTSP_ROUTE", "Preview_01_sub")
-_route_rtsp_quality_high = os.getenv("IP_CAM_RTSP_ROUTE", "Preview_01_main")
+IP_CAM_RTSP_PORT = os.getenv("IP_CAM_RTSP_PORT", "554")
+IP_CAM_RTSP_STREAM_PATH_LOW = os.getenv("IP_CAM_RTSP_ROUTE_LOW", "Preview_01_sub")
+IP_CAM_RTSP_STREAM_PATH_HIGH = os.getenv("IP_CAM_RTSP_ROUTE_HIGH", "Preview_01_main")
 
-IP_CAM_RTSP_URL = f"rtsp://{_user}:{_pass}@{_host_ip}:{_port}/{_route_rtsp_quality_low}"
-IP_CAM_RTSP_URL_HIGH = f"rtsp://{_user}:{_pass}@{_host_ip}:{_port}/{_route_rtsp_quality_high}"
+IP_CAM_RTSP_STREAM_PATH_SELECTED_RESOLUTION = IP_CAM_RTSP_STREAM_PATH_LOW
 
-# 3.2 SNAP
-_route_snap_quality_high = os.getenv("IP_CAM_ROUTE_SNAP_HIGH_RES", "width=2560&height=1920")
-_route_snap_quality_low= os.getenv("IP_CAM_ROUTE_SNAP_LOW_RES", "width=640&height=480")
+# 3.2 SNAP (query de resolucion; la URL se arma en main)
+IP_CAM_SNAP_RES_QUERY_LOW = os.getenv("IP_CAM_ROUTE_SNAP_LOW_RES", "width=640&height=480")
+IP_CAM_SNAP_RES_QUERY_HIGH = os.getenv("IP_CAM_ROUTE_SNAP_HIGH_RES", "width=2560&height=1920")
 
-SNAP_HTTP_URL_RES_FULL = (
-    f"http://{_host_ip}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=aaa"
-    f"&user={_user}&password={_pass}&{_route_snap_quality_high}"
-)
-
-SNAP_HTTP_URL_RES_LOW = (
-    f"http://{_host_ip}/cgi-bin/api.cgi?cmd=Snap&channel=0&rs=aaa"
-    f"&user={_user}&password={_pass}&{_route_snap_quality_low}"
-)
-
-SNAP_HTTP_URL = SNAP_HTTP_URL_RES_LOW
+IP_CAM_SNAP_RES_QUERY_SELECTED_RESOLUTION = IP_CAM_SNAP_RES_QUERY_LOW
 
 # 4. DETECCION DE MOVIMIENTO (MOG2) + FSM
+ENABLE_MOV_DETECTION = (
+    os.getenv("ENABLE_MOV_DETECTION", "false").lower() == "true"
+)
+    
 MOG2_PROCESS_WIDTH = int(os.getenv("MOG2_PROCESS_WIDTH", "320"))
 MOG2_PROCESS_HEIGHT = int(os.getenv("MOG2_PROCESS_HEIGHT", "240"))
 MOG2_HISTORY = int(os.getenv("MOG2_HISTORY", "20"))
@@ -97,7 +101,7 @@ FSM_TIMEOUT_MOV_S = float(os.getenv("FSM_TIMEOUT_MOV_S", "10"))
 FSM_TIMEOUT_FACE_S = float(os.getenv("FSM_TIMEOUT_FACE_S", "10"))
 
 # 6. INFERENCIA (RetinaFace + MobileFaceNet)
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "pc").lower()  # "none", "pc", "rk3568"
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "rk3568").lower()  # "none", "pc", "rk3568"
 RETINAFACE_MODEL_PC = os.getenv(
     "RETINAFACE_MODEL_PC",
     "models_onnx/RetinaFace_mobile320.onnx",
@@ -132,7 +136,7 @@ EMBED_MIN_SCORE = float(
 # Embed (FACE_PROCESSED/RECOGNIZED) y, sin FACE_DETECT_FULLRATE, RetinaFace en
 # FACE_RECOGNIZED: como maximo cada EMBED_AND_FACEDETEC_COOLDOWN_S. 0 = cada tick con cara.
 EMBED_AND_FACEDETEC_COOLDOWN_S = float(
-    os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S", "1.0")
+    os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S", "2.0")
 )
 
 # 6.3 MobileFaceNet (rutas segun INFERENCE_BACKEND)
@@ -147,31 +151,7 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
 EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
-EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "embeddings")
-
-def retinaface_model_pc_path() -> str:
-    """Ruta absoluta al ONNX RetinaFace (defecto: models_onnx/RetinaFace_mobile320.onnx)."""
-    return str(resolve_repo_path(RETINAFACE_MODEL_PC))
-
-
-def retinaface_model_rk3568_path() -> str:
-    """Ruta absoluta al RKNN RetinaFace (defecto: models/RetinaFace_mobile320.rknn)."""
-    return str(resolve_repo_path(RETINAFACE_MODEL_RK3568))
-
-
-def mobilefacenet_model_pc_path() -> str:
-    """Ruta absoluta al ONNX MobileFaceNet (defecto: models_onnx/MobileFaceNet.onnx)."""
-    return str(resolve_repo_path(MOBILEFACENET_MODEL_PC))
-
-
-def mobilefacenet_model_rk3568_path() -> str:
-    """Ruta absoluta al RKNN MobileFaceNet (defecto: models/MobileFaceNet.rknn)."""
-    return str(resolve_repo_path(MOBILEFACENET_MODEL_RK3568))
-
-
-def embed_ref_gallery_dir_path() -> str:
-    """Ruta absoluta a la galeria de referencias .npy (defecto: embeddings/)."""
-    return str(resolve_repo_path(EMBED_REF_GALLERY_DIR))
+EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "../data")
 
 
 _LOG_LEVEL_BY_MODE = {
@@ -212,12 +192,8 @@ def validar_todo():
         logging.critical("CONFIG ERROR: WARMUP_FRAMES debe ser >= 1.")
         sys.exit(1)
 
-    if MODO == "RTSP" and not _host_ip:
-        logging.critical("CONFIG ERROR: Modo RTSP activo pero falta la IP (RTSP_HOST).")
-        sys.exit(1)
-
-    if MODO == "SNAP" and not SNAP_HTTP_URL:
-        logging.critical("CONFIG ERROR: Modo SNAP sin URL configurada.")
+    if MODO in ("RTSP", "SNAP") and not IP_CAM_HOST:
+        logging.critical("CONFIG ERROR: Modo %s activo pero falta IP_CAM.", MODO)
         sys.exit(1)
 
     if USB_ROTATE_DEG not in (0, 90, 180, 270):
@@ -230,15 +206,21 @@ def validar_todo():
         logging.info("USB: rotacion software %d deg", USB_ROTATE_DEG)
 
     if MODO == "USB":
-        from configs.usb_camera_image import (
-            USB_CAMERA_IMAGE_MODE,
-            validar_usb_camera_image,
-        )
-
-        validar_usb_camera_image()
+        if USB_CAMERA_IMAGE_MODE not in ("USE_DEFAULT", "USE_CUSTOM"):
+            logging.critical(
+                "CONFIG ERROR: USB_CAMERA_IMAGE_MODE debe ser USE_DEFAULT o "
+                "USE_CUSTOM (got %r).",
+                USB_CAMERA_IMAGE_MODE,
+            )
+            sys.exit(1)
         if USB_CAMERA_IMAGE_MODE == "USE_CUSTOM":
             logging.info("USB: ajuste imagen OpenCV USE_CUSTOM")
 
+    if not ENABLE_MOV_DETECTION:
+        logging.info(
+            "MOG2 desactivado: FSM usa FACE_LOOKING (RetinaFace sin gate de movimiento)"
+        )
+        
     if ENABLE_ENDPOINT:
         if HTTP_API_PORT < 1 or HTTP_API_PORT > 65535:
             logging.critical(
@@ -291,7 +273,7 @@ def validar_todo():
         sys.exit(1)
 
     if INFERENCE_BACKEND == "pc":
-        pc_path = retinaface_model_pc_path()
+        pc_path = RETINAFACE_MODEL_PC
         if not os.path.isfile(pc_path):
             logging.critical(
                 "CONFIG ERROR: INFERENCE_BACKEND=pc pero no existe RETINAFACE_MODEL_PC: "
@@ -299,7 +281,7 @@ def validar_todo():
             )
             sys.exit(1)
         logging.info("RetinaFace PC: %s", pc_path)
-        mfn_pc = mobilefacenet_model_pc_path()
+        mfn_pc = MOBILEFACENET_MODEL_PC
         if not os.path.isfile(mfn_pc):
             logging.critical(
                 "CONFIG ERROR: INFERENCE_BACKEND=pc pero no existe "
@@ -309,7 +291,7 @@ def validar_todo():
         logging.info("MobileFaceNet PC: %s", mfn_pc)
 
     if INFERENCE_BACKEND == "rk3568":
-        rk_path = retinaface_model_rk3568_path()
+        rk_path = RETINAFACE_MODEL_RK3568
         if not os.path.isfile(rk_path):
             logging.critical(
                 "CONFIG ERROR: INFERENCE_BACKEND=rk3568 pero no existe "
@@ -317,7 +299,7 @@ def validar_todo():
             )
             sys.exit(1)
         logging.info("RetinaFace RK3568: %s", rk_path)
-        mfn_rk = mobilefacenet_model_rk3568_path()
+        mfn_rk = MOBILEFACENET_MODEL_RK3568
         if not os.path.isfile(mfn_rk):
             logging.critical(
                 "CONFIG ERROR: INFERENCE_BACKEND=rk3568 pero no existe "
@@ -424,7 +406,7 @@ def validar_todo():
         )
         sys.exit(1)
 
-    gallery_path = embed_ref_gallery_dir_path()
+    gallery_path = EMBED_REF_GALLERY_DIR
     if INFERENCE_BACKEND in ("pc", "rk3568"):
         if not os.path.isdir(gallery_path):
             logging.warning(

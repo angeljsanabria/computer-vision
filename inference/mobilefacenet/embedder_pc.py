@@ -35,12 +35,6 @@ class MobileFaceNetEmbedderPc:
         self._output_name = self._session.get_outputs()[0].name
         logging.debug("MobileFaceNet PC (ONNX) cargado: %s", path)
 
-    @classmethod
-    def from_settings(cls) -> MobileFaceNetEmbedderPc:
-        from configs import settings as s
-
-        return cls(model_path=s.mobilefacenet_model_pc_path())
-
     def embed(self, face_bgr: np.ndarray) -> np.ndarray:
         """Parche BGR 112x112 -> vector (EMBED_DIM,) float32 L2-normalizado."""
         feed = bgr112_to_onnx_nchw(face_bgr)
