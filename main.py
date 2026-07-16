@@ -29,7 +29,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
   FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
-  FACE_PROCESS_TOP_N     — 1=mejor cara, 2=mejor+siguiente, ...
+  FACE_PROCESS_TOP_N     — cuantas caras mostrar (bbox/track), mejores primero
+  FACE_EMBED_TOP_N       — de esas, cuantas reciben embed + reconocimiento
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
   EMBED_AND_FACEDETEC_COOLDOWN_S — segundos entre embeds/deteccion (0 = cada tick con cara)
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
@@ -90,7 +91,7 @@ from inference.identity.matcher import (  # noqa: E402
 from inference.identity.types import IdentityMatch  # noqa: E402
 from inference.types import FaceDetections, FaceEmbedding  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
-from inference.retinaface.select_best import distancia_interocular, mejores_caras  # noqa: E402
+from inference.retinaface.select_best import mejores_caras  # noqa: E402
 from bytetrack import ByteTrackConfig, FaceTracker, TrackResult, build_face_tracker  # noqa: E402
 from ui import FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
@@ -215,7 +216,7 @@ def _tick_retinaface_if_needed(
     """
     RetinaFace + ranking + tick_face cuando la FSM lo indica.
 
-    Devuelve solo las caras utiles (top-N rankeadas) y el estado FSM.
+    Devuelve las mejores ``FACE_PROCESS_TOP_N`` caras (bbox/track/overlay).
     La FSM usa ``hay_cara`` sobre todas las detecciones del modelo, no solo las filtradas.
     """
     if not fsm_out.run_face_detector or face is None:
@@ -286,18 +287,14 @@ def _track_id_for_bbox(
 
 def _elegir_fila_para_embed(dets: FaceDetections) -> np.ndarray | None:
     """
-    Mejor cara para embed entre las que superan ``EMBED_MIN_SCORE``.
-
-    Criterio mov_detect: mayor distancia interocular; desempate implicito por orden.
+    Mejor cara para embed entre las top ``FACE_EMBED_TOP_N`` rankeadas
+    que superan ``EMBED_MIN_SCORE`` (orden de ``mejores_caras``).
     """
-    candidatas = [
-        row
-        for row in dets.dets
-        if float(row[4]) >= s.EMBED_MIN_SCORE
-    ]
-    if not candidatas:
-        return None
-    return max(candidatas, key=distancia_interocular)
+    embed_top_n = min(s.FACE_EMBED_TOP_N, int(dets.dets.shape[0]))
+    for row in dets.dets[:embed_top_n]:
+        if float(row[4]) >= s.EMBED_MIN_SCORE:
+            return row
+    return None
 
 
 def _tick_embed_if_needed(

@@ -19,8 +19,11 @@ DISPLAY_FORCE_FULL_SCREEN = (
 FACE_DETECT_FULLRATE = (
     os.getenv("FACE_DETECT_FULLRATE", str(DISPLAY_IS_ENABLE)).lower() == "true"
 )
-# Cuantas caras rankeadas procesar (1=mejor, 2=mejor+siguiente, ...).
+# Cuantas caras mostrar (bbox/track) entre las que pasan RETINAFACE_SCORE_DETECCION.
+# Ej.: 20 detectadas, 10 pasan umbral, N=5 -> las 5 mejores en pantalla.
 FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 10))
+# De esas N rankeadas, cuantas reciben embed + reconocimiento (mejores primero).
+FACE_EMBED_TOP_N = int(os.getenv("FACE_EMBED_TOP_N", 2))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
@@ -40,7 +43,7 @@ USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 FSM_RECOGNIZED_REFRESH_S = float(os.getenv("FSM_RECOGNIZED_REFRESH_S", "15"))
 
 # 1.5 API HTTP vision (modulo vision_http/; solo si ENABLE_ENDPOINT=true)
-ENABLE_ENDPOINT = os.getenv("ENABLE_ENDPOINT", "true").lower() == "true"
+ENABLE_ENDPOINT = os.getenv("ENABLE_ENDPOINT", "false").lower() == "true"
 HTTP_API_HOST = os.getenv("HTTP_API_HOST", "0.0.0.0")
 HTTP_API_PORT = int(os.getenv("HTTP_API_PORT", "8008"))
 
@@ -154,7 +157,7 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
 )
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
-EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
+EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.50"))
 EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "data/")
 
 # 7. TRACKING VISUAL (ByteTrack sobre detecciones RetinaFace ya filtradas)
@@ -336,10 +339,23 @@ def validar_todo():
     if FACE_PROCESS_TOP_N < 1:
         logging.critical("CONFIG ERROR: FACE_PROCESS_TOP_N debe ser >= 1.")
         sys.exit(1)
+    if FACE_EMBED_TOP_N < 1:
+        logging.critical("CONFIG ERROR: FACE_EMBED_TOP_N debe ser >= 1.")
+        sys.exit(1)
+    if FACE_EMBED_TOP_N > FACE_PROCESS_TOP_N:
+        logging.warning(
+            "FACE_EMBED_TOP_N (%d) > FACE_PROCESS_TOP_N (%d): "
+            "se limitara embed a %d.",
+            FACE_EMBED_TOP_N,
+            FACE_PROCESS_TOP_N,
+            FACE_PROCESS_TOP_N,
+        )
     logging.info(
-        "Caras a procesar: top %d (score >= RETINAFACE_SCORE_DETECCION=%.2f)",
+        "Caras bbox/track: top %d (score >= RETINAFACE_SCORE_DETECCION=%.2f); "
+        "embed: top %d de esas",
         FACE_PROCESS_TOP_N,
         RETINAFACE_SCORE_DETECCION,
+        min(FACE_EMBED_TOP_N, FACE_PROCESS_TOP_N),
     )
 
     if FACE_ROLL_MAX_DEG < 0 or FACE_ROLL_MAX_DEG > 45:

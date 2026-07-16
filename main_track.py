@@ -29,7 +29,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
   FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
-  FACE_PROCESS_TOP_N     — 1=mejor cara, 2=mejor+siguiente, ...
+  FACE_PROCESS_TOP_N     — cuantas caras mostrar (bbox/track), mejores primero
+  FACE_EMBED_TOP_N       — de esas, cuantas reciben embed + reconocimiento
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
   EMBED_AND_FACEDETEC_COOLDOWN_S — segundos entre embeds/deteccion (0 = cada tick con cara)
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
@@ -90,7 +91,7 @@ from inference.identity.matcher import (  # noqa: E402
 from inference.identity.types import IdentityMatch  # noqa: E402
 from inference.types import FaceDetections, FaceEmbedding  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
-from inference.retinaface.select_best import distancia_interocular, mejores_caras  # noqa: E402
+from inference.retinaface.select_best import mejores_caras  # noqa: E402
 from bytetrack import ByteTrackConfig, FaceTracker, TrackResult, build_face_tracker  # noqa: E402
 from ui import FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
@@ -215,7 +216,7 @@ def _tick_retinaface_if_needed(
     """
     RetinaFace + ranking + tick_face cuando la FSM lo indica.
 
-    Devuelve solo las caras utiles (top-N rankeadas) y el estado FSM.
+    Devuelve las mejores ``FACE_PROCESS_TOP_N`` caras (bbox/track/overlay).
     La FSM usa ``hay_cara`` sobre todas las detecciones del modelo, no solo las filtradas.
     """
     if not fsm_out.run_face_detector or face is None:
@@ -284,22 +285,6 @@ def _track_id_for_bbox(
     return best_id if best_iou >= min_iou else None
 
 
-def _elegir_fila_para_embed(dets: FaceDetections) -> np.ndarray | None:
-    """
-    Mejor cara para embed entre las que superan ``EMBED_MIN_SCORE``.
-
-    Criterio mov_detect: mayor distancia interocular; desempate implicito por orden.
-    """
-    candidatas = [
-        row
-        for row in dets.dets
-        if float(row[4]) >= s.EMBED_MIN_SCORE
-    ]
-    if not candidatas:
-        return None
-    return max(candidatas, key=distancia_interocular)
-
-
 def _tick_embed_if_needed(
     embedder: FaceEmbedder | None,
     frame,
@@ -307,20 +292,21 @@ def _tick_embed_if_needed(
     fsm_out: FsmTickResult,
     now_ns: int,
     t_ultimo_embed_ns: int | None,
-) -> tuple[FaceEmbedding | None, np.ndarray | None, int | None]:
+) -> tuple[list[tuple[FaceEmbedding, np.ndarray]], int | None]:
     """
     Preprocess + MobileFaceNet en FACE_PROCESSED y FACE_RECOGNIZED; en ambos
     estados se respeta el cooldown EMBED_AND_FACEDETEC_COOLDOWN_S. En FACE_RECOGNIZED cada MATCH
     renueva el timer de sesion (FSM_RECOGNIZED_REFRESH_S).
 
-    Ademas del embedding, devuelve el bbox (x1,y1,x2,y2) de la fila embedeada
-    para correlacionarlo (solo display) con el track de ByteTrack que le
-    corresponde; no participa en la decision de matching.
+    ``dets`` ya viene rankeado (``mejores_caras``, ``FACE_PROCESS_TOP_N``).
+    Solo las primeras ``FACE_EMBED_TOP_N`` filas son candidatas a embed; cada
+    una debe superar ``EMBED_MIN_SCORE``. Cada par (embedding, bbox) correlaciona
+    display con ByteTrack.
     """
     if not fsm_out.run_embedding or embedder is None:
-        return None, None, t_ultimo_embed_ns
+        return [], t_ultimo_embed_ns
     if dets is None or not dets.has_faces:
-        return None, None, t_ultimo_embed_ns
+        return [], t_ultimo_embed_ns
 
     cooldown_ns = int(s.EMBED_AND_FACEDETEC_COOLDOWN_S * _NS_PER_S)
     if (
@@ -328,35 +314,40 @@ def _tick_embed_if_needed(
         and t_ultimo_embed_ns is not None
         and (now_ns - t_ultimo_embed_ns) < cooldown_ns
     ):
-        return None, None, t_ultimo_embed_ns
+        return [], t_ultimo_embed_ns
 
-    row = _elegir_fila_para_embed(dets)
-    if row is None:
-        return None, None, t_ultimo_embed_ns
+    embed_top_n = min(s.FACE_EMBED_TOP_N, int(dets.dets.shape[0]))
+    results: list[tuple[FaceEmbedding, np.ndarray]] = []
+    for row in dets.dets[:embed_top_n]:
+        if float(row[4]) < s.EMBED_MIN_SCORE:
+            continue
+        try:
+            patch = prepare_face_patch(
+                frame,
+                row,
+                arcface_align_enable=s.FACE_ALIGNMENT_ENABLE,
+                rot_align_simple_enable=s.FACE_ROT_ALIGNMENT_SIMPLE_ENABLE,
+                max_abs_roll_deg=s.FACE_ROLL_MAX_DEG,
+                crop_margin_frac=s.FACE_CROP_MARGIN_FRAC,
+            )
+            vector = embedder.embed(patch.bgr)
+        except Exception as exc:
+            logging.warning("[Embed] fallo preprocess o inferencia: %s", exc)
+            continue
 
-    try:
-        patch = prepare_face_patch(
-            frame,
-            row,
-            arcface_align_enable=s.FACE_ALIGNMENT_ENABLE,
-            rot_align_simple_enable=s.FACE_ROT_ALIGNMENT_SIMPLE_ENABLE,
-            max_abs_roll_deg=s.FACE_ROLL_MAX_DEG,
-            crop_margin_frac=s.FACE_CROP_MARGIN_FRAC,
+        logging.debug(
+            "[Embed] score=%.3f dim=%d arcface=%s roll_fix=%s roll=%.1f",
+            float(row[4]),
+            vector.size,
+            patch.used_arcface_align,
+            patch.used_roll_fix,
+            patch.roll_deg,
         )
-        vector = embedder.embed(patch.bgr)
-    except Exception as exc:
-        logging.warning("[Embed] fallo preprocess o inferencia: %s", exc)
-        return None, None, t_ultimo_embed_ns
+        results.append((FaceEmbedding(vector=vector), row[:4].copy()))
 
-    logging.debug(
-        "[Embed] score=%.3f dim=%d arcface=%s roll_fix=%s roll=%.1f",
-        float(row[4]),
-        vector.size,
-        patch.used_arcface_align,
-        patch.used_roll_fix,
-        patch.roll_deg,
-    )
-    return FaceEmbedding(vector=vector), row[:4].copy(), now_ns
+    if not results:
+        return [], t_ultimo_embed_ns
+    return results, now_ns
 
 
 def _release_runtime(obj: FaceDetector | FaceEmbedder | None) -> None:
@@ -582,7 +573,7 @@ def main() -> int:
 
         t_ultimo_embed_ns: int | None = None
         last_identity: IdentityMatch | None = None
-        identity_track_id: int | None = None
+        identity_by_track: dict[int, IdentityMatch] = {}
 
         while True:
             try:
@@ -596,34 +587,29 @@ def main() -> int:
                         face, fsm, motion, frame, now_ns, fsm_out, t_ultimo_embed_ns
                     )
                     tracks = _tick_bytetrack_if_needed(face_tracker, dets)
-                    embedding, embedded_bbox, t_ultimo_embed_ns = _tick_embed_if_needed(
+                    embed_batch, t_ultimo_embed_ns = _tick_embed_if_needed(
                         embedder, frame, dets, fsm_out, now_ns, t_ultimo_embed_ns
                     )
                     live_identity: IdentityMatch | None = None
-                    if embedding is not None and matcher is not None:
-                        matched = matcher.match(embedding.vector)
-                        if matched is not None:
+                    batch_any_match = False
+                    batch_best_match: IdentityMatch | None = None
+                    if embed_batch and matcher is not None:
+                        for embedding, embedded_bbox in embed_batch:
+                            matched = matcher.match(embedding.vector)
+                            if matched is None:
+                                continue
                             live_identity = matched
                             if matched.is_match:
+                                batch_any_match = True
+                                if (
+                                    batch_best_match is None
+                                    or matched.similarity > batch_best_match.similarity
+                                ):
+                                    batch_best_match = matched
                                 last_identity = matched
                                 correlado = _track_id_for_bbox(embedded_bbox, tracks)
                                 if correlado is not None:
-                                    identity_track_id = correlado
-                                _log_transitions(
-                                    fsm.notify_embed_match(
-                                        matched.person_id, True, now_s
-                                    )
-                                )
-                                refresh_restante = fsm.recognized_refresh_remaining_s(
-                                    now_s
-                                )
-                                logging.info(
-                                    "[ID] MATCH id=%s nombre=%r "
-                                    "refresh_restante=%.1f s",
-                                    matched.person_id,
-                                    matched.nombre,
-                                    refresh_restante if refresh_restante is not None else 0.0,
-                                )
+                                    identity_by_track[correlado] = matched
                                 logging.debug(
                                     "[ID] MATCH fila=%d id=%s nombre=%r sim=%.3f (>=%.2f)",
                                     matched.row_index,
@@ -633,18 +619,6 @@ def main() -> int:
                                     s.EMBED_SIM_MIN_MATCH,
                                 )
                             else:
-                                state_antes = fsm.state
-                                _log_transitions(
-                                    fsm.notify_embed_match("", False, now_s)
-                                )
-                                if fsm.state == FlowState.FACE_PROCESSED:
-                                    last_identity = None
-                                    identity_track_id = None
-                                elif state_antes == FlowState.FACE_RECOGNIZED:
-                                    logging.debug(
-                                        "[ID] NO_MATCH refresh (timer activo, "
-                                        "se mantiene ultimo MATCH)"
-                                    )
                                 logging.debug(
                                     "[ID] NO_MATCH fila=%d id=%s nombre=%r sim=%.3f "
                                     "< umbral %.2f",
@@ -655,37 +629,60 @@ def main() -> int:
                                     s.EMBED_SIM_MIN_MATCH,
                                 )
 
-                            if not matched.is_match:
-                                refresh_restante = fsm.recognized_refresh_remaining_s(
-                                    now_s
+                        if batch_any_match and batch_best_match is not None:
+                            _log_transitions(
+                                fsm.notify_embed_match(
+                                    batch_best_match.person_id, True, now_s
                                 )
-                                if refresh_restante is None or refresh_restante <= 0.0:
-                                    n_personas = (
-                                        int(dets.dets.shape[0])
-                                        if dets is not None and dets.has_faces
-                                        else 0
-                                    )
-                                    if n_personas == 1:
-                                        logging.info("Hay 1 persona, sin identificar.")
-                                    else:
-                                        logging.info(
-                                            "Hay %d personas, sin identificar.",
-                                            n_personas,
-                                        )
-                                elif last_identity is not None:
+                            )
+                            refresh_restante = fsm.recognized_refresh_remaining_s(now_s)
+                            logging.info(
+                                "[ID] MATCH id=%s nombre=%r refresh_restante=%.1f s",
+                                batch_best_match.person_id,
+                                batch_best_match.nombre,
+                                refresh_restante if refresh_restante is not None else 0.0,
+                            )
+                        elif embed_batch:
+                            state_antes = fsm.state
+                            _log_transitions(
+                                fsm.notify_embed_match("", False, now_s)
+                            )
+                            if fsm.state == FlowState.FACE_PROCESSED:
+                                last_identity = None
+                                identity_by_track.clear()
+                            elif state_antes == FlowState.FACE_RECOGNIZED:
+                                logging.debug(
+                                    "[ID] NO_MATCH refresh (timer activo, "
+                                    "se mantiene ultimo MATCH)"
+                                )
+                            refresh_restante = fsm.recognized_refresh_remaining_s(now_s)
+                            if refresh_restante is None or refresh_restante <= 0.0:
+                                n_personas = (
+                                    int(dets.dets.shape[0])
+                                    if dets is not None and dets.has_faces
+                                    else 0
+                                )
+                                if n_personas == 1:
+                                    logging.info("Hay 1 persona, sin identificar.")
+                                else:
                                     logging.info(
-                                        "[ID] MATCH retenido id=%s nombre=%r "
-                                        "refresh_restante=%.1f s",
-                                        last_identity.person_id,
-                                        last_identity.nombre,
-                                        refresh_restante,
+                                        "Hay %d personas, sin identificar.",
+                                        n_personas,
                                     )
+                            elif last_identity is not None:
+                                logging.info(
+                                    "[ID] MATCH retenido id=%s nombre=%r "
+                                    "refresh_restante=%.1f s",
+                                    last_identity.person_id,
+                                    last_identity.nombre,
+                                    refresh_restante,
+                                )
 
                     fsm_out = fsm.refresh_outputs(now_s)
 
                     if fsm_out.state == FlowState.IDLE:
                         last_identity = None
-                        identity_track_id = None
+                        identity_by_track.clear()
                         display_identity = None
                         identity_stale = False
                     elif fsm_out.state == FlowState.FACE_RECOGNIZED and last_identity:
@@ -711,7 +708,7 @@ def main() -> int:
                         identity=display_identity,
                         identity_is_stale=identity_stale,
                         tracks=tracks,
-                        identity_track_id=identity_track_id,
+                        identity_by_track=identity_by_track or None,
                     )
                     _publish_vision_http_status(
                         fsm, fsm_out, dets, last_identity, now_ns

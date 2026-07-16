@@ -3,7 +3,7 @@
   "embed_dim": 128,
   "preprocess": "arcface_align",
   "data_normalizada": 1,
-  "generated_at": "2026-06-25T19:35:15.151341+00:00",
+  "generated_at": "2026-07-16T19:14:17.336007+00:00",
   "entries": [
     {
       "id": "0000000102",
@@ -16,6 +16,16 @@
       "used_roll_fix": false
     },
     {
+      "id": "0000001234",
+      "nombre": "Nanutria",
+      "img": "faces_upd/1234_Nanutria_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.9944,
+      "roll_deg": 0.0,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
       "id": "0000000001",
       "nombre": "Angel Sanabria",
       "img": "faces_upd/1_Angel-Sanabria_zero.jpg",
@@ -24,9 +34,127 @@
       "roll_deg": 1.3,
       "used_arcface_align": true,
       "used_roll_fix": false
+    },
+    {
+      "id": "0000002345",
+      "nombre": "Nico_Detracy",
+      "img": "faces_upd/2345_Nico_Detracy_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.9975,
+      "roll_deg": 1.6,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
+      "id": "0000000002",
+      "nombre": "Jose Brochero",
+      "img": "faces_upd/2_Jose-Brochero_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.9998,
+      "roll_deg": 2.0,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
+      "id": "0000003456",
+      "nombre": "Nanutria_Victor",
+      "img": "faces_upd/3456_Nanutria_Victor_zero.png",
+      "rotacion": "cero",
+      "score": 0.9991,
+      "roll_deg": 3.9,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
+      "id": "0000000003",
+      "nombre": "Valentin Lazval",
+      "img": "faces_upd/3_Valentin-Lazval_zero.PNG",
+      "rotacion": "cero",
+      "score": 0.9933,
+      "roll_deg": 1.7,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
+      "id": "0000000004",
+      "nombre": "Gianfranco Talocchino",
+      "img": "faces_upd/4_Gianfranco-Talocchino_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.9999,
+      "roll_deg": -1.1,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
+      "id": "0000005678",
+      "nombre": "Paco_Amoroso",
+      "img": "faces_upd/5678_Paco_Amoroso_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.997,
+      "roll_deg": 0.0,
+      "used_arcface_align": true,
+      "used_roll_fix": false
+    },
+    {
+      "id": "0000006789",
+      "nombre": "Catriel",
+      "img": "faces_upd/6789_Catriel_zero.jpg",
+      "rotacion": "cero",
+      "score": 0.9991,
+      "roll_deg": 0.0,
+      "used_arcface_align": true,
+      "used_roll_fix": false
     }
   ],
   "detecciones": [
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
+    {
+      "count": 0,
+      "last_seen": null,
+      "autorizaciones_validas": 0,
+      "autorizaciones_denegadas": 0
+    },
     {
       "count": 0,
       "last_seen": null,

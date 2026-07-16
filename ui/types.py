@@ -20,3 +20,4 @@ class FrameView:
     identity_is_stale: bool = False
     tracks: TrackResult | None = None
     identity_track_id: int | None = None
+    identity_by_track: dict[int, IdentityMatch] | None = None
