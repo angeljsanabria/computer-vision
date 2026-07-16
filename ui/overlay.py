@@ -48,9 +48,14 @@ class DebugOverlay:
     def render(self, frame_bgr: np.ndarray, view: FrameView) -> np.ndarray:
         vis = frame_bgr.copy()
         self._draw_keep_alive(vis)
-        if view.tracks is not None and view.tracks.tracks:
+        if view.tracks is not None:
+            # Tracking activo: solo se dibujan tracks confirmados por ByteTrack.
+            # Detecciones sin track asociado (aun sin confirmar, o por debajo de
+            # det_thresh) no se muestran; evita mezclar el estilo "#n score" de
+            # RetinaFace con el de tracking en la misma pantalla.
             self._draw_tracks(vis, view)
         else:
+            # Tracking desactivado (ENABLE_FACE_TRACKING=false): dets crudos de RetinaFace.
             self._draw_faces(vis, view.dets)
         self._draw_status(vis, view)
         return vis
