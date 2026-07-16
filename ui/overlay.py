@@ -4,12 +4,40 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from bytetrack.types import TrackResult
 from inference.types import FaceDetections
 from ui.types import FrameView
 
 
+def _track_color(track_id: int) -> tuple[int, int, int]:
+    """Color BGR estable por track_id (misma idea que el bytetrack/visualize.py original)."""
+    r = (track_id * 43) % 256
+    g = (track_id * 97) % 256
+    b = (track_id * 113) % 256
+    return (b, g, r)
+
+
+def _draw_label(
+    vis: np.ndarray, x1: int, y1: int, label: str, color: tuple[int, int, int]
+) -> None:
+    """Label con fondo solido (legible sobre cualquier imagen de fondo)."""
+    (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    txt_y1 = max(y1 - th - 10, 0)
+    cv2.rectangle(vis, (x1, txt_y1), (x1 + tw, txt_y1 + th + 10), color, -1)
+    cv2.putText(
+        vis,
+        label,
+        (x1, txt_y1 + th + 5),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (255, 255, 255),
+        1,
+        cv2.LINE_AA,
+    )
+
+
 class DebugOverlay:
-    """Dibuja estado FSM, MOG2 y bbox de caras sobre una copia del frame."""
+    """Dibuja estado FSM, MOG2 y bbox de caras (o tracks) sobre una copia del frame."""
 
     def __init__(self) -> None:
         self._keep_alive_phase = 0
@@ -17,7 +45,10 @@ class DebugOverlay:
     def render(self, frame_bgr: np.ndarray, view: FrameView) -> np.ndarray:
         vis = frame_bgr.copy()
         self._draw_keep_alive(vis)
-        self._draw_faces(vis, view.dets)
+        if view.tracks is not None and view.tracks.tracks:
+            self._draw_tracks(vis, view.tracks)
+        else:
+            self._draw_faces(vis, view.dets)
         self._draw_status(vis, view)
         return vis
 
@@ -47,17 +78,15 @@ class DebugOverlay:
             x1, y1, x2, y2 = map(int, row[:4])
             score = float(row[4])
             color = (0, 255, 0)
-            label = f"#{idx + 1} {score:.2f}"
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-            cv2.putText(
-                vis,
-                label,
-                (x1, max(y1 - 4, 12)),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.45,
-                color,
-                1,
-            )
+            _draw_label(vis, x1, y1, f"#{idx + 1} {score:.2f}", color)
+
+    def _draw_tracks(self, vis: np.ndarray, tracks: TrackResult) -> None:
+        for track in tracks.tracks:
+            x1, y1, x2, y2 = map(int, track.tlbr)
+            color = _track_color(track.track_id)
+            cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
+            _draw_label(vis, x1, y1, f"ID:{track.track_id} {track.score:.2f}", color)
 
     def _draw_status(self, vis: np.ndarray, view: FrameView) -> None:
         cv2.putText(

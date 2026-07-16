@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from bytetrack.types import TrackResult
 from inference.identity.types import IdentityMatch
 from inference.types import FaceDetections
 from mov_detect.types import FsmTickResult, MotionResult
@@ -17,3 +18,4 @@ class FrameView:
     dets: FaceDetections | None = None
     identity: IdentityMatch | None = None
     identity_is_stale: bool = False
+    tracks: TrackResult | None = None

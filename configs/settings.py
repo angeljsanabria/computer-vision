@@ -4,12 +4,16 @@ import logging
 
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, SNAP, USB
-MAX_FPS = float(os.getenv("MAX_FPS", 3.0))
+MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, SNAP, USB
+MAX_FPS = float(os.getenv("MAX_FPS", 20.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
-    os.getenv("DISPLAY_IS_ENABLE", "false").lower() == "true"
+    os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
 )
+DISPLAY_FORCE_FULL_SCREEN = (
+    os.getenv("DISPLAY_FORCE_FULL_SCREEN", "false").lower() == "true"
+)
+
 # RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
 # FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
 FACE_DETECT_FULLRATE = (
@@ -47,7 +51,7 @@ IMG_QUALITY_CHECK_ENABLE = (
 IMG_QUALITY_CHECK_INTERVAL_S = float(
     os.getenv("IMG_QUALITY_CHECK_INTERVAL_S", "30")
 )
-IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "../data")
+IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "data/")
 
 # 2. HARDWARE LOCAL (CAMARA USB)
 # Perfil de imagen OpenCV validado en camara Sony IMX179 /dev/video10 en RK3568.
@@ -59,7 +63,7 @@ IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "../data")
 #   sharpness min=0 max=100 default=80
 #   auto_exposure menu 0-3 default=3
 #   focus_automatic_continuous default=1
-USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 10))
+USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
 USB_CAMERA_IMAGE_MODE = os.getenv("USB_CAMERA_IMAGE_MODE", "USE_DEFAULT").upper()
 USB_BRIGHTNESS = int(os.getenv("USB_BRIGHTNESS", "0"))  # SONY: min=-64 max=64 default=0
@@ -101,7 +105,7 @@ FSM_TIMEOUT_MOV_S = float(os.getenv("FSM_TIMEOUT_MOV_S", "10"))
 FSM_TIMEOUT_FACE_S = float(os.getenv("FSM_TIMEOUT_FACE_S", "10"))
 
 # 6. INFERENCIA (RetinaFace + MobileFaceNet)
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "rk3568").lower()  # "none", "pc", "rk3568"
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "PC").lower()  # "none", "pc", "rk3568"
 RETINAFACE_MODEL_PC = os.getenv(
     "RETINAFACE_MODEL_PC",
     "models_onnx/RetinaFace_mobile320.onnx",
@@ -151,7 +155,24 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
 EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
-EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "../data")
+EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "data/")
+
+# 7. TRACKING VISUAL (ByteTrack sobre detecciones RetinaFace ya filtradas)
+# Solo overlay/UI: no altera embed, matcher ni FSM. dets se lee, nunca se muta.
+ENABLE_FACE_TRACKING = (
+    os.getenv("ENABLE_FACE_TRACKING", "false").lower() == "true"
+)
+# Score minimo para asociacion de alta confianza / activar tracks nuevos.
+# Por defecto igual a RETINAFACE_SCORE_DETECCION (RetinaFace ya filtra ahi).
+BYTETRACK_TRACK_THRESH = float(
+    os.getenv("BYTETRACK_TRACK_THRESH", str(RETINAFACE_SCORE_DETECCION))
+)
+# Umbral de costo IoU en la asociacion deteccion-track (mas alto = mas estricto).
+BYTETRACK_MATCH_THRESH = float(os.getenv("BYTETRACK_MATCH_THRESH", "0.8"))
+# Ventana (a 30 FPS) de frames que un track puede estar perdido antes de expirar.
+BYTETRACK_TRACK_BUFFER = int(os.getenv("BYTETRACK_TRACK_BUFFER", "30"))
+# FPS real del pipeline para escalar el buffer temporal (defecto = MAX_FPS).
+BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
 
 
 _LOG_LEVEL_BY_MODE = {
@@ -179,6 +200,8 @@ def validar_todo():
         f"Modo Activo: {MODO} | Velocidad Objetivo: {MAX_FPS} FPS | "
         f"Display: {DISPLAY_IS_ENABLE}"
     )
+    if DISPLAY_IS_ENABLE and DISPLAY_FORCE_FULL_SCREEN:
+        logging.info(f"Force Full Screen: {DISPLAY_FORCE_FULL_SCREEN}")
 
     if MODO not in ["RTSP", "SNAP", "USB"]:
         logging.critical(f"CONFIG ERROR: Modo '{MODO}' desconocido. Usar RTSP, SNAP o USB.")
@@ -409,10 +432,12 @@ def validar_todo():
     gallery_path = EMBED_REF_GALLERY_DIR
     if INFERENCE_BACKEND in ("pc", "rk3568"):
         if not os.path.isdir(gallery_path):
-            logging.warning(
-                "Galeria identidad: no existe directorio %s (EMBED_REF_GALLERY_DIR)",
+            logging.critical(
+                "CONFIG ERROR: Galeria identidad: no existe directorio %s "
+                "(EMBED_REF_GALLERY_DIR). Sin galeria no hay reconocimiento posible.",
                 gallery_path,
             )
+            sys.exit(1)
         else:
             if FACE_ALIGNMENT_ENABLE:
                 npy_name, meta_name = "gallery_align.npy", "gallery_meta_align.json"
@@ -445,12 +470,50 @@ def validar_todo():
                     EMBED_SIM_MIN_MATCH,
                 )
             else:
-                logging.warning(
-                    "Galeria identidad: sin %s/%s ni .npy legacy en %s",
+                logging.critical(
+                    "CONFIG ERROR: Galeria identidad: sin %s/%s ni .npy legacy en %s. "
+                    "Sin galeria no hay reconocimiento posible.",
                     npy_name,
                     meta_name,
                     gallery_path,
                 )
+                sys.exit(1)
+
+    if ENABLE_FACE_TRACKING:
+        if BYTETRACK_TRACK_THRESH <= 0.0 or BYTETRACK_TRACK_THRESH > 1.0:
+            logging.critical(
+                "CONFIG ERROR: BYTETRACK_TRACK_THRESH debe estar en (0, 1] (got %.2f).",
+                BYTETRACK_TRACK_THRESH,
+            )
+            sys.exit(1)
+        if BYTETRACK_MATCH_THRESH <= 0.0 or BYTETRACK_MATCH_THRESH > 1.0:
+            logging.critical(
+                "CONFIG ERROR: BYTETRACK_MATCH_THRESH debe estar en (0, 1] (got %.2f).",
+                BYTETRACK_MATCH_THRESH,
+            )
+            sys.exit(1)
+        if BYTETRACK_TRACK_BUFFER < 1:
+            logging.critical(
+                "CONFIG ERROR: BYTETRACK_TRACK_BUFFER debe ser >= 1 (got %d).",
+                BYTETRACK_TRACK_BUFFER,
+            )
+            sys.exit(1)
+        if BYTETRACK_FRAME_RATE <= 0.0:
+            logging.critical(
+                "CONFIG ERROR: BYTETRACK_FRAME_RATE debe ser > 0 (got %.2f).",
+                BYTETRACK_FRAME_RATE,
+            )
+            sys.exit(1)
+        logging.info(
+            "ByteTrack: activo (track_thresh=%.2f, match_thresh=%.2f, "
+            "buffer=%d frames @ %.1f fps)",
+            BYTETRACK_TRACK_THRESH,
+            BYTETRACK_MATCH_THRESH,
+            BYTETRACK_TRACK_BUFFER,
+            BYTETRACK_FRAME_RATE,
+        )
+    else:
+        logging.info("ByteTrack: desactivado (ENABLE_FACE_TRACKING=false)")
 
 
 configure_logging()
