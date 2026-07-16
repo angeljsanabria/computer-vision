@@ -160,7 +160,7 @@ EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "data/")
 # 7. TRACKING VISUAL (ByteTrack sobre detecciones RetinaFace ya filtradas)
 # Solo overlay/UI: no altera embed, matcher ni FSM. dets se lee, nunca se muta.
 ENABLE_FACE_TRACKING = (
-    os.getenv("ENABLE_FACE_TRACKING", "false").lower() == "true"
+    os.getenv("ENABLE_FACE_TRACKING", "true").lower() == "true"
 )
 # Score minimo para asociacion de alta confianza / activar tracks nuevos.
 # Por defecto igual a RETINAFACE_SCORE_DETECCION (RetinaFace ya filtra ahi).

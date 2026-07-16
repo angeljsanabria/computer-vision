@@ -91,6 +91,7 @@ from inference.identity.types import IdentityMatch  # noqa: E402
 from inference.types import FaceDetections, FaceEmbedding  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
 from inference.retinaface.select_best import distancia_interocular, mejores_caras  # noqa: E402
+from bytetrack import ByteTrackConfig, FaceTracker, TrackResult, build_face_tracker  # noqa: E402
 from ui import FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 from utils.ip_cam_urls import build_rtsp_url, build_snap_url  # noqa: E402
@@ -236,6 +237,53 @@ def _tick_retinaface_if_needed(
     return dets, fsm_out
 
 
+def _tick_bytetrack_if_needed(
+    tracker: FaceTracker | None, dets: FaceDetections | None
+) -> TrackResult | None:
+    """
+    Tracking visual sobre dets ya filtradas (top-N); no altera dets ni FSM.
+
+    Aislado con try/except: una falla de tracking nunca debe tapar el resto
+    del frame (embed/matcher/FSM/display). Degrada a None (overlay cae a
+    _draw_faces) en vez de propagar la excepcion.
+    """
+    if tracker is None:
+        return None
+    try:
+        return tracker.update(dets)
+    except Exception as exc:
+        logging.warning("ByteTrack: fallo update(): %s", exc)
+        return None
+
+
+def _iou_xyxy(a: np.ndarray, b: np.ndarray) -> float:
+    """IoU entre dos cajas (x1, y1, x2, y2). Solo para correlacionar display."""
+    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
+    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
+    inter = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+    area_a = max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+    area_b = max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+    union = area_a + area_b - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _track_id_for_bbox(
+    bbox: np.ndarray | None, tracks: TrackResult | None, *, min_iou: float = 0.3
+) -> int | None:
+    """
+    Correlaciona geometricamente el bbox embedeado con el track de ByteTrack
+    mas solapado (solo para etiquetar el overlay; no influye en el matching).
+    """
+    if bbox is None or tracks is None or not tracks.tracks:
+        return None
+    best_id, best_iou = None, 0.0
+    for track in tracks.tracks:
+        iou = _iou_xyxy(bbox, track.tlbr)
+        if iou > best_iou:
+            best_iou, best_id = iou, track.track_id
+    return best_id if best_iou >= min_iou else None
+
+
 def _elegir_fila_para_embed(dets: FaceDetections) -> np.ndarray | None:
     """
     Mejor cara para embed entre las que superan ``EMBED_MIN_SCORE``.
@@ -259,16 +307,20 @@ def _tick_embed_if_needed(
     fsm_out: FsmTickResult,
     now_ns: int,
     t_ultimo_embed_ns: int | None,
-) -> tuple[FaceEmbedding | None, int | None]:
+) -> tuple[FaceEmbedding | None, np.ndarray | None, int | None]:
     """
     Preprocess + MobileFaceNet en FACE_PROCESSED y FACE_RECOGNIZED; en ambos
     estados se respeta el cooldown EMBED_AND_FACEDETEC_COOLDOWN_S. En FACE_RECOGNIZED cada MATCH
     renueva el timer de sesion (FSM_RECOGNIZED_REFRESH_S).
+
+    Ademas del embedding, devuelve el bbox (x1,y1,x2,y2) de la fila embedeada
+    para correlacionarlo (solo display) con el track de ByteTrack que le
+    corresponde; no participa en la decision de matching.
     """
     if not fsm_out.run_embedding or embedder is None:
-        return None, t_ultimo_embed_ns
+        return None, None, t_ultimo_embed_ns
     if dets is None or not dets.has_faces:
-        return None, t_ultimo_embed_ns
+        return None, None, t_ultimo_embed_ns
 
     cooldown_ns = int(s.EMBED_AND_FACEDETEC_COOLDOWN_S * _NS_PER_S)
     if (
@@ -276,11 +328,11 @@ def _tick_embed_if_needed(
         and t_ultimo_embed_ns is not None
         and (now_ns - t_ultimo_embed_ns) < cooldown_ns
     ):
-        return None, t_ultimo_embed_ns
+        return None, None, t_ultimo_embed_ns
 
     row = _elegir_fila_para_embed(dets)
     if row is None:
-        return None, t_ultimo_embed_ns
+        return None, None, t_ultimo_embed_ns
 
     try:
         patch = prepare_face_patch(
@@ -294,7 +346,7 @@ def _tick_embed_if_needed(
         vector = embedder.embed(patch.bgr)
     except Exception as exc:
         logging.warning("[Embed] fallo preprocess o inferencia: %s", exc)
-        return None, t_ultimo_embed_ns
+        return None, None, t_ultimo_embed_ns
 
     logging.debug(
         "[Embed] score=%.3f dim=%d arcface=%s roll_fix=%s roll=%.1f",
@@ -304,7 +356,7 @@ def _tick_embed_if_needed(
         patch.used_roll_fix,
         patch.roll_deg,
     )
-    return FaceEmbedding(vector=vector), now_ns
+    return FaceEmbedding(vector=vector), row[:4].copy(), now_ns
 
 
 def _release_runtime(obj: FaceDetector | FaceEmbedder | None) -> None:
@@ -437,6 +489,26 @@ def main() -> int:
             s.EMBED_SIM_MIN_MATCH,
         )
 
+    face_tracker = build_face_tracker(
+        s.ENABLE_FACE_TRACKING,
+        ByteTrackConfig(
+            track_thresh=s.BYTETRACK_TRACK_THRESH,
+            match_thresh=s.BYTETRACK_MATCH_THRESH,
+            track_buffer=s.BYTETRACK_TRACK_BUFFER,
+            frame_rate=s.BYTETRACK_FRAME_RATE,
+        ),
+    )
+    if face_tracker is not None:
+        logging.debug(
+            "ByteTrack activo (track_thresh=%.2f, match_thresh=%.2f, buffer=%d, fps=%.1f)",
+            s.BYTETRACK_TRACK_THRESH,
+            s.BYTETRACK_MATCH_THRESH,
+            s.BYTETRACK_TRACK_BUFFER,
+            s.BYTETRACK_FRAME_RATE,
+        )
+    else:
+        logging.debug("ByteTrack desactivado (ENABLE_FACE_TRACKING=false)")
+
     display = PipelineDisplay(enabled=s.DISPLAY_IS_ENABLE,
                               forceFullScreen=s.DISPLAY_FORCE_FULL_SCREEN)
     capture: CaptureCameras | None = None
@@ -510,6 +582,7 @@ def main() -> int:
 
         t_ultimo_embed_ns: int | None = None
         last_identity: IdentityMatch | None = None
+        identity_track_id: int | None = None
 
         while True:
             try:
@@ -522,7 +595,8 @@ def main() -> int:
                     dets, fsm_out = _tick_retinaface_if_needed(
                         face, fsm, motion, frame, now_ns, fsm_out, t_ultimo_embed_ns
                     )
-                    embedding, t_ultimo_embed_ns = _tick_embed_if_needed(
+                    tracks = _tick_bytetrack_if_needed(face_tracker, dets)
+                    embedding, embedded_bbox, t_ultimo_embed_ns = _tick_embed_if_needed(
                         embedder, frame, dets, fsm_out, now_ns, t_ultimo_embed_ns
                     )
                     live_identity: IdentityMatch | None = None
@@ -532,6 +606,9 @@ def main() -> int:
                             live_identity = matched
                             if matched.is_match:
                                 last_identity = matched
+                                correlado = _track_id_for_bbox(embedded_bbox, tracks)
+                                if correlado is not None:
+                                    identity_track_id = correlado
                                 _log_transitions(
                                     fsm.notify_embed_match(
                                         matched.person_id, True, now_s
@@ -562,6 +639,7 @@ def main() -> int:
                                 )
                                 if fsm.state == FlowState.FACE_PROCESSED:
                                     last_identity = None
+                                    identity_track_id = None
                                 elif state_antes == FlowState.FACE_RECOGNIZED:
                                     logging.debug(
                                         "[ID] NO_MATCH refresh (timer activo, "
@@ -607,6 +685,7 @@ def main() -> int:
 
                     if fsm_out.state == FlowState.IDLE:
                         last_identity = None
+                        identity_track_id = None
                         display_identity = None
                         identity_stale = False
                     elif fsm_out.state == FlowState.FACE_RECOGNIZED and last_identity:
@@ -631,6 +710,8 @@ def main() -> int:
                         dets=dets,
                         identity=display_identity,
                         identity_is_stale=identity_stale,
+                        tracks=tracks,
+                        identity_track_id=identity_track_id,
                     )
                     _publish_vision_http_status(
                         fsm, fsm_out, dets, last_identity, now_ns

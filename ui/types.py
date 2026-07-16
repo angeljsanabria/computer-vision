@@ -19,3 +19,4 @@ class FrameView:
     identity: IdentityMatch | None = None
     identity_is_stale: bool = False
     tracks: TrackResult | None = None
+    identity_track_id: int | None = None
