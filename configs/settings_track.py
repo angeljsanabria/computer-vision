@@ -143,7 +143,7 @@ EMBED_MIN_SCORE = float(
 # Embed (FACE_PROCESSED/RECOGNIZED) y, sin FACE_DETECT_FULLRATE, RetinaFace en
 # FACE_RECOGNIZED: como maximo cada EMBED_AND_FACEDETEC_COOLDOWN_S. 0 = cada tick con cara.
 EMBED_AND_FACEDETEC_COOLDOWN_S = float(
-    os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S", "1.0")
+    os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S", "0.5")
 )
 
 # 6.3 MobileFaceNet (rutas segun INFERENCE_BACKEND)
