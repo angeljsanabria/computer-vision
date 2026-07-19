@@ -1,4 +1,4 @@
-"""Inferencia de modelos (RetinaFace, MobileFaceNet)."""
+"""Inferencia de modelos (RetinaFace, MobileFaceNet, FaceMesh)."""
 from __future__ import annotations
 
 import logging
@@ -6,7 +6,12 @@ from typing import Protocol
 
 import numpy as np
 
-from inference.types import FaceDetections, FaceEmbedding, FaceSelection
+from inference.types import (
+    FaceDetections,
+    FaceEmbedding,
+    FaceMeshLandmarks,
+    FaceSelection,
+)
 
 
 class FaceDetector(Protocol):
@@ -15,6 +20,12 @@ class FaceDetector(Protocol):
 
 class FaceEmbedder(Protocol):
     def embed(self, face_bgr: np.ndarray) -> np.ndarray: ...
+
+    def release(self) -> None: ...
+
+
+class FaceMeshEstimator(Protocol):
+    def estimate(self, face_bgr: np.ndarray) -> np.ndarray: ...
 
     def release(self) -> None: ...
 
@@ -86,6 +97,31 @@ def build_embedder(backend: str, model_path: str) -> FaceEmbedder | None:
     return None
 
 
+def build_face_mesh(backend: str, model_path: str) -> FaceMeshEstimator | None:
+    """
+    Factory segun backend.
+
+    Mismo backend que RetinaFace: ``none`` sin FaceMesh, ``pc`` ONNX, ``rk3568`` RKNN.
+    RK3568: stub hasta exportar ``face_mesh_192x192.rknn`` (``estimate`` aun no operativo).
+    """
+    if backend == "none":
+        return None
+    if backend == "pc":
+        from inference.facemesh.estimator_pc import FaceMeshEstimatorPc
+
+        return FaceMeshEstimatorPc(model_path=model_path)
+    if backend == "rk3568":
+        from inference.facemesh.estimator_rk3568 import FaceMeshEstimatorRk3568
+
+        return FaceMeshEstimatorRk3568(model_path=model_path)
+
+    logging.critical(
+        "INFERENCE_BACKEND invalido: '%s'. Usar none, pc o rk3568.",
+        backend,
+    )
+    return None
+
+
 def build_identity_matcher(
     backend: str,
     gallery_dir: str,
@@ -112,8 +148,11 @@ __all__ = [
     "FaceDetector",
     "FaceEmbedder",
     "FaceEmbedding",
+    "FaceMeshEstimator",
+    "FaceMeshLandmarks",
     "FaceSelection",
     "build_embedder",
     "build_face_detector",
+    "build_face_mesh",
     "build_identity_matcher",
 ]

@@ -170,9 +170,9 @@ ENABLE_FACE_TRACKING = (
 # para sostener continuidad de tracking con detecciones debiles, este umbral debe mantenerse
 # alto para que ByteTrack solo cree tracks nuevos con deteccion confiable (ver segundo nivel
 # de asociacion "baja confianza" en bytetrack/byte_tracker.py, piso interno 0.1).
-BYTETRACK_TRACK_THRESH = float(os.getenv("BYTETRACK_TRACK_THRESH", "0.7"))  # entran al pull de confianza de tracking
+BYTETRACK_TRACK_THRESH = float(os.getenv("BYTETRACK_TRACK_THRESH", "0.75"))  # entran al pull de confianza de tracking
 # Umbral de costo IoU en la asociacion deteccion-track (mas alto = mas estricto).
-BYTETRACK_MATCH_THRESH = float(os.getenv("BYTETRACK_MATCH_THRESH", "0.6"))  # umbral de asociacion de deteccion-track
+BYTETRACK_MATCH_THRESH = float(os.getenv("BYTETRACK_MATCH_THRESH", "0.7"))  # umbral de asociacion de deteccion-track
 # Mas bajo tolera mas movimiento ; Mas alto es mas exigente (tolera menos movimiento)
 # Ventana (a 30 FPS) de frames que un track puede estar perdido antes de expirar.
 BYTETRACK_TRACK_BUFFER = int(os.getenv("BYTETRACK_TRACK_BUFFER", "20"))

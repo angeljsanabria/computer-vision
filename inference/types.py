@@ -58,3 +58,15 @@ class FaceEmbedding:
     @property
     def dim(self) -> int:
         return int(self.vector.reshape(-1).size)
+
+
+@dataclass(frozen=True)
+class FaceMeshLandmarks:
+    """468 landmarks en pixeles del frame original (x, y, z)."""
+
+    points: np.ndarray
+    crop_xyxy: tuple[int, int, int, int]
+
+    @property
+    def count(self) -> int:
+        return int(self.points.shape[0])

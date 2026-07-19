@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 
 from inference.types import FaceDetections
+from ui.facemesh_overlay import draw_facemesh_points
 from ui.types import FrameView
 
 
@@ -104,6 +105,12 @@ class DebugOverlay:
                 color = _track_color(track.track_id)
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
             _draw_label(vis, x1, y1, label, color)
+
+    def _draw_facemesh(self, vis: np.ndarray, view: FrameView) -> None:
+        """Landmarks densos FaceMesh; opcional via ``FrameView.facemesh`` (sin bbox extra)."""
+        if view.facemesh is None:
+            return
+        draw_facemesh_points(vis, view.facemesh)
 
     def _draw_status(self, vis: np.ndarray, view: FrameView) -> None:
         cv2.putText(
