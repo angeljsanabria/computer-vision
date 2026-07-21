@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 
 from inference.types import FaceDetections
+from ui.facemesh_overlay import draw_facemesh_points
 from ui.types import FrameView
 
 
@@ -118,18 +119,25 @@ class DebugOverlay:
 
     def _draw_tracks(self, vis: np.ndarray, view: FrameView) -> None:
         id_map = view.identity_by_track or {}
+        mesh_map = view.facemesh_by_track or {}
         for track in view.tracks.tracks:
             x1, y1, x2, y2 = map(int, track.tlbr)
             idm = id_map.get(track.track_id)
             if idm is None and view.identity is not None and track.track_id == view.identity_track_id:
                 idm = view.identity
-            if idm is not None and idm.is_match:
+            is_match = idm is not None and idm.is_match
+            if is_match:
                 label = f"{idm.nombre}\nID: {idm.person_id}"
                 color = (0, 0, 255) if view.identity_is_stale else (0, 200, 0)
             else:
                 label = f"Desconocido\n# {track.track_id}"
                 color = _track_color(track.track_id)
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
+            # FaceMesh UX: solo desconocidos (MATCH gana aunque queden landmarks viejos).
+            if not is_match:
+                landmarks = mesh_map.get(track.track_id)
+                if landmarks is not None:
+                    draw_facemesh_points(vis, landmarks, point_color=color)
             _draw_label(vis, x1, y1, label, color)
 
     def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:

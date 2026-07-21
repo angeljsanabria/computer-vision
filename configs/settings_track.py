@@ -34,11 +34,15 @@ FACE_DETECT_FULLRATE = (
 FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 10))
 # De esas N rankeadas, cuantas reciben embed + reconocimiento (mejores primero).
 FACE_EMBED_TOP_N = int(os.getenv("FACE_EMBED_TOP_N", 2))
+# FaceMesh UX: landmarks solo en tracks sin MATCH (desconocidos). Requiere display.
+ENABLE_FACEMESH = os.getenv("ENABLE_FACEMESH", "true").lower() == "true"
+# Maximo de desconocidos con mesh por frame (presupuesto CPU; tipico 2-3).
+FACE_MESH_TOP_N = int(os.getenv("FACE_MESH_TOP_N", 2))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
-CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 640))   #  High 2560    Medium 1080     Low 640
-CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  #  High 1920    Medium 720      Low 480
+CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 1920))   #  High 2560    Medium 1080     Low 640
+CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 1080))  #  High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
@@ -176,6 +180,16 @@ MOBILEFACENET_MODEL_PC = os.getenv(
 MOBILEFACENET_MODEL_RK3568 = os.getenv(
     "MOBILEFACENET_MODEL_RK3568",
     "models/MobileFaceNet.rknn",
+)
+
+# 6.3b FaceMesh 468 landmarks (UX desconocidos; rutas segun INFERENCE_BACKEND)
+FACEMESH_MODEL_PC = os.getenv(
+    "FACEMESH_MODEL_PC",
+    "models_onnx/face_mesh_192x192.onnx",
+)
+FACEMESH_MODEL_RK3568 = os.getenv(
+    "FACEMESH_MODEL_RK3568",
+    "models/face_mesh_192x192.rknn",
 )
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
@@ -414,6 +428,54 @@ def validar_todo():
         RETINAFACE_SCORE_DETECCION,
         min(FACE_EMBED_TOP_N, FACE_PROCESS_TOP_N),
     )
+
+    if ENABLE_FACEMESH:
+        if FACE_MESH_TOP_N < 1:
+            logging.critical("CONFIG ERROR: FACE_MESH_TOP_N debe ser >= 1.")
+            sys.exit(1)
+        if FACE_MESH_TOP_N > FACE_PROCESS_TOP_N:
+            logging.warning(
+                "FACE_MESH_TOP_N (%d) > FACE_PROCESS_TOP_N (%d): "
+                "se limitara mesh a %d.",
+                FACE_MESH_TOP_N,
+                FACE_PROCESS_TOP_N,
+                FACE_PROCESS_TOP_N,
+            )
+        if not DISPLAY_IS_ENABLE:
+            logging.warning(
+                "ENABLE_FACEMESH=true pero DISPLAY_IS_ENABLE=false: "
+                "FaceMesh es UX de overlay; el tick no correra sin display."
+            )
+        if INFERENCE_BACKEND == "pc":
+            mesh_pc = FACEMESH_MODEL_PC
+            if not os.path.isfile(mesh_pc):
+                logging.critical(
+                    "CONFIG ERROR: ENABLE_FACEMESH=true e INFERENCE_BACKEND=pc "
+                    f"pero no existe FACEMESH_MODEL_PC: {mesh_pc}"
+                )
+                sys.exit(1)
+            logging.info("FaceMesh PC: %s (top %d desconocidos)", mesh_pc, FACE_MESH_TOP_N)
+        elif INFERENCE_BACKEND == "rk3568":
+            mesh_rk = FACEMESH_MODEL_RK3568
+            if not os.path.isfile(mesh_rk):
+                logging.warning(
+                    "ENABLE_FACEMESH=true: FACEMESH_MODEL_RK3568 no existe (%s). "
+                    "Estimator RK3568 es stub hasta export .rknn.",
+                    mesh_rk,
+                )
+            else:
+                logging.info(
+                    "FaceMesh RK3568: %s (top %d; stub hasta NPU)",
+                    mesh_rk,
+                    FACE_MESH_TOP_N,
+                )
+        else:
+            logging.info(
+                "FaceMesh: ENABLE_FACEMESH=true pero INFERENCE_BACKEND=none "
+                "(sin estimator)."
+            )
+    else:
+        logging.info("FaceMesh: desactivado (ENABLE_FACEMESH=false)")
 
     if FACE_ROLL_MAX_DEG < 0 or FACE_ROLL_MAX_DEG > 45:
         logging.critical(

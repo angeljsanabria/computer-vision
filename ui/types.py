@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from bytetrack.types import TrackResult
 from inference.identity.types import IdentityMatch
-from inference.types import FaceDetections
+from inference.types import FaceDetections, FaceMeshLandmarks
 from mov_detect.types import FsmTickResult, MotionResult
 
 
@@ -21,3 +21,5 @@ class FrameView:
     tracks: TrackResult | None = None
     identity_track_id: int | None = None
     identity_by_track: dict[int, IdentityMatch] | None = None
+    # FaceMesh UX: landmarks por track_id (solo desconocidos; lo llena main_track).
+    facemesh_by_track: dict[int, FaceMeshLandmarks] | None = None

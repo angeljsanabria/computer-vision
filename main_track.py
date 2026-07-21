@@ -34,6 +34,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
   FACE_PROCESS_TOP_N     — cuantas caras mostrar (bbox/track), mejores primero
   FACE_EMBED_TOP_N       — de esas, cuantas reciben embed + reconocimiento
+  ENABLE_FACEMESH        — UX landmarks 468 en tracks sin MATCH (requiere display)
+  FACE_MESH_TOP_N        — max desconocidos con mesh por frame (defecto 2)
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
   EMBED_AND_FACEDETEC_COOLDOWN_S — segundos entre embeds/deteccion (0 = cada tick con cara)
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
@@ -81,8 +83,10 @@ import numpy as np  # noqa: E402
 from inference import (  # noqa: E402
     FaceDetector,
     FaceEmbedder,
+    FaceMeshEstimator,
     build_embedder,
     build_face_detector,
+    build_face_mesh,
     build_identity_matcher,
 )
 from inference.identity.matcher import (  # noqa: E402
@@ -92,8 +96,9 @@ from inference.identity.matcher import (  # noqa: E402
     GALLERY_NPY_NAME,
 )
 from inference.identity.types import IdentityMatch  # noqa: E402
-from inference.types import FaceDetections, FaceEmbedding  # noqa: E402
+from inference.types import FaceDetections, FaceEmbedding, FaceMeshLandmarks  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
+from inference.facemesh.from_detection import estimate_from_det  # noqa: E402
 from inference.retinaface.select_best import mejores_caras  # noqa: E402
 from bytetrack import ByteTrackConfig, FaceTracker, TrackResult, build_face_tracker  # noqa: E402
 from ui import DisplayBanner, FrameView, PipelineDisplay  # noqa: E402
@@ -288,6 +293,72 @@ def _track_id_for_bbox(
     return best_id if best_iou >= min_iou else None
 
 
+def _det_row_for_track(
+    track_tlbr: np.ndarray,
+    dets: FaceDetections | None,
+    *,
+    min_iou: float = 0.3,
+) -> np.ndarray | None:
+    """Fila RetinaFace mas solapada con el track (para crop FaceMesh)."""
+    if dets is None or not dets.has_faces:
+        return None
+    best_row: np.ndarray | None = None
+    best_iou = 0.0
+    for row in dets.dets:
+        iou = _iou_xyxy(track_tlbr, row[:4])
+        if iou > best_iou:
+            best_iou = iou
+            best_row = row
+    return best_row if best_iou >= min_iou and best_row is not None else None
+
+
+def _tick_facemesh_if_needed(
+    mesh: FaceMeshEstimator | None,
+    frame,
+    dets: FaceDetections | None,
+    tracks: TrackResult | None,
+    identity_by_track: dict[int, IdentityMatch],
+) -> dict[int, FaceMeshLandmarks]:
+    """
+    FaceMesh UX: landmarks solo en tracks sin MATCH, hasta FACE_MESH_TOP_N.
+
+    Corre despues de actualizar ``identity_by_track``. Sin display o sin
+    estimator no hace trabajo (feature de overlay comercial).
+    """
+    out: dict[int, FaceMeshLandmarks] = {}
+    if not s.ENABLE_FACEMESH or not s.DISPLAY_IS_ENABLE or mesh is None:
+        return out
+    if tracks is None or not tracks.tracks:
+        return out
+
+    candidates = []
+    for track in tracks.tracks:
+        idm = identity_by_track.get(track.track_id)
+        if idm is not None and idm.is_match:
+            continue
+        candidates.append(track)
+    candidates.sort(key=lambda t: t.score, reverse=True)
+    top_n = min(s.FACE_MESH_TOP_N, len(candidates))
+
+    for track in candidates[:top_n]:
+        det_row = _det_row_for_track(track.tlbr, dets)
+        if det_row is None:
+            continue
+        try:
+            landmarks = estimate_from_det(
+                frame,
+                det_row,
+                mesh,
+                margin_frac=s.FACE_CROP_MARGIN_FRAC,
+            )
+        except Exception as exc:
+            logging.warning("[FaceMesh] fallo estimate: %s", exc)
+            continue
+        if landmarks is not None:
+            out[track.track_id] = landmarks
+    return out
+
+
 def _tick_embed_if_needed(
     embedder: FaceEmbedder | None,
     frame,
@@ -353,7 +424,9 @@ def _tick_embed_if_needed(
     return results, now_ns
 
 
-def _release_runtime(obj: FaceDetector | FaceEmbedder | None) -> None:
+def _release_runtime(
+    obj: FaceDetector | FaceEmbedder | FaceMeshEstimator | None,
+) -> None:
     """Libera runtime si el objeto expone release() (p. ej. RKNNLite en RK3568)."""
     if obj is None:
         return
@@ -502,6 +575,31 @@ def main() -> int:
         )
     else:
         logging.debug("ByteTrack desactivado (ENABLE_FACE_TRACKING=false)")
+
+    face_mesh: FaceMeshEstimator | None = None
+    if s.ENABLE_FACEMESH:
+        if backend == "pc":
+            facemesh_model = s.FACEMESH_MODEL_PC
+        elif backend == "rk3568":
+            facemesh_model = s.FACEMESH_MODEL_RK3568
+        else:
+            facemesh_model = ""
+        if facemesh_model:
+            face_mesh = build_face_mesh(backend, facemesh_model)
+        if face_mesh is not None:
+            logging.debug(
+                "FaceMesh activo (backend=%s, top_n=%d, solo tracks sin MATCH)",
+                s.INFERENCE_BACKEND,
+                s.FACE_MESH_TOP_N,
+            )
+        else:
+            logging.debug(
+                "FaceMesh no creado (ENABLE_FACEMESH=%s, backend=%s)",
+                s.ENABLE_FACEMESH,
+                s.INFERENCE_BACKEND,
+            )
+    else:
+        logging.debug("FaceMesh desactivado (ENABLE_FACEMESH=false)")
 
     display = PipelineDisplay.from_settings(
         enabled=s.DISPLAY_IS_ENABLE,
@@ -722,6 +820,14 @@ def main() -> int:
                         display_identity = None
                         identity_stale = False
 
+                    facemesh_by_track = _tick_facemesh_if_needed(
+                        face_mesh,
+                        frame,
+                        dets,
+                        tracks,
+                        identity_by_track,
+                    )
+
                     view = FrameView(
                         mov=mov,
                         fsm=fsm_out,
@@ -730,6 +836,7 @@ def main() -> int:
                         identity_is_stale=identity_stale,
                         tracks=tracks,
                         identity_by_track=identity_by_track or None,
+                        facemesh_by_track=facemesh_by_track or None,
                     )
                     _publish_vision_http_status(
                         fsm, fsm_out, dets, last_identity, now_ns
@@ -760,6 +867,7 @@ def main() -> int:
                 logging.warning("API vision: error en cierre: %s", exc)
         _release_face_detector(face)
         _release_runtime(embedder)
+        _release_runtime(face_mesh)
         if capture is not None:
             capture.stop()
         display.teardown()
