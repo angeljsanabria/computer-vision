@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from bytetrack.types import TrackResult
 from inference.identity.types import IdentityMatch
-from inference.types import FaceDetections, FaceMeshLandmarks
+from inference.types import FaceDetections
 from mov_detect.types import FsmTickResult, MotionResult
 
 
@@ -21,5 +21,3 @@ class FrameView:
     tracks: TrackResult | None = None
     identity_track_id: int | None = None
     identity_by_track: dict[int, IdentityMatch] | None = None
-    # Experimental FaceMesh 468 (ver ui/overlay._draw_facemesh). Eliminar si no se aprueba el modelo.
-    facemesh: FaceMeshLandmarks | None = None

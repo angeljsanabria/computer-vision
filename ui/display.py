@@ -23,14 +23,14 @@ class PipelineDisplay:
     """
 
     def __init__(
-            self,
-            *,
-            enabled: bool,
-            window_name: str = "pipeline_mov",
-            forceFullScreen: bool = False,
-            window_width: int = 0,
-            window_height: int = 0,
-            banner: DisplayBanner | None = None,
+        self,
+        *,
+        enabled: bool,
+        window_name: str = "pipeline_mov",
+        forceFullScreen: bool = False,
+        window_width: int = 0,
+        window_height: int = 0,
+        banner: DisplayBanner | None = None,
     ) -> None:
         self._enabled = enabled
         self._window_name = window_name
@@ -56,14 +56,14 @@ class PipelineDisplay:
 
     @classmethod
     def from_settings(
-            cls,
-            *,
-            enabled: bool,
-            force_full_screen: bool,
-            display_width: int,
-            display_height: int,
-            window_name: str = "pipeline_mov",
-            banner: DisplayBanner | None = None,
+        cls,
+        *,
+        enabled: bool,
+        force_full_screen: bool,
+        display_width: int,
+        display_height: int,
+        window_name: str = "pipeline_mov",
+        banner: DisplayBanner | None = None,
     ) -> PipelineDisplay:
         return cls(
             enabled=enabled,
@@ -90,7 +90,7 @@ class PipelineDisplay:
             cv2.setWindowProperty(
                 self._window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN
             )
-
+            
         cv2.waitKey(1)
         self._opened = True
         logging.debug("Display activo (q en ventana para salir).")

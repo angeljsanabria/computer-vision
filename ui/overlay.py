@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 
 from inference.types import FaceDetections
-from ui.facemesh_overlay import draw_facemesh_points
 from ui.types import FrameView
 
 
@@ -41,14 +40,13 @@ def _draw_label(
 
 
 class DebugOverlay:
-    """Dibuja estado FSM, MOG2 y bbox de caras (o tracks) sobre una copia del frame."""
+    """Dibuja bbox/tracks e identidad sobre una copia del frame."""
 
     def __init__(self) -> None:
         self._keep_alive_phase = 0
 
     def render(self, frame_bgr: np.ndarray, view: FrameView) -> np.ndarray:
         vis = frame_bgr.copy()
-        self._draw_keep_alive(vis)
         if view.tracks is not None:
             # Tracking activo: solo se dibujan tracks confirmados por ByteTrack.
             # Detecciones sin track asociado (aun sin confirmar, o por debajo de
@@ -58,27 +56,55 @@ class DebugOverlay:
         else:
             # Tracking desactivado (ENABLE_FACE_TRACKING=false): dets crudos de RetinaFace.
             self._draw_faces(vis, view.dets)
-        self._draw_status(vis, view)
+        self._draw_identity(vis, view)
         return vis
+
+    def draw_keep_alive(self, vis: np.ndarray, *, below_y: int = 0) -> None:
+        """
+        Indicador de vida sobre el canvas final.
+
+        ``below_y``: borde inferior del banner. Si es > 0, dibuja justo debajo
+        a la derecha; si es 0, esquina inferior derecha.
+        """
+        h, w = vis.shape[:2]
+        if h <= 0 or w <= 0:
+            return
+
+        alive = self._next_keep_alive()
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = 1.2
+        thickness = 2
+        (tw, th), _ = cv2.getTextSize(alive, font, scale, thickness)
+        pad = 4
+        box_w = tw + pad * 2
+        box_h = th + pad * 2
+
+        if below_y > 0:
+            # Pegado al borde inferior del banner (derecha).
+            x1 = max(0, w - box_w - 8)
+            y1 = min(below_y + 1, max(0, h - box_h))
+        else:
+            x1 = max(0, w - box_w - 8)
+            y1 = max(0, h - box_h - 8)
+
+        x2 = min(w, x1 + box_w)
+        y2 = min(h, y1 + box_h)
+        cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 0, 0), -1)
+        cv2.putText(
+            vis,
+            alive,
+            (x1 + pad, y2 - pad),
+            font,
+            scale,
+            (255, 255, 255),
+            thickness,
+            cv2.LINE_AA,
+        )
 
     def _next_keep_alive(self) -> str:
         dots = "." * (self._keep_alive_phase + 1)
         self._keep_alive_phase = (self._keep_alive_phase + 1) % 3
         return dots
-
-    def _draw_keep_alive(self, vis: np.ndarray) -> None:
-        _, w = vis.shape[:2]
-        alive = self._next_keep_alive()
-        (tw, th), _ = cv2.getTextSize(alive, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
-        cv2.putText(
-            vis,
-            alive,
-            (w - tw - 8, th + 8),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (200, 200, 200),
-            2,
-        )
 
     def _draw_faces(self, vis: np.ndarray, dets: FaceDetections | None) -> None:
         if dets is None or not dets.has_faces:
@@ -98,7 +124,7 @@ class DebugOverlay:
             if idm is None and view.identity is not None and track.track_id == view.identity_track_id:
                 idm = view.identity
             if idm is not None and idm.is_match:
-                label = f"{idm.nombre}\nid={idm.person_id}"
+                label = f"{idm.nombre}\nID: {idm.person_id}"
                 color = (0, 0, 255) if view.identity_is_stale else (0, 200, 0)
             else:
                 label = f"Desconocido\n# {track.track_id}"
@@ -106,71 +132,17 @@ class DebugOverlay:
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
             _draw_label(vis, x1, y1, label, color)
 
-    def _draw_facemesh(self, vis: np.ndarray, view: FrameView) -> None:
-        """Landmarks densos FaceMesh; opcional via ``FrameView.facemesh`` (sin bbox extra)."""
-        if view.facemesh is None:
-            return
-        draw_facemesh_points(vis, view.facemesh)
-
-    def _draw_status(self, vis: np.ndarray, view: FrameView) -> None:
-        cv2.putText(
-            vis,
-            f"estado: {view.fsm.state.value}",
-            (8, 28),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.7,
-            (0, 255, 0),
-            2,
-        )
-        cv2.putText(
-            vis,
-            f"MOG2 px={view.mov.pixel_count} mov={view.mov.hay_mov}",
-            (8, 56),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (0, 255, 255),
-            1,
-        )
-        self._draw_identity(vis, view)
-
     def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:
+        """Barra inferior solo con identidad confirmada (activa o retenida)."""
+        idm = view.identity
+        if idm is None or not idm.is_match:
+            return
+
         h, w = vis.shape[:2]
         cv2.rectangle(vis, (0, h - 32), (w, h), (0, 0, 0), -1)
 
-        if view.identity is None:
-            cv2.putText(
-                vis,
-                "Sin identidad",
-                (6, h - 10),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.55,
-                (160, 160, 160),
-                1,
-                cv2.LINE_AA,
-            )
-            return
-
-        idm = view.identity
-        rot = f" rot={idm.rotacion}" if idm.rotacion else ""
-
-        if view.identity_is_stale:
-            bar = (
-                f"ultima: {idm.nombre} id={idm.person_id}{rot} "
-                f"sim={idm.similarity:.3f} MATCH"
-            )
-            color = (0, 0, 255)
-        elif idm.is_match:
-            bar = (
-                f"{idm.nombre} id={idm.person_id}{rot} "
-                f"sim={idm.similarity:.3f} MATCH"
-            )
-            color = (0, 200, 0)
-        else:
-            bar = (
-                f"{idm.nombre} id={idm.person_id}{rot} "
-                f"sim={idm.similarity:.3f} NO_MATCH"
-            )
-            color = (0, 140, 255)
+        bar = f"{idm.nombre}  ID: {idm.person_id}"
+        color = (0, 0, 255) if view.identity_is_stale else (0, 200, 0)
 
         cv2.putText(
             vis,
