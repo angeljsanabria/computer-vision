@@ -3,6 +3,8 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/ByteTrack_repo" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mesh-originals/face-landmark-detection" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mesh-originals/pfld_106_face_landmarks" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rknn-toolkit2" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/rknn_model_zoo" vcs="Git" />
   </component>

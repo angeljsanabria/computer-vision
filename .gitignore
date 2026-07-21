@@ -52,6 +52,6 @@ embeddings/faces_upd
 # entrenamiento de modelos
 yolo_train/**/
 get_dataset/*/**
-
+facemesh-models/calib/*.jpg
 
 
