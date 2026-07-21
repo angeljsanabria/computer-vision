@@ -24,8 +24,11 @@ Estados FSM (resumen):
 
 Variables de entorno utiles (ver ``configs/settings.py``):
   CONFIG_MODO          — USB | RTSP | SNAP
+  IP_CAM_USE_RTMP_BALANCED — true=RTMP Reolink (solo CONFIG_MODO=RTSP)
+  IP_CAM_RTMP_STREAM — MAIN | EXT | SUB (default EXT)
   DISPLAY_IS_ENABLE    — true/false (overlay OpenCV)
   DISPLAY_FORCE_FULL_SCREEN    — true/false (overlay OpenCV) set WND_PROP_FULLSCREEN
+  DISPLAY_WIDTH / DISPLAY_HEIGHT — tamano ventana (0 = sin resizeWindow)
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
   FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
@@ -93,9 +96,9 @@ from inference.types import FaceDetections, FaceEmbedding  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
 from inference.retinaface.select_best import mejores_caras  # noqa: E402
 from bytetrack import ByteTrackConfig, FaceTracker, TrackResult, build_face_tracker  # noqa: E402
-from ui import FrameView, PipelineDisplay  # noqa: E402
+from ui import DisplayBanner, FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
-from utils.ip_cam_urls import build_rtsp_url, build_snap_url  # noqa: E402
+from utils.ip_cam_urls import build_rtmp_url, build_rtsp_url, build_snap_url  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers locales (orquestacion del pipeline por etapas).
@@ -500,8 +503,17 @@ def main() -> int:
     else:
         logging.debug("ByteTrack desactivado (ENABLE_FACE_TRACKING=false)")
 
-    display = PipelineDisplay(enabled=s.DISPLAY_IS_ENABLE,
-                              forceFullScreen=s.DISPLAY_FORCE_FULL_SCREEN)
+    display = PipelineDisplay.from_settings(
+        enabled=s.DISPLAY_IS_ENABLE,
+        force_full_screen=s.DISPLAY_FORCE_FULL_SCREEN,
+        display_width=s.DISPLAY_WIDTH,
+        display_height=s.DISPLAY_HEIGHT,
+        banner=(
+            DisplayBanner.try_from_path(s.DISPLAY_BANNER_PATH)
+            if s.DISPLAY_IS_ENABLE
+            else None
+        ),
+    )
     capture: CaptureCameras | None = None
     exit_code = 0
 
@@ -522,13 +534,22 @@ def main() -> int:
                 out_dir=s.IMG_QUALITY_CHECK_DIR,
             )
 
-        rtsp_url = build_rtsp_url(
-            s.IP_CAM_HOST,
-            s.IP_CAM_USER,
-            s.IP_CAM_PASS,
-            s.IP_CAM_RTSP_PORT,
-            s.IP_CAM_RTSP_STREAM_PATH_SELECTED_RESOLUTION,
-        )
+        if s.IP_CAM_USE_RTMP_BALANCED:
+            rtsp_url = build_rtmp_url(
+                s.IP_CAM_HOST,
+                s.IP_CAM_USER,
+                s.IP_CAM_PASS,
+                s.IP_CAM_RTMP_PORT,
+                s.IP_CAM_RTMP_STREAM_SELECTED,
+            )
+        else:
+            rtsp_url = build_rtsp_url(
+                s.IP_CAM_HOST,
+                s.IP_CAM_USER,
+                s.IP_CAM_PASS,
+                s.IP_CAM_RTSP_PORT,
+                s.IP_CAM_RTSP_STREAM_PATH_SELECTED_RESOLUTION,
+            )
         snap_url = build_snap_url(
             s.IP_CAM_HOST,
             s.IP_CAM_USER,

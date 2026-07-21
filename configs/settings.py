@@ -4,31 +4,31 @@ import logging
 
 # 1. CONFIGURACIONES GENERALES
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, SNAP, USB
-MAX_FPS = float(os.getenv("MAX_FPS", 20.0))
+MODO = os.getenv("CONFIG_MODO", "RTSP").upper()  # RTSP, SNAP, USB
+MAX_FPS = float(os.getenv("MAX_FPS", 3.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
-    os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
+        os.getenv("DISPLAY_IS_ENABLE", "false").lower() == "true"
 )
 DISPLAY_FORCE_FULL_SCREEN = (
-    os.getenv("DISPLAY_FORCE_FULL_SCREEN", "false").lower() == "true"
+        os.getenv("DISPLAY_FORCE_FULL_SCREEN", "false").lower() == "true"
 )
+# Tamano ventana OpenCV (resizeWindow + moveWindow). 0 desactiva el resize.
+DISPLAY_WIDTH = int(os.getenv("DISPLAY_WIDTH", "0"))
+DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "0"))
 
 # RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
 # FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
 FACE_DETECT_FULLRATE = (
-    os.getenv("FACE_DETECT_FULLRATE", str(DISPLAY_IS_ENABLE)).lower() == "true"
+        os.getenv("FACE_DETECT_FULLRATE", str(DISPLAY_IS_ENABLE)).lower() == "true"
 )
-# Cuantas caras mostrar (bbox/track) entre las que pasan RETINAFACE_SCORE_DETECCION.
-# Ej.: 20 detectadas, 10 pasan umbral, N=5 -> las 5 mejores en pantalla.
+# Cuantas caras rankeadas procesar (1=mejor, 2=mejor+siguiente, ...).
 FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 2))
-# De esas N rankeadas, cuantas reciben embed + reconocimiento (mejores primero).
-FACE_EMBED_TOP_N = int(os.getenv("FACE_EMBED_TOP_N", 1))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
-CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 640))   #  High 2560    Medium 1080     Low 640
-CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  #  High 1920    Medium 720      Low 480
+CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 640))  # High 2560    Medium 1080     Low 640
+CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  # High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
@@ -49,12 +49,12 @@ HTTP_API_PORT = int(os.getenv("HTTP_API_PORT", "8008"))
 
 # 1.6 Snapshot calidad imagen (headless; pisa img_snap.jpg cada N s en capture)
 IMG_QUALITY_CHECK_ENABLE = (
-    os.getenv("IMG_QUALITY_CHECK_ENABLE", "false").lower() == "true"
+        os.getenv("IMG_QUALITY_CHECK_ENABLE", "false").lower() == "true"
 )
 IMG_QUALITY_CHECK_INTERVAL_S = float(
     os.getenv("IMG_QUALITY_CHECK_INTERVAL_S", "30")
 )
-IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "data/")
+IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "../data")
 
 # 2. HARDWARE LOCAL (CAMARA USB)
 # Perfil de imagen OpenCV validado en camara Sony IMX179 /dev/video10 en RK3568.
@@ -66,7 +66,7 @@ IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "data/")
 #   sharpness min=0 max=100 default=80
 #   auto_exposure menu 0-3 default=3
 #   focus_automatic_continuous default=1
-USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
+USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 10))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
 USB_CAMERA_IMAGE_MODE = os.getenv("USB_CAMERA_IMAGE_MODE", "USE_DEFAULT").upper()
 USB_BRIGHTNESS = int(os.getenv("USB_BRIGHTNESS", "0"))  # SONY: min=-64 max=64 default=0
@@ -85,7 +85,19 @@ IP_CAM_RTSP_STREAM_PATH_HIGH = os.getenv("IP_CAM_RTSP_ROUTE_HIGH", "Preview_01_m
 
 IP_CAM_RTSP_STREAM_PATH_SELECTED_RESOLUTION = IP_CAM_RTSP_STREAM_PATH_LOW
 
-# 3.2 SNAP (query de resolucion; la URL se arma en main)
+# 3.2 RTMP (Reolink standalone; opt-in con IP_CAM_USE_RTMP_BALANCED=true)
+IP_CAM_USE_RTMP_BALANCED = (
+        os.getenv("IP_CAM_USE_RTMP_BALANCED", "false").lower() == "true"
+)
+IP_CAM_RTMP_PORT = os.getenv("IP_CAM_RTMP_PORT", "1935")
+IP_CAM_RTMP_STREAM_MAIN = "MAIN"
+IP_CAM_RTMP_STREAM_EXT = "EXT"
+IP_CAM_RTMP_STREAM_SUB = "SUB"
+IP_CAM_RTMP_STREAM_SELECTED = os.getenv(
+    "IP_CAM_RTMP_STREAM", IP_CAM_RTMP_STREAM_EXT
+).upper()
+
+# 3.3 SNAP (query de resolucion; la URL se arma en main)
 IP_CAM_SNAP_RES_QUERY_LOW = os.getenv("IP_CAM_ROUTE_SNAP_LOW_RES", "width=640&height=480")
 IP_CAM_SNAP_RES_QUERY_HIGH = os.getenv("IP_CAM_ROUTE_SNAP_HIGH_RES", "width=2560&height=1920")
 
@@ -93,9 +105,9 @@ IP_CAM_SNAP_RES_QUERY_SELECTED_RESOLUTION = IP_CAM_SNAP_RES_QUERY_LOW
 
 # 4. DETECCION DE MOVIMIENTO (MOG2) + FSM
 ENABLE_MOV_DETECTION = (
-    os.getenv("ENABLE_MOV_DETECTION", "false").lower() == "true"
+        os.getenv("ENABLE_MOV_DETECTION", "false").lower() == "true"
 )
-    
+
 MOG2_PROCESS_WIDTH = int(os.getenv("MOG2_PROCESS_WIDTH", "320"))
 MOG2_PROCESS_HEIGHT = int(os.getenv("MOG2_PROCESS_HEIGHT", "240"))
 MOG2_HISTORY = int(os.getenv("MOG2_HISTORY", "20"))
@@ -108,7 +120,7 @@ FSM_TIMEOUT_MOV_S = float(os.getenv("FSM_TIMEOUT_MOV_S", "10"))
 FSM_TIMEOUT_FACE_S = float(os.getenv("FSM_TIMEOUT_FACE_S", "10"))
 
 # 6. INFERENCIA (RetinaFace + MobileFaceNet)
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "PC").lower()  # "none", "pc", "rk3568"
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "rk3568").lower()  # "none", "pc", "rk3568"
 RETINAFACE_MODEL_PC = os.getenv(
     "RETINAFACE_MODEL_PC",
     "models_onnx/RetinaFace_mobile320.onnx",
@@ -126,10 +138,10 @@ RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 # FACE_ALIGNMENT_ENABLE: siempre align ArcFace 5 pt (galeria .npy enrolada igual).
 # Si ambos true, gana ArcFace (warning en validar_todo).
 FACE_ALIGNMENT_ENABLE = (
-    os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
+        os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
 )
 FACE_ROT_ALIGNMENT_SIMPLE_ENABLE = (
-    os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"
+        os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"
 )
 FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "10"))
 FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
@@ -158,25 +170,7 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
 EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
-EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "data/")
-
-# 7. TRACKING VISUAL (ByteTrack sobre detecciones RetinaFace ya filtradas)
-# Solo overlay/UI: no altera embed, matcher ni FSM. dets se lee, nunca se muta.
-ENABLE_FACE_TRACKING = (
-    os.getenv("ENABLE_FACE_TRACKING", "true").lower() == "true"
-)
-# Score minimo para asociacion de alta confianza / activar tracks nuevos.
-# Por defecto igual a RETINAFACE_SCORE_DETECCION (RetinaFace ya filtra ahi).
-BYTETRACK_TRACK_THRESH = float(
-    os.getenv("BYTETRACK_TRACK_THRESH", str(RETINAFACE_SCORE_DETECCION))
-)
-# Umbral de costo IoU en la asociacion deteccion-track (mas alto = mas estricto).
-BYTETRACK_MATCH_THRESH = float(os.getenv("BYTETRACK_MATCH_THRESH", "0.8"))
-# Ventana (a 30 FPS) de frames que un track puede estar perdido antes de expirar.
-BYTETRACK_TRACK_BUFFER = int(os.getenv("BYTETRACK_TRACK_BUFFER", "30"))
-# FPS real del pipeline para escalar el buffer temporal (defecto = MAX_FPS).
-BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
-
+EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "../data")
 
 _LOG_LEVEL_BY_MODE = {
     "prod": logging.INFO,
@@ -205,6 +199,19 @@ def validar_todo():
     )
     if DISPLAY_IS_ENABLE and DISPLAY_FORCE_FULL_SCREEN:
         logging.info(f"Force Full Screen: {DISPLAY_FORCE_FULL_SCREEN}")
+    if DISPLAY_IS_ENABLE and DISPLAY_WIDTH > 0 and DISPLAY_HEIGHT > 0:
+        logging.info(
+            "Display ventana: %dx%d (letterbox negro en show)",
+            DISPLAY_WIDTH,
+            DISPLAY_HEIGHT,
+        )
+    if DISPLAY_IS_ENABLE and (DISPLAY_WIDTH != 0 or DISPLAY_HEIGHT != 0) and not (
+            DISPLAY_WIDTH > 0 and DISPLAY_HEIGHT > 0
+    ):
+        logging.critical(
+            "CONFIG ERROR: DISPLAY_WIDTH y DISPLAY_HEIGHT deben ser ambos > 0 o ambos 0."
+        )
+        sys.exit(1)
 
     if MODO not in ["RTSP", "SNAP", "USB"]:
         logging.critical(f"CONFIG ERROR: Modo '{MODO}' desconocido. Usar RTSP, SNAP o USB.")
@@ -221,6 +228,28 @@ def validar_todo():
     if MODO in ("RTSP", "SNAP") and not IP_CAM_HOST:
         logging.critical("CONFIG ERROR: Modo %s activo pero falta IP_CAM.", MODO)
         sys.exit(1)
+
+    if IP_CAM_USE_RTMP_BALANCED:
+        if MODO != "RTSP":
+            logging.critical(
+                "CONFIG ERROR: IP_CAM_USE_RTMP_BALANCED solo aplica con CONFIG_MODO=RTSP."
+            )
+            sys.exit(1)
+        if IP_CAM_RTMP_STREAM_SELECTED not in (
+                IP_CAM_RTMP_STREAM_MAIN,
+                IP_CAM_RTMP_STREAM_EXT,
+                IP_CAM_RTMP_STREAM_SUB,
+        ):
+            logging.critical(
+                "CONFIG ERROR: IP_CAM_RTMP_STREAM debe ser MAIN, EXT o SUB (got %r).",
+                IP_CAM_RTMP_STREAM_SELECTED,
+            )
+            sys.exit(1)
+        logging.info(
+            "Camara IP: RTMP perfil %s (puerto %s)",
+            IP_CAM_RTMP_STREAM_SELECTED,
+            IP_CAM_RTMP_PORT,
+        )
 
     if USB_ROTATE_DEG not in (0, 90, 180, 270):
         logging.critical(
@@ -246,7 +275,7 @@ def validar_todo():
         logging.info(
             "MOG2 desactivado: FSM usa FACE_LOOKING (RetinaFace sin gate de movimiento)"
         )
-        
+
     if ENABLE_ENDPOINT:
         if HTTP_API_PORT < 1 or HTTP_API_PORT > 65535:
             logging.critical(
@@ -337,23 +366,10 @@ def validar_todo():
     if FACE_PROCESS_TOP_N < 1:
         logging.critical("CONFIG ERROR: FACE_PROCESS_TOP_N debe ser >= 1.")
         sys.exit(1)
-    if FACE_EMBED_TOP_N < 1:
-        logging.critical("CONFIG ERROR: FACE_EMBED_TOP_N debe ser >= 1.")
-        sys.exit(1)
-    if FACE_EMBED_TOP_N > FACE_PROCESS_TOP_N:
-        logging.warning(
-            "FACE_EMBED_TOP_N (%d) > FACE_PROCESS_TOP_N (%d): "
-            "se limitara embed a %d.",
-            FACE_EMBED_TOP_N,
-            FACE_PROCESS_TOP_N,
-            FACE_PROCESS_TOP_N,
-        )
     logging.info(
-        "Caras bbox/track: top %d (score >= RETINAFACE_SCORE_DETECCION=%.2f); "
-        "embed: top %d de esas",
+        "Caras a procesar: top %d (score >= RETINAFACE_SCORE_DETECCION=%.2f)",
         FACE_PROCESS_TOP_N,
         RETINAFACE_SCORE_DETECCION,
-        min(FACE_EMBED_TOP_N, FACE_PROCESS_TOP_N),
     )
 
     if FACE_ROLL_MAX_DEG < 0 or FACE_ROLL_MAX_DEG > 45:
@@ -448,12 +464,10 @@ def validar_todo():
     gallery_path = EMBED_REF_GALLERY_DIR
     if INFERENCE_BACKEND in ("pc", "rk3568"):
         if not os.path.isdir(gallery_path):
-            logging.critical(
-                "CONFIG ERROR: Galeria identidad: no existe directorio %s "
-                "(EMBED_REF_GALLERY_DIR). Sin galeria no hay reconocimiento posible.",
+            logging.warning(
+                "Galeria identidad: no existe directorio %s (EMBED_REF_GALLERY_DIR)",
                 gallery_path,
             )
-            sys.exit(1)
         else:
             if FACE_ALIGNMENT_ENABLE:
                 npy_name, meta_name = "gallery_align.npy", "gallery_meta_align.json"
@@ -486,50 +500,12 @@ def validar_todo():
                     EMBED_SIM_MIN_MATCH,
                 )
             else:
-                logging.critical(
-                    "CONFIG ERROR: Galeria identidad: sin %s/%s ni .npy legacy en %s. "
-                    "Sin galeria no hay reconocimiento posible.",
+                logging.warning(
+                    "Galeria identidad: sin %s/%s ni .npy legacy en %s",
                     npy_name,
                     meta_name,
                     gallery_path,
                 )
-                sys.exit(1)
-
-    if ENABLE_FACE_TRACKING:
-        if BYTETRACK_TRACK_THRESH <= 0.0 or BYTETRACK_TRACK_THRESH > 1.0:
-            logging.critical(
-                "CONFIG ERROR: BYTETRACK_TRACK_THRESH debe estar en (0, 1] (got %.2f).",
-                BYTETRACK_TRACK_THRESH,
-            )
-            sys.exit(1)
-        if BYTETRACK_MATCH_THRESH <= 0.0 or BYTETRACK_MATCH_THRESH > 1.0:
-            logging.critical(
-                "CONFIG ERROR: BYTETRACK_MATCH_THRESH debe estar en (0, 1] (got %.2f).",
-                BYTETRACK_MATCH_THRESH,
-            )
-            sys.exit(1)
-        if BYTETRACK_TRACK_BUFFER < 1:
-            logging.critical(
-                "CONFIG ERROR: BYTETRACK_TRACK_BUFFER debe ser >= 1 (got %d).",
-                BYTETRACK_TRACK_BUFFER,
-            )
-            sys.exit(1)
-        if BYTETRACK_FRAME_RATE <= 0.0:
-            logging.critical(
-                "CONFIG ERROR: BYTETRACK_FRAME_RATE debe ser > 0 (got %.2f).",
-                BYTETRACK_FRAME_RATE,
-            )
-            sys.exit(1)
-        logging.info(
-            "ByteTrack: activo (track_thresh=%.2f, match_thresh=%.2f, "
-            "buffer=%d frames @ %.1f fps)",
-            BYTETRACK_TRACK_THRESH,
-            BYTETRACK_MATCH_THRESH,
-            BYTETRACK_TRACK_BUFFER,
-            BYTETRACK_FRAME_RATE,
-        )
-    else:
-        logging.info("ByteTrack: desactivado (ENABLE_FACE_TRACKING=false)")
 
 
 configure_logging()
