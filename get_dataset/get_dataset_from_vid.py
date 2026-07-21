@@ -1,8 +1,9 @@
 """
 Extrae frames espaciados de un video en get_dataset/vid/ para armar dataset de imagenes.
 
-Lee un video (.mp4, .mov, .avi, .mkv, .webm), redimensiona, ajusta brillo y guarda
-DATA_LEN capturas distribuidas a lo largo de todo el clip en get_dataset/out/.
+Lee un video (.mp4, .mov, .avi, .mkv, .webm), opcionalmente redimensiona,
+ajusta brillo y guarda DATA_LEN capturas distribuidas a lo largo de todo el clip
+en get_dataset/out/.
 
 Si DATA_LEN supera la cantidad de frames del video, se limita a un frame por captura
 disponible y se registra un warning.
@@ -24,6 +25,9 @@ import cv2
 import numpy as np
 
 # --- Salida de imagen ---
+# Si True: redimensiona cada frame a OUT_WIDTH x OUT_HEIGHT antes de guardar.
+# Si False: guarda el frame tal cual sale del video (resolucion nativa del clip).
+FORCE_OUTPUT_SIZE = False
 OUT_WIDTH = 640
 OUT_HEIGHT = 420
 
@@ -33,10 +37,10 @@ BRIGHTNESS_ALPHA = 1.0
 BRIGHTNESS_BETA = 0
 
 # Cantidad de imagenes objetivo (se acota a frames totales del video).
-DATA_LEN = 20
+DATA_LEN = 60
 
 # Prefijo de nombre: {IMAGE_NAME_PREFIX}_{count}.jpg
-IMAGE_NAME_PREFIX = "pump_ctk_1"
+IMAGE_NAME_PREFIX = "pump_ctk_feria"
 IMAGE_EXT = ".jpg"
 
 # Video: vacio = primer archivo encontrado en vid/; si no, nombre de archivo concreto.
@@ -130,6 +134,8 @@ def _adjust_brightness(frame_bgr: np.ndarray) -> np.ndarray:
 
 
 def _resize_frame(frame_bgr: np.ndarray) -> np.ndarray:
+    if not FORCE_OUTPUT_SIZE:
+        return frame_bgr
     h, w = frame_bgr.shape[:2]
     if w == OUT_WIDTH and h == OUT_HEIGHT:
         return frame_bgr
@@ -202,6 +208,7 @@ def extract_dataset(video_path: Path, out_dir: Path) -> int:
             continue
 
         out_img = _process_frame(frame)
+        out_h, out_w = out_img.shape[:2]
         out_path = out_dir / f"{IMAGE_NAME_PREFIX}_{count}{IMAGE_EXT}"
         if not cv2.imwrite(str(out_path), out_img):
             logging.warning("[ERROR] no se pudo guardar: %s", out_path.name)
@@ -213,8 +220,8 @@ def extract_dataset(video_path: Path, out_dir: Path) -> int:
             out_path.name,
             frame_idx,
             max(total - 1, 0),
-            OUT_WIDTH,
-            OUT_HEIGHT,
+            out_w,
+            out_h,
         )
 
     cap.release()
