@@ -36,6 +36,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   FACE_EMBED_TOP_N       — de esas, cuantas reciben embed + reconocimiento
   ENABLE_FACEMESH        — UX landmarks 468 en tracks sin MATCH (requiere display)
   FACE_MESH_TOP_N        — max desconocidos con mesh por frame (defecto 2)
+  FACE_MESH_EVERY_N_FRAMES — inferir cada N frames; hold anti-parpadeo (defecto 2)
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
   EMBED_AND_FACEDETEC_COOLDOWN_S — segundos entre embeds/deteccion (0 = cada tick con cara)
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
@@ -318,18 +319,35 @@ def _tick_facemesh_if_needed(
     dets: FaceDetections | None,
     tracks: TrackResult | None,
     identity_by_track: dict[int, IdentityMatch],
+    hold: dict[int, FaceMeshLandmarks],
+    frame_idx: int,
 ) -> dict[int, FaceMeshLandmarks]:
     """
     FaceMesh UX: landmarks solo en tracks sin MATCH, hasta FACE_MESH_TOP_N.
 
+    ``hold`` persiste entre frames (mismo patron que identity_by_track):
+    - throttle: solo infiere cuando ``frame_idx % FACE_MESH_EVERY_N_FRAMES == 0``
+    - anti-parpadeo: si no hay det correlacionada, reusa landmarks previos
+    - MATCH / track muerto: se elimina del hold
+
     Corre despues de actualizar ``identity_by_track``. Sin display o sin
-    estimator no hace trabajo (feature de overlay comercial).
+    estimator limpia hold y no hace trabajo.
     """
-    out: dict[int, FaceMeshLandmarks] = {}
     if not s.ENABLE_FACEMESH or not s.DISPLAY_IS_ENABLE or mesh is None:
-        return out
+        hold.clear()
+        return {}
     if tracks is None or not tracks.tracks:
-        return out
+        hold.clear()
+        return {}
+
+    live_ids = {track.track_id for track in tracks.tracks}
+    for tid in list(hold.keys()):
+        if tid not in live_ids:
+            del hold[tid]
+            continue
+        idm = identity_by_track.get(tid)
+        if idm is not None and idm.is_match:
+            del hold[tid]
 
     candidates = []
     for track in tracks.tracks:
@@ -339,24 +357,36 @@ def _tick_facemesh_if_needed(
         candidates.append(track)
     candidates.sort(key=lambda t: t.score, reverse=True)
     top_n = min(s.FACE_MESH_TOP_N, len(candidates))
+    top = candidates[:top_n]
+    top_ids = {track.track_id for track in top}
 
-    for track in candidates[:top_n]:
-        det_row = _det_row_for_track(track.tlbr, dets)
-        if det_row is None:
-            continue
-        try:
-            landmarks = estimate_from_det(
-                frame,
-                det_row,
-                mesh,
-                margin_frac=s.FACE_CROP_MARGIN_FRAC,
-            )
-        except Exception as exc:
-            logging.warning("[FaceMesh] fallo estimate: %s", exc)
-            continue
-        if landmarks is not None:
-            out[track.track_id] = landmarks
-    return out
+    for tid in list(hold.keys()):
+        if tid not in top_ids:
+            del hold[tid]
+
+    every_n = max(1, int(s.FACE_MESH_EVERY_N_FRAMES))
+    do_infer = (frame_idx % every_n) == 0
+
+    if do_infer:
+        for track in top:
+            det_row = _det_row_for_track(track.tlbr, dets)
+            if det_row is None:
+                # Sin det fresca: conservar hold[track_id] si existe.
+                continue
+            try:
+                landmarks = estimate_from_det(
+                    frame,
+                    det_row,
+                    mesh,
+                    margin_frac=s.FACE_CROP_MARGIN_FRAC,
+                )
+            except Exception as exc:
+                logging.warning("[FaceMesh] fallo estimate: %s", exc)
+                continue
+            if landmarks is not None:
+                hold[track.track_id] = landmarks
+
+    return {tid: hold[tid] for tid in top_ids if tid in hold}
 
 
 def _tick_embed_if_needed(
@@ -588,9 +618,10 @@ def main() -> int:
             face_mesh = build_face_mesh(backend, facemesh_model)
         if face_mesh is not None:
             logging.debug(
-                "FaceMesh activo (backend=%s, top_n=%d, solo tracks sin MATCH)",
+                "FaceMesh activo (backend=%s, top_n=%d, every_n=%d + hold)",
                 s.INFERENCE_BACKEND,
                 s.FACE_MESH_TOP_N,
+                s.FACE_MESH_EVERY_N_FRAMES,
             )
         else:
             logging.debug(
@@ -693,6 +724,8 @@ def main() -> int:
         t_ultimo_embed_ns: int | None = None
         last_identity: IdentityMatch | None = None
         identity_by_track: dict[int, IdentityMatch] = {}
+        facemesh_hold: dict[int, FaceMeshLandmarks] = {}
+        facemesh_frame_idx = 0
 
         while True:
             try:
@@ -802,6 +835,7 @@ def main() -> int:
                     if fsm_out.state == FlowState.IDLE:
                         last_identity = None
                         identity_by_track.clear()
+                        facemesh_hold.clear()
                         display_identity = None
                         identity_stale = False
                     elif fsm_out.state == FlowState.FACE_RECOGNIZED and last_identity:
@@ -826,7 +860,10 @@ def main() -> int:
                         dets,
                         tracks,
                         identity_by_track,
+                        facemesh_hold,
+                        facemesh_frame_idx,
                     )
+                    facemesh_frame_idx += 1
 
                     view = FrameView(
                         mov=mov,

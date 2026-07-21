@@ -38,6 +38,9 @@ FACE_EMBED_TOP_N = int(os.getenv("FACE_EMBED_TOP_N", 2))
 ENABLE_FACEMESH = os.getenv("ENABLE_FACEMESH", "true").lower() == "true"
 # Maximo de desconocidos con mesh por frame (presupuesto CPU; tipico 2-3).
 FACE_MESH_TOP_N = int(os.getenv("FACE_MESH_TOP_N", 2))
+# Inferir cada N frames; el resto reusa hold (throttle). 1 = cada frame.
+# Hold tambien cubre frames sin det RetinaFace (anti-parpadeo).
+FACE_MESH_EVERY_N_FRAMES = int(os.getenv("FACE_MESH_EVERY_N_FRAMES", "2"))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
@@ -433,6 +436,12 @@ def validar_todo():
         if FACE_MESH_TOP_N < 1:
             logging.critical("CONFIG ERROR: FACE_MESH_TOP_N debe ser >= 1.")
             sys.exit(1)
+        if FACE_MESH_EVERY_N_FRAMES < 1:
+            logging.critical(
+                "CONFIG ERROR: FACE_MESH_EVERY_N_FRAMES debe ser >= 1 (got %d).",
+                FACE_MESH_EVERY_N_FRAMES,
+            )
+            sys.exit(1)
         if FACE_MESH_TOP_N > FACE_PROCESS_TOP_N:
             logging.warning(
                 "FACE_MESH_TOP_N (%d) > FACE_PROCESS_TOP_N (%d): "
@@ -440,6 +449,11 @@ def validar_todo():
                 FACE_MESH_TOP_N,
                 FACE_PROCESS_TOP_N,
                 FACE_PROCESS_TOP_N,
+            )
+        if FACE_MESH_EVERY_N_FRAMES > 10:
+            logging.warning(
+                "FACE_MESH_EVERY_N_FRAMES=%d es alto: la malla se vera entrecortada.",
+                FACE_MESH_EVERY_N_FRAMES,
             )
         if not DISPLAY_IS_ENABLE:
             logging.warning(
@@ -454,7 +468,12 @@ def validar_todo():
                     f"pero no existe FACEMESH_MODEL_PC: {mesh_pc}"
                 )
                 sys.exit(1)
-            logging.info("FaceMesh PC: %s (top %d desconocidos)", mesh_pc, FACE_MESH_TOP_N)
+            logging.info(
+                "FaceMesh PC: %s (top %d desconocidos, cada %d frame(s)+hold)",
+                mesh_pc,
+                FACE_MESH_TOP_N,
+                FACE_MESH_EVERY_N_FRAMES,
+            )
         elif INFERENCE_BACKEND == "rk3568":
             mesh_rk = FACEMESH_MODEL_RK3568
             if not os.path.isfile(mesh_rk):
@@ -465,9 +484,10 @@ def validar_todo():
                 )
             else:
                 logging.info(
-                    "FaceMesh RK3568: %s (top %d; stub hasta NPU)",
+                    "FaceMesh RK3568: %s (top %d; cada %d frame(s); stub hasta NPU)",
                     mesh_rk,
                     FACE_MESH_TOP_N,
+                    FACE_MESH_EVERY_N_FRAMES,
                 )
         else:
             logging.info(
