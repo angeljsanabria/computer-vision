@@ -3,6 +3,9 @@ import sys
 import logging
 
 # 1. CONFIGURACIONES GENERALES
+# 1.0 Plataforma
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "rk3568").lower()  # "none", "pc", "rk3568"
+
 # 1.1 Captura
 MODO = os.getenv("CONFIG_MODO", "RTSP").upper()  # RTSP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 3.0))
@@ -120,7 +123,6 @@ FSM_TIMEOUT_MOV_S = float(os.getenv("FSM_TIMEOUT_MOV_S", "10"))
 FSM_TIMEOUT_FACE_S = float(os.getenv("FSM_TIMEOUT_FACE_S", "10"))
 
 # 6. INFERENCIA (RetinaFace + MobileFaceNet)
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "rk3568").lower()  # "none", "pc", "rk3568"
 RETINAFACE_MODEL_PC = os.getenv(
     "RETINAFACE_MODEL_PC",
     "models_onnx/RetinaFace_mobile320.onnx",

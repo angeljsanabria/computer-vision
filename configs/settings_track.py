@@ -3,6 +3,9 @@ import sys
 import logging
 
 # 1. CONFIGURACIONES GENERALES
+# 1.0 Plataforma
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "RK3568").lower()  # "none", "pc", "rk3568"
+
 # 1.1 Captura
 MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 20.0))
