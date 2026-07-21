@@ -7,7 +7,7 @@ import logging
 INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "RK3568").lower()  # "none", "pc", "rk3568"
 
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, SNAP, USB
+MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, RTMP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 20.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
@@ -22,7 +22,7 @@ DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "1080"))       # 0
 
 # Banner superior (demo). Vacio = desactivado.
 # DisplayBanner.try_from_path lo resuelve una sola vez al arranque.
-DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "data/baner_test.jpg")
+DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/baner_test.jpg")
 
 # RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
 # FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
@@ -44,8 +44,8 @@ FACE_MESH_EVERY_N_FRAMES = int(os.getenv("FACE_MESH_EVERY_N_FRAMES", "2"))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
-CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 1920))   #  High 2560    Medium 1080     Low 640
-CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 1080))  #  High 1920    Medium 720      Low 480
+CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 1080))   #  High 2560    Medium 1080     Low 640
+CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 720))  #  High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
@@ -71,7 +71,7 @@ IMG_QUALITY_CHECK_ENABLE = (
 IMG_QUALITY_CHECK_INTERVAL_S = float(
     os.getenv("IMG_QUALITY_CHECK_INTERVAL_S", "30")
 )
-IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "data/")
+IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "../data")
 
 # 2. HARDWARE LOCAL (CAMARA USB)
 # Perfil de imagen OpenCV validado en camara Sony IMX179 /dev/video10 en RK3568.
@@ -83,7 +83,7 @@ IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "data/")
 #   sharpness min=0 max=100 default=80
 #   auto_exposure menu 0-3 default=3
 #   focus_automatic_continuous default=1
-USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
+USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 10))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
 USB_CAMERA_IMAGE_MODE = os.getenv("USB_CAMERA_IMAGE_MODE", "USE_DEFAULT").upper()
 USB_BRIGHTNESS = int(os.getenv("USB_BRIGHTNESS", "0"))  # SONY: min=-64 max=64 default=0
@@ -91,8 +91,8 @@ USB_CONTRAST = int(os.getenv("USB_CONTRAST", "51"))  # SONY: min=0 max=100 defau
 USB_SATURATION = int(os.getenv("USB_SATURATION", "64"))  # SONY: min=0 max=100 default=64
 
 # 3. CONFIGURACIONES Camara IP (URLs en utils/ip_cam_urls.py)
-IP_CAM_USER = os.getenv("IP_CAM_USER", "angelcam")
-IP_CAM_PASS = os.getenv("IP_CAM_PASS", "angelCamara")
+IP_CAM_USER = os.getenv("IP_CAM_USER", "CtkSom1")
+IP_CAM_PASS = os.getenv("IP_CAM_PASS", "CtkSom1pass")
 IP_CAM_HOST = os.getenv("IP_CAM", "172.16.243.10")
 
 # 3.1 RTSP
@@ -102,10 +102,8 @@ IP_CAM_RTSP_STREAM_PATH_HIGH = os.getenv("IP_CAM_RTSP_ROUTE_HIGH", "Preview_01_m
 
 IP_CAM_RTSP_STREAM_PATH_SELECTED_RESOLUTION = IP_CAM_RTSP_STREAM_PATH_LOW
 
-# 3.2 RTMP (Reolink standalone; opt-in con IP_CAM_USE_RTMP_BALANCED=true)
-IP_CAM_USE_RTMP_BALANCED = (
-    os.getenv("IP_CAM_USE_RTMP_BALANCED", "false").lower() == "true"
-)
+# 3.2 RTMP (Reolink standalone; CONFIG_MODO=RTMP)
+# IP_CAM_USE_RTMP_BALANCED quedo deprecado: usar CONFIG_MODO=RTMP.
 IP_CAM_RTMP_PORT = os.getenv("IP_CAM_RTMP_PORT", "1935")
 IP_CAM_RTMP_STREAM_MAIN = "MAIN"
 IP_CAM_RTMP_STREAM_EXT = "EXT"
@@ -197,7 +195,7 @@ FACEMESH_MODEL_RK3568 = os.getenv(
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
 EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
-EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "data/")
+EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "../data")
 
 # 7. TRACKING VISUAL (ByteTrack sobre detecciones RetinaFace ya filtradas)
 # Solo overlay/UI: no altera embed, matcher ni FSM. dets se lee, nunca se muta.
@@ -260,8 +258,11 @@ def validar_todo():
         )
         sys.exit(1)
 
-    if MODO not in ["RTSP", "SNAP", "USB"]:
-        logging.critical(f"CONFIG ERROR: Modo '{MODO}' desconocido. Usar RTSP, SNAP o USB.")
+    if MODO not in ["RTSP", "RTMP", "SNAP", "USB"]:
+        logging.critical(
+            "CONFIG ERROR: Modo '%s' desconocido. Usar RTSP, RTMP, SNAP o USB.",
+            MODO,
+        )
         sys.exit(1)
 
     if MAX_FPS <= 0:
@@ -272,16 +273,17 @@ def validar_todo():
         logging.critical("CONFIG ERROR: WARMUP_FRAMES debe ser >= 1.")
         sys.exit(1)
 
-    if MODO in ("RTSP", "SNAP") and not IP_CAM_HOST:
+    if MODO in ("RTSP", "RTMP", "SNAP") and not IP_CAM_HOST:
         logging.critical("CONFIG ERROR: Modo %s activo pero falta IP_CAM.", MODO)
         sys.exit(1)
 
-    if IP_CAM_USE_RTMP_BALANCED:
-        if MODO != "RTSP":
-            logging.critical(
-                "CONFIG ERROR: IP_CAM_USE_RTMP_BALANCED solo aplica con CONFIG_MODO=RTSP."
-            )
-            sys.exit(1)
+    if os.getenv("IP_CAM_USE_RTMP_BALANCED", "").lower() == "true":
+        logging.warning(
+            "IP_CAM_USE_RTMP_BALANCED esta deprecado; usar CONFIG_MODO=RTMP "
+            "(perfil: IP_CAM_RTMP_STREAM=MAIN|EXT|SUB)."
+        )
+
+    if MODO == "RTMP":
         if IP_CAM_RTMP_STREAM_SELECTED not in (
             IP_CAM_RTMP_STREAM_MAIN,
             IP_CAM_RTMP_STREAM_EXT,

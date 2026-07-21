@@ -66,8 +66,8 @@ class CaptureCameras:
 
     def start(self):
         self.is_running = True
-        if self.mode == "RTSP":
-            self.thread = threading.Thread(target=self._rtsp_loop, name="H_RTSP")
+        if self.mode in ("RTSP", "RTMP"):
+            self.thread = threading.Thread(target=self._rtsp_loop, name=f"H_{self.mode}")
         elif self.mode == "SNAP":
             self.thread = threading.Thread(target=self._snap_loop, name="H_Snap")
         elif self.mode == "USB":
@@ -173,12 +173,12 @@ class CaptureCameras:
                 if self.cap is None or not self.cap.isOpened():
                     self.cap = cv2.VideoCapture(self.rtsp_url, cv2.CAP_FFMPEG)
                     if not self.cap.isOpened():
-                        raise cv2.error("Fallo socket RTSP")
+                        raise cv2.error(f"Fallo socket {self.mode}")
                     for _ in range(self.warmup_frames):
                         self.cap.grab()
                     self._configurar_buffer(self.cap)
                     self._next_due_tick = cv2.getTickCount()  # reinicia reloj
-                    logging.debug("Stream RTSP estabilizado.")
+                    logging.debug("Stream %s estabilizado.", self.mode)
 
                 if not self.cap.grab():
                     raise cv2.error("Grab fallido")
@@ -191,7 +191,7 @@ class CaptureCameras:
                     self._publicar_frame(frame)
 
             except (cv2.error, Exception) as e:
-                logging.error(f"Error RTSP: {e}. Cooldown activo.")
+                logging.error(f"Error {self.mode}: {e}. Cooldown activo.")
                 self._hard_reset_resources()
                 time.sleep(self.reintento_seg)
 

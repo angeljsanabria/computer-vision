@@ -3,18 +3,15 @@ import sys
 import logging
 
 # 1. CONFIGURACIONES GENERALES
-# 1.0 Plataforma
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "rk3568").lower()  # "none", "pc", "rk3568"
-
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "RTSP").upper()  # RTSP, SNAP, USB
+MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, RTMP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 3.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
-        os.getenv("DISPLAY_IS_ENABLE", "false").lower() == "true"
+    os.getenv("DISPLAY_IS_ENABLE", "false").lower() == "true"
 )
 DISPLAY_FORCE_FULL_SCREEN = (
-        os.getenv("DISPLAY_FORCE_FULL_SCREEN", "false").lower() == "true"
+    os.getenv("DISPLAY_FORCE_FULL_SCREEN", "false").lower() == "true"
 )
 # Tamano ventana OpenCV (resizeWindow + moveWindow). 0 desactiva el resize.
 DISPLAY_WIDTH = int(os.getenv("DISPLAY_WIDTH", "0"))
@@ -23,15 +20,15 @@ DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "0"))
 # RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
 # FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
 FACE_DETECT_FULLRATE = (
-        os.getenv("FACE_DETECT_FULLRATE", str(DISPLAY_IS_ENABLE)).lower() == "true"
+    os.getenv("FACE_DETECT_FULLRATE", str(DISPLAY_IS_ENABLE)).lower() == "true"
 )
 # Cuantas caras rankeadas procesar (1=mejor, 2=mejor+siguiente, ...).
 FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 2))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
-CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 640))  # High 2560    Medium 1080     Low 640
-CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  # High 1920    Medium 720      Low 480
+CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 640))   #  High 2560    Medium 1080     Low 640
+CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 480))  #  High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
@@ -52,7 +49,7 @@ HTTP_API_PORT = int(os.getenv("HTTP_API_PORT", "8008"))
 
 # 1.6 Snapshot calidad imagen (headless; pisa img_snap.jpg cada N s en capture)
 IMG_QUALITY_CHECK_ENABLE = (
-        os.getenv("IMG_QUALITY_CHECK_ENABLE", "false").lower() == "true"
+    os.getenv("IMG_QUALITY_CHECK_ENABLE", "false").lower() == "true"
 )
 IMG_QUALITY_CHECK_INTERVAL_S = float(
     os.getenv("IMG_QUALITY_CHECK_INTERVAL_S", "30")
@@ -88,10 +85,8 @@ IP_CAM_RTSP_STREAM_PATH_HIGH = os.getenv("IP_CAM_RTSP_ROUTE_HIGH", "Preview_01_m
 
 IP_CAM_RTSP_STREAM_PATH_SELECTED_RESOLUTION = IP_CAM_RTSP_STREAM_PATH_LOW
 
-# 3.2 RTMP (Reolink standalone; opt-in con IP_CAM_USE_RTMP_BALANCED=true)
-IP_CAM_USE_RTMP_BALANCED = (
-        os.getenv("IP_CAM_USE_RTMP_BALANCED", "false").lower() == "true"
-)
+# 3.2 RTMP (Reolink standalone; CONFIG_MODO=RTMP)
+# IP_CAM_USE_RTMP_BALANCED quedo deprecado: usar CONFIG_MODO=RTMP.
 IP_CAM_RTMP_PORT = os.getenv("IP_CAM_RTMP_PORT", "1935")
 IP_CAM_RTMP_STREAM_MAIN = "MAIN"
 IP_CAM_RTMP_STREAM_EXT = "EXT"
@@ -108,9 +103,9 @@ IP_CAM_SNAP_RES_QUERY_SELECTED_RESOLUTION = IP_CAM_SNAP_RES_QUERY_LOW
 
 # 4. DETECCION DE MOVIMIENTO (MOG2) + FSM
 ENABLE_MOV_DETECTION = (
-        os.getenv("ENABLE_MOV_DETECTION", "false").lower() == "true"
+    os.getenv("ENABLE_MOV_DETECTION", "false").lower() == "true"
 )
-
+    
 MOG2_PROCESS_WIDTH = int(os.getenv("MOG2_PROCESS_WIDTH", "320"))
 MOG2_PROCESS_HEIGHT = int(os.getenv("MOG2_PROCESS_HEIGHT", "240"))
 MOG2_HISTORY = int(os.getenv("MOG2_HISTORY", "20"))
@@ -123,6 +118,7 @@ FSM_TIMEOUT_MOV_S = float(os.getenv("FSM_TIMEOUT_MOV_S", "10"))
 FSM_TIMEOUT_FACE_S = float(os.getenv("FSM_TIMEOUT_FACE_S", "10"))
 
 # 6. INFERENCIA (RetinaFace + MobileFaceNet)
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "rk3568").lower()  # "none", "pc", "rk3568"
 RETINAFACE_MODEL_PC = os.getenv(
     "RETINAFACE_MODEL_PC",
     "models_onnx/RetinaFace_mobile320.onnx",
@@ -140,10 +136,10 @@ RETINAFACE_SCORE_PRE_NMS = float(os.getenv("RETINAFACE_SCORE_PRE_NMS", "0.02"))
 # FACE_ALIGNMENT_ENABLE: siempre align ArcFace 5 pt (galeria .npy enrolada igual).
 # Si ambos true, gana ArcFace (warning en validar_todo).
 FACE_ALIGNMENT_ENABLE = (
-        os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
+    os.getenv("FACE_ALIGNMENT_ENABLE", "true").lower() == "true"
 )
 FACE_ROT_ALIGNMENT_SIMPLE_ENABLE = (
-        os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"
+    os.getenv("FACE_ROT_ALIGNMENT_SIMPLE_ENABLE", "false").lower() == "true"
 )
 FACE_ROLL_MAX_DEG = float(os.getenv("FACE_ROLL_MAX_DEG", "10"))
 FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
@@ -173,6 +169,7 @@ MOBILEFACENET_MODEL_RK3568 = os.getenv(
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
 EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
 EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "../data")
+
 
 _LOG_LEVEL_BY_MODE = {
     "prod": logging.INFO,
@@ -208,15 +205,18 @@ def validar_todo():
             DISPLAY_HEIGHT,
         )
     if DISPLAY_IS_ENABLE and (DISPLAY_WIDTH != 0 or DISPLAY_HEIGHT != 0) and not (
-            DISPLAY_WIDTH > 0 and DISPLAY_HEIGHT > 0
+        DISPLAY_WIDTH > 0 and DISPLAY_HEIGHT > 0
     ):
         logging.critical(
             "CONFIG ERROR: DISPLAY_WIDTH y DISPLAY_HEIGHT deben ser ambos > 0 o ambos 0."
         )
         sys.exit(1)
 
-    if MODO not in ["RTSP", "SNAP", "USB"]:
-        logging.critical(f"CONFIG ERROR: Modo '{MODO}' desconocido. Usar RTSP, SNAP o USB.")
+    if MODO not in ["RTSP", "RTMP", "SNAP", "USB"]:
+        logging.critical(
+            "CONFIG ERROR: Modo '%s' desconocido. Usar RTSP, RTMP, SNAP o USB.",
+            MODO,
+        )
         sys.exit(1)
 
     if MAX_FPS <= 0:
@@ -227,20 +227,21 @@ def validar_todo():
         logging.critical("CONFIG ERROR: WARMUP_FRAMES debe ser >= 1.")
         sys.exit(1)
 
-    if MODO in ("RTSP", "SNAP") and not IP_CAM_HOST:
+    if MODO in ("RTSP", "RTMP", "SNAP") and not IP_CAM_HOST:
         logging.critical("CONFIG ERROR: Modo %s activo pero falta IP_CAM.", MODO)
         sys.exit(1)
 
-    if IP_CAM_USE_RTMP_BALANCED:
-        if MODO != "RTSP":
-            logging.critical(
-                "CONFIG ERROR: IP_CAM_USE_RTMP_BALANCED solo aplica con CONFIG_MODO=RTSP."
-            )
-            sys.exit(1)
+    if os.getenv("IP_CAM_USE_RTMP_BALANCED", "").lower() == "true":
+        logging.warning(
+            "IP_CAM_USE_RTMP_BALANCED esta deprecado; usar CONFIG_MODO=RTMP "
+            "(perfil: IP_CAM_RTMP_STREAM=MAIN|EXT|SUB)."
+        )
+
+    if MODO == "RTMP":
         if IP_CAM_RTMP_STREAM_SELECTED not in (
-                IP_CAM_RTMP_STREAM_MAIN,
-                IP_CAM_RTMP_STREAM_EXT,
-                IP_CAM_RTMP_STREAM_SUB,
+            IP_CAM_RTMP_STREAM_MAIN,
+            IP_CAM_RTMP_STREAM_EXT,
+            IP_CAM_RTMP_STREAM_SUB,
         ):
             logging.critical(
                 "CONFIG ERROR: IP_CAM_RTMP_STREAM debe ser MAIN, EXT o SUB (got %r).",
@@ -277,7 +278,7 @@ def validar_todo():
         logging.info(
             "MOG2 desactivado: FSM usa FACE_LOOKING (RetinaFace sin gate de movimiento)"
         )
-
+        
     if ENABLE_ENDPOINT:
         if HTTP_API_PORT < 1 or HTTP_API_PORT > 65535:
             logging.critical(

@@ -23,9 +23,8 @@ Estados FSM (resumen):
   FACE_*        — RetinaFace activo (cuando INFERENCE_BACKEND != none).
 
 Variables de entorno utiles (ver ``configs/settings.py``):
-  CONFIG_MODO          — USB | RTSP | SNAP
-  IP_CAM_USE_RTMP_BALANCED — true=RTMP Reolink (solo CONFIG_MODO=RTSP)
-  IP_CAM_RTMP_STREAM — MAIN | EXT | SUB (default EXT)
+  CONFIG_MODO          — USB | RTSP | RTMP | SNAP
+  IP_CAM_RTMP_STREAM — MAIN | EXT | SUB (solo CONFIG_MODO=RTMP; default EXT)
   DISPLAY_IS_ENABLE    — true/false (overlay OpenCV)
   DISPLAY_FORCE_FULL_SCREEN    — true/false (overlay OpenCV) set WND_PROP_FULLSCREEN
   DISPLAY_WIDTH / DISPLAY_HEIGHT — tamano ventana (0 = sin resizeWindow)
@@ -466,8 +465,8 @@ def main() -> int:
                 out_dir=s.IMG_QUALITY_CHECK_DIR,
             )
 
-        if s.IP_CAM_USE_RTMP_BALANCED:
-            rtsp_url = build_rtmp_url(
+        if s.MODO == "RTMP":
+            stream_url = build_rtmp_url(
                 s.IP_CAM_HOST,
                 s.IP_CAM_USER,
                 s.IP_CAM_PASS,
@@ -475,7 +474,7 @@ def main() -> int:
                 s.IP_CAM_RTMP_STREAM_SELECTED,
             )
         else:
-            rtsp_url = build_rtsp_url(
+            stream_url = build_rtsp_url(
                 s.IP_CAM_HOST,
                 s.IP_CAM_USER,
                 s.IP_CAM_PASS,
@@ -491,7 +490,7 @@ def main() -> int:
 
         capture = CaptureCameras(
             mode=s.MODO,
-            rtsp_url=rtsp_url,
+            rtsp_url=stream_url,
             snap_url=snap_url,
             usb_index=s.USB_INDEX,
             warmup_frames=s.WARMUP_FRAMES,
