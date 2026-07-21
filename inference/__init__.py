@@ -102,7 +102,6 @@ def build_face_mesh(backend: str, model_path: str) -> FaceMeshEstimator | None:
     Factory segun backend.
 
     Mismo backend que RetinaFace: ``none`` sin FaceMesh, ``pc`` ONNX, ``rk3568`` RKNN.
-    RK3568: stub hasta exportar ``face_mesh_192x192.rknn`` (``estimate`` aun no operativo).
     """
     if backend == "none":
         return None

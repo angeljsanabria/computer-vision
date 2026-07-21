@@ -1,4 +1,4 @@
-"""FaceMesh 468: landmarks densos PC (ONNX) / RK3568 (RKNN stub) y utilidades."""
+"""FaceMesh 468: landmarks densos PC (ONNX) / RK3568 (RKNN) y utilidades."""
 from inference.facemesh.constants import (
     INPUT_HW,
     INPUT_SIZE,

@@ -477,18 +477,17 @@ def validar_todo():
         elif INFERENCE_BACKEND == "rk3568":
             mesh_rk = FACEMESH_MODEL_RK3568
             if not os.path.isfile(mesh_rk):
-                logging.warning(
-                    "ENABLE_FACEMESH=true: FACEMESH_MODEL_RK3568 no existe (%s). "
-                    "Estimator RK3568 es stub hasta export .rknn.",
-                    mesh_rk,
+                logging.critical(
+                    "CONFIG ERROR: ENABLE_FACEMESH=true e INFERENCE_BACKEND=rk3568 "
+                    f"pero no existe FACEMESH_MODEL_RK3568: {mesh_rk}"
                 )
-            else:
-                logging.info(
-                    "FaceMesh RK3568: %s (top %d; cada %d frame(s); stub hasta NPU)",
-                    mesh_rk,
-                    FACE_MESH_TOP_N,
-                    FACE_MESH_EVERY_N_FRAMES,
-                )
+                sys.exit(1)
+            logging.info(
+                "FaceMesh RK3568: %s (top %d desconocidos, cada %d frame(s)+hold)",
+                mesh_rk,
+                FACE_MESH_TOP_N,
+                FACE_MESH_EVERY_N_FRAMES,
+            )
         else:
             logging.info(
                 "FaceMesh: ENABLE_FACEMESH=true pero INFERENCE_BACKEND=none "
