@@ -1,4 +1,4 @@
-"""Inferencia de modelos (RetinaFace, MobileFaceNet, FaceMesh)."""
+"""Inferencia de modelos (RetinaFace, MobileFaceNet, FaceMesh, Nozzle YOLO)."""
 from __future__ import annotations
 
 import logging
@@ -6,6 +6,7 @@ from typing import Protocol
 
 import numpy as np
 
+from inference.nozzle.types import NozzleDetections
 from inference.types import (
     FaceDetections,
     FaceEmbedding,
@@ -26,6 +27,12 @@ class FaceEmbedder(Protocol):
 
 class FaceMeshEstimator(Protocol):
     def estimate(self, face_bgr: np.ndarray) -> np.ndarray: ...
+
+    def release(self) -> None: ...
+
+
+class NozzleDetector(Protocol):
+    def detect(self, frame_bgr: np.ndarray) -> NozzleDetections: ...
 
     def release(self) -> None: ...
 
@@ -121,6 +128,43 @@ def build_face_mesh(backend: str, model_path: str) -> FaceMeshEstimator | None:
     return None
 
 
+def build_nozzle_detector(
+    backend: str,
+    model_path: str,
+    score_deteccion: float,
+    nms_iou: float,
+) -> NozzleDetector | None:
+    """
+    Factory segun backend.
+
+    Mismo backend que RetinaFace: ``none`` sin detector, ``pc`` ONNX, ``rk3568`` RKNN.
+    """
+    if backend == "none":
+        return None
+    if backend == "pc":
+        from inference.nozzle.detector_pc import NozzleDetectorPc
+
+        return NozzleDetectorPc(
+            model_path=model_path,
+            score_deteccion=score_deteccion,
+            nms_iou=nms_iou,
+        )
+    if backend == "rk3568":
+        from inference.nozzle.detector_rk3568 import NozzleDetectorRk3568
+
+        return NozzleDetectorRk3568(
+            model_path=model_path,
+            score_deteccion=score_deteccion,
+            nms_iou=nms_iou,
+        )
+
+    logging.critical(
+        "INFERENCE_BACKEND invalido: '%s'. Usar none, pc o rk3568.",
+        backend,
+    )
+    return None
+
+
 def build_identity_matcher(
     backend: str,
     gallery_dir: str,
@@ -150,8 +194,11 @@ __all__ = [
     "FaceMeshEstimator",
     "FaceMeshLandmarks",
     "FaceSelection",
+    "NozzleDetections",
+    "NozzleDetector",
     "build_embedder",
     "build_face_detector",
     "build_face_mesh",
     "build_identity_matcher",
+    "build_nozzle_detector",
 ]

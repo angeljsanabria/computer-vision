@@ -4,10 +4,10 @@ import logging
 
 # 1. CONFIGURACIONES GENERALES
 # 1.0 Plataforma
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "RK3568").lower()  # "none", "pc", "rk3568"
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "PC").lower()  # "none", "pc", "rk3568"
 
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "RTSP").upper()     # RTSP, RTMP, SNAP, USB
+MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, RTMP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 20.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
@@ -83,7 +83,7 @@ IMG_QUALITY_CHECK_DIR = os.getenv("IMG_QUALITY_CHECK_DIR", "../data")
 #   sharpness min=0 max=100 default=80
 #   auto_exposure menu 0-3 default=3
 #   focus_automatic_continuous default=1
-USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 10))
+USB_INDEX = int(os.getenv("USB_DEVICE_INDEX", 0))
 USB_ROTATE_DEG = int(os.getenv("USB_ROTATE_DEG", "0"))  # 0, 90, 180, 270 (solo modo USB)
 USB_CAMERA_IMAGE_MODE = os.getenv("USB_CAMERA_IMAGE_MODE", "USE_DEFAULT").upper()
 USB_BRIGHTNESS = int(os.getenv("USB_BRIGHTNESS", "0"))  # SONY: min=-64 max=64 default=0
@@ -215,6 +215,31 @@ BYTETRACK_MATCH_THRESH = float(os.getenv("BYTETRACK_MATCH_THRESH", "0.7"))  # um
 BYTETRACK_TRACK_BUFFER = int(os.getenv("BYTETRACK_TRACK_BUFFER", "20"))
 # FPS real del pipeline para escalar el buffer temporal (defecto = MAX_FPS).
 BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
+
+# 7.1 Nozzle YOLOv8 (deteccion + ByteTrack paralelo al pipeline facial; solo overlay/log)
+ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "true").lower() == "true"
+NOZZLE_MODEL_PC = os.getenv(
+    "NOZZLE_MODEL_PC",
+    "models_onnx/yolov8n_nozzle_v2.onnx",
+)
+NOZZLE_MODEL_RK3568 = os.getenv(
+    "NOZZLE_MODEL_RK3568",
+    "models/yolov8n_nozzle_v2.rknn",
+)
+NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.30"))
+NOZZLE_NMS_IOU = float(os.getenv("NOZZLE_NMS_IOU", "0.45"))
+NOZZLE_PROCESS_TOP_N = int(os.getenv("NOZZLE_PROCESS_TOP_N", "10"))
+NOZZLE_EVERY_N_FRAMES = int(os.getenv("NOZZLE_EVERY_N_FRAMES", "1"))
+NOZZLE_BYTETRACK_TRACK_THRESH = float(
+    os.getenv("NOZZLE_BYTETRACK_TRACK_THRESH", "0.65")
+)
+NOZZLE_BYTETRACK_MATCH_THRESH = float(
+    os.getenv("NOZZLE_BYTETRACK_MATCH_THRESH", "0.70")
+)
+NOZZLE_BYTETRACK_TRACK_BUFFER = int(os.getenv("NOZZLE_BYTETRACK_TRACK_BUFFER", "20"))
+NOZZLE_BYTETRACK_FRAME_RATE = float(
+    os.getenv("NOZZLE_BYTETRACK_FRAME_RATE", str(MAX_FPS))
+)
 
 
 _LOG_LEVEL_BY_MODE = {
@@ -683,6 +708,101 @@ def validar_todo():
         )
     else:
         logging.info("ByteTrack: desactivado (ENABLE_FACE_TRACKING=false)")
+
+    if ENABLE_NOZZLE:
+        if NOZZLE_PROCESS_TOP_N < 1:
+            logging.critical("CONFIG ERROR: NOZZLE_PROCESS_TOP_N debe ser >= 1.")
+            sys.exit(1)
+        if NOZZLE_EVERY_N_FRAMES < 1:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_EVERY_N_FRAMES debe ser >= 1 (got %d).",
+                NOZZLE_EVERY_N_FRAMES,
+            )
+            sys.exit(1)
+        if NOZZLE_SCORE_DETECCION <= 0.0 or NOZZLE_SCORE_DETECCION > 1.0:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_SCORE_DETECCION debe estar en (0, 1] (got %.2f).",
+                NOZZLE_SCORE_DETECCION,
+            )
+            sys.exit(1)
+        if NOZZLE_NMS_IOU <= 0.0 or NOZZLE_NMS_IOU > 1.0:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_NMS_IOU debe estar en (0, 1] (got %.2f).",
+                NOZZLE_NMS_IOU,
+            )
+            sys.exit(1)
+        if NOZZLE_BYTETRACK_TRACK_THRESH <= 0.0 or NOZZLE_BYTETRACK_TRACK_THRESH > 1.0:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BYTETRACK_TRACK_THRESH debe estar en (0, 1] "
+                "(got %.2f).",
+                NOZZLE_BYTETRACK_TRACK_THRESH,
+            )
+            sys.exit(1)
+        if NOZZLE_BYTETRACK_MATCH_THRESH <= 0.0 or NOZZLE_BYTETRACK_MATCH_THRESH > 1.0:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BYTETRACK_MATCH_THRESH debe estar en (0, 1] "
+                "(got %.2f).",
+                NOZZLE_BYTETRACK_MATCH_THRESH,
+            )
+            sys.exit(1)
+        if NOZZLE_BYTETRACK_TRACK_BUFFER < 1:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BYTETRACK_TRACK_BUFFER debe ser >= 1 (got %d).",
+                NOZZLE_BYTETRACK_TRACK_BUFFER,
+            )
+            sys.exit(1)
+        if NOZZLE_BYTETRACK_FRAME_RATE <= 0.0:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BYTETRACK_FRAME_RATE debe ser > 0 (got %.2f).",
+                NOZZLE_BYTETRACK_FRAME_RATE,
+            )
+            sys.exit(1)
+        if NOZZLE_SCORE_DETECCION >= NOZZLE_BYTETRACK_TRACK_THRESH:
+            logging.warning(
+                "NOZZLE_SCORE_DETECCION (%.2f) >= NOZZLE_BYTETRACK_TRACK_THRESH (%.2f): "
+                "pocas detecciones entraran al pool bajo de ByteTrack; bajar "
+                "NOZZLE_SCORE_DETECCION si se busca continuidad con scores debiles.",
+                NOZZLE_SCORE_DETECCION,
+                NOZZLE_BYTETRACK_TRACK_THRESH,
+            )
+        if INFERENCE_BACKEND == "pc":
+            nozzle_pc = NOZZLE_MODEL_PC
+            if not os.path.isfile(nozzle_pc):
+                logging.critical(
+                    "CONFIG ERROR: ENABLE_NOZZLE=true e INFERENCE_BACKEND=pc "
+                    f"pero no existe NOZZLE_MODEL_PC: {nozzle_pc}"
+                )
+                sys.exit(1)
+            logging.info(
+                "Nozzle PC: %s (top %d, score>=%.2f, cada %d frame(s), track_thresh=%.2f)",
+                nozzle_pc,
+                NOZZLE_PROCESS_TOP_N,
+                NOZZLE_SCORE_DETECCION,
+                NOZZLE_EVERY_N_FRAMES,
+                NOZZLE_BYTETRACK_TRACK_THRESH,
+            )
+        elif INFERENCE_BACKEND == "rk3568":
+            nozzle_rk = NOZZLE_MODEL_RK3568
+            if not os.path.isfile(nozzle_rk):
+                logging.critical(
+                    "CONFIG ERROR: ENABLE_NOZZLE=true e INFERENCE_BACKEND=rk3568 "
+                    f"pero no existe NOZZLE_MODEL_RK3568: {nozzle_rk}"
+                )
+                sys.exit(1)
+            logging.info(
+                "Nozzle RK3568: %s (top %d, score>=%.2f, cada %d frame(s), track_thresh=%.2f)",
+                nozzle_rk,
+                NOZZLE_PROCESS_TOP_N,
+                NOZZLE_SCORE_DETECCION,
+                NOZZLE_EVERY_N_FRAMES,
+                NOZZLE_BYTETRACK_TRACK_THRESH,
+            )
+        else:
+            logging.info(
+                "Nozzle: ENABLE_NOZZLE=true pero INFERENCE_BACKEND=none (sin detector)."
+            )
+    else:
+        logging.info("Nozzle: desactivado (ENABLE_NOZZLE=false)")
 
 
 configure_logging()

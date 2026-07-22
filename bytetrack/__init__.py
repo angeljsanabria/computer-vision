@@ -20,10 +20,22 @@ def build_face_tracker(
     return FaceByteTracker(config or ByteTrackConfig())
 
 
+def build_nozzle_tracker(
+    enable: bool, config: ByteTrackConfig | None = None
+) -> "NozzleByteTracker | None":
+    """Tracker ByteTrack para detecciones nozzle (siempre ON si ENABLE_NOZZLE)."""
+    if not enable:
+        return None
+    from bytetrack.nozzle_tracker import NozzleByteTracker
+
+    return NozzleByteTracker(config or ByteTrackConfig())
+
+
 __all__ = [
     "ByteTrackConfig",
     "FaceTrack",
     "FaceTracker",
     "TrackResult",
     "build_face_tracker",
+    "build_nozzle_tracker",
 ]

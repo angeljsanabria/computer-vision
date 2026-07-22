@@ -84,10 +84,12 @@ from inference import (  # noqa: E402
     FaceDetector,
     FaceEmbedder,
     FaceMeshEstimator,
+    NozzleDetector,
     build_embedder,
     build_face_detector,
     build_face_mesh,
     build_identity_matcher,
+    build_nozzle_detector,
 )
 from inference.identity.matcher import (  # noqa: E402
     GALLERY_ALIGN_META_NAME,
@@ -99,8 +101,17 @@ from inference.identity.types import IdentityMatch  # noqa: E402
 from inference.types import FaceDetections, FaceEmbedding, FaceMeshLandmarks  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
 from inference.facemesh.from_detection import estimate_from_det  # noqa: E402
+from inference.nozzle.select_best import mejores_nozzles  # noqa: E402
+from inference.nozzle.types import NozzleDetections  # noqa: E402
 from inference.retinaface.select_best import mejores_caras  # noqa: E402
-from bytetrack import ByteTrackConfig, FaceTracker, TrackResult, build_face_tracker  # noqa: E402
+from bytetrack import (  # noqa: E402
+    ByteTrackConfig,
+    FaceTracker,
+    TrackResult,
+    build_face_tracker,
+    build_nozzle_tracker,
+)
+from bytetrack.nozzle_tracker import NozzleByteTracker  # noqa: E402
 from ui import DisplayBanner, FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 from utils.ip_cam_urls import build_rtmp_url, build_rtsp_url, build_snap_url  # noqa: E402
@@ -388,6 +399,69 @@ def _tick_facemesh_if_needed(
     return {tid: hold[tid] for tid in top_ids if tid in hold}
 
 
+def _tick_nozzle_if_needed(
+    nozzle: NozzleDetector | None,
+    fsm_out: FsmTickResult,
+    frame,
+    frame_idx: int,
+) -> NozzleDetections | None:
+    """
+    Nozzle YOLO: mismo gate FSM que RetinaFace, sin cooldown facial.
+
+    Throttle opcional via NOZZLE_EVERY_N_FRAMES. No altera FSM ni matcher.
+    """
+    if not s.ENABLE_NOZZLE or nozzle is None or not fsm_out.run_face_detector:
+        return None
+    every_n = max(1, int(s.NOZZLE_EVERY_N_FRAMES))
+    if (frame_idx % every_n) != 0:
+        return None
+    try:
+        raw = nozzle.detect(frame)
+    except Exception as exc:
+        logging.warning("[Nozzle] fallo detect(): %s", exc)
+        return None
+    return mejores_nozzles(
+        raw,
+        top_n=s.NOZZLE_PROCESS_TOP_N,
+        min_score=s.NOZZLE_SCORE_DETECCION,
+    )
+
+
+def _tick_nozzle_bytetrack_if_needed(
+    tracker: NozzleByteTracker | None,
+    dets: NozzleDetections | None,
+) -> TrackResult | None:
+    """ByteTrack nozzle; aislado con try/except como el tracker facial."""
+    if tracker is None:
+        return None
+    try:
+        return tracker.update(dets)
+    except Exception as exc:
+        logging.warning("ByteTrack nozzle: fallo update(): %s", exc)
+        return None
+
+
+def _log_nozzle_periodic(
+    frame_idx: int,
+    dets: NozzleDetections | None,
+    tracks: TrackResult | None,
+) -> None:
+    if frame_idx % s.LOG_CADA_N_FRAMES != 0:
+        return
+    n_dets = int(dets.dets.shape[0]) if dets is not None and dets.has_detections else 0
+    n_tracks = len(tracks.tracks) if tracks is not None and tracks.tracks else 0
+    best = 0.0
+    if dets is not None and dets.has_detections:
+        best = float(np.max(dets.dets[:, 4]))
+    elif tracks is not None and tracks.tracks:
+        best = max(t.score for t in tracks.tracks)
+    msg = "[Nozzle] dets=%d tracks=%d best_score=%.3f"
+    if n_dets > 0 or n_tracks > 0:
+        logging.info(msg, n_dets, n_tracks, best)
+    else:
+        logging.debug(msg, n_dets, n_tracks, best)
+
+
 def _tick_embed_if_needed(
     embedder: FaceEmbedder | None,
     frame,
@@ -454,7 +528,7 @@ def _tick_embed_if_needed(
 
 
 def _release_runtime(
-    obj: FaceDetector | FaceEmbedder | FaceMeshEstimator | None,
+    obj: FaceDetector | FaceEmbedder | FaceMeshEstimator | NozzleDetector | None,
 ) -> None:
     """Libera runtime si el objeto expone release() (p. ej. RKNNLite en RK3568)."""
     if obj is None:
@@ -631,6 +705,48 @@ def main() -> int:
     else:
         logging.debug("FaceMesh desactivado (ENABLE_FACEMESH=false)")
 
+    nozzle: NozzleDetector | None = None
+    nozzle_tracker: NozzleByteTracker | None = None
+    if s.ENABLE_NOZZLE:
+        if backend == "pc":
+            nozzle_model = s.NOZZLE_MODEL_PC
+        elif backend == "rk3568":
+            nozzle_model = s.NOZZLE_MODEL_RK3568
+        else:
+            nozzle_model = ""
+        if nozzle_model:
+            nozzle = build_nozzle_detector(
+                backend,
+                nozzle_model,
+                s.NOZZLE_SCORE_DETECCION,
+                s.NOZZLE_NMS_IOU,
+            )
+        nozzle_tracker = build_nozzle_tracker(
+            True,
+            ByteTrackConfig(
+                track_thresh=s.NOZZLE_BYTETRACK_TRACK_THRESH,
+                match_thresh=s.NOZZLE_BYTETRACK_MATCH_THRESH,
+                track_buffer=s.NOZZLE_BYTETRACK_TRACK_BUFFER,
+                frame_rate=s.NOZZLE_BYTETRACK_FRAME_RATE,
+            ),
+        )
+        if nozzle is not None:
+            logging.debug(
+                "Nozzle activo (backend=%s, top_n=%d, every_n=%d, track_thresh=%.2f)",
+                s.INFERENCE_BACKEND,
+                s.NOZZLE_PROCESS_TOP_N,
+                s.NOZZLE_EVERY_N_FRAMES,
+                s.NOZZLE_BYTETRACK_TRACK_THRESH,
+            )
+        else:
+            logging.debug(
+                "Nozzle no creado (ENABLE_NOZZLE=%s, backend=%s)",
+                s.ENABLE_NOZZLE,
+                s.INFERENCE_BACKEND,
+            )
+    else:
+        logging.debug("Nozzle desactivado (ENABLE_NOZZLE=false)")
+
     display = PipelineDisplay.from_settings(
         enabled=s.DISPLAY_IS_ENABLE,
         force_full_screen=s.DISPLAY_FORCE_FULL_SCREEN,
@@ -725,6 +841,7 @@ def main() -> int:
         identity_by_track: dict[int, IdentityMatch] = {}
         facemesh_hold: dict[int, FaceMeshLandmarks] = {}
         facemesh_frame_idx = 0
+        nozzle_frame_idx = 0
 
         while True:
             try:
@@ -864,6 +981,29 @@ def main() -> int:
                     )
                     facemesh_frame_idx += 1
 
+                    nozzle_dets: NozzleDetections | None = None
+                    nozzle_tracks: TrackResult | None = None
+                    if (
+                        s.ENABLE_NOZZLE
+                        and nozzle is not None
+                        and fsm_out.run_face_detector
+                    ):
+                        nozzle_dets = _tick_nozzle_if_needed(
+                            nozzle, fsm_out, frame, nozzle_frame_idx
+                        )
+                        dets_for_track = (
+                            nozzle_dets
+                            if nozzle_dets is not None
+                            else NozzleDetections.empty()
+                        )
+                        nozzle_tracks = _tick_nozzle_bytetrack_if_needed(
+                            nozzle_tracker, dets_for_track
+                        )
+                        _log_nozzle_periodic(
+                            nozzle_frame_idx, nozzle_dets, nozzle_tracks
+                        )
+                    nozzle_frame_idx += 1
+
                     view = FrameView(
                         mov=mov,
                         fsm=fsm_out,
@@ -873,6 +1013,8 @@ def main() -> int:
                         tracks=tracks,
                         identity_by_track=identity_by_track or None,
                         facemesh_by_track=facemesh_by_track or None,
+                        nozzle_dets=nozzle_dets,
+                        nozzle_tracks=nozzle_tracks,
                     )
                     _publish_vision_http_status(
                         fsm, fsm_out, dets, last_identity, now_ns
@@ -904,6 +1046,7 @@ def main() -> int:
         _release_face_detector(face)
         _release_runtime(embedder)
         _release_runtime(face_mesh)
+        _release_runtime(nozzle)
         if capture is not None:
             capture.stop()
         display.teardown()
