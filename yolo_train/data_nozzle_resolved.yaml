@@ -1,8 +1,8 @@
-path: /mnt/c/code/computer-vision/yolo_train/Find fuel nozzle.yolov8
+path: C:/code/computer-vision/yolo_train/nozzle.yolov8
 train: train/images
 val: valid/images
 test: test/images
 
 nc: 1
 names:
-  - fuel nozzle
+  - nozzle

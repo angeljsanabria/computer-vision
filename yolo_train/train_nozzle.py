@@ -1,15 +1,14 @@
 """
 Fine-tune YOLOv8n (COCO preentrenado) para detectar fuel nozzle.
 
-Base: Yolo-Weights/yolov8n.pt (misma que el pipeline yolov8n.onnx -> .rknn).
-Dataset: yolo_train/Find fuel nozzle.yolov8 (Roboflow, export YOLOv8).
+Config central: yolo_train/nozzle_config.py (NOZZLE_VERSION, DATASET_DIR).
 
 Uso (desde la raiz del repo):
   python yolo_train/train_nozzle.py
   python yolo_train/train_nozzle.py --epochs 50 --batch 8
 
 Salida tipica:
-  yolo_train/runs/detect/nozzle_v1/weights/best.pt
+  yolo_train/runs/detect/nozzle_v2/weights/best.pt
 
 Siguiente paso: python yolo_train/export_nozzle_onnx.py
 """
@@ -19,15 +18,19 @@ import argparse
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-PRETRAINED_PT = ROOT / "Yolo-Weights" / "yolov8n.pt"
-DATA_YAML = SCRIPT_DIR / "data_nozzle.yaml"
-DATASET_ROOT = SCRIPT_DIR / "Find fuel nozzle.yolov8"
-DATA_YAML_RESOLVED = SCRIPT_DIR / "data_nozzle_resolved.yaml"
+import nozzle_config as nc  # noqa: E402
 
-RUN_NAME = "nozzle_v1"
+ROOT = nc.ROOT
+PRETRAINED_PT = nc.PRETRAINED_PT
+DATA_YAML = nc.DATA_YAML
+DATASET_ROOT = nc.DATASET_ROOT
+DATA_YAML_RESOLVED = nc.DATA_YAML_RESOLVED
+RUN_NAME = nc.RUN_NAME
+
 EPOCHS = 100
 IMGSZ = 640
 BATCH = 16
@@ -48,10 +51,6 @@ def _validar_rutas() -> None:
 
 
 def _escribir_data_yaml_resuelto() -> Path:
-    """
-    Ultralytics antepone datasets_dir (<repo>/datasets) a path relativo en el yaml.
-    Escribimos path absoluto al export Roboflow en yolo_train/.
-    """
     path_str = DATASET_ROOT.resolve().as_posix()
     content = (
         f"path: {path_str}\n"
@@ -60,8 +59,8 @@ def _escribir_data_yaml_resuelto() -> Path:
         "test: test/images\n"
         "\n"
         "nc: 1\n"
-        "names:\n"
-        "  - fuel nozzle\n"
+        f"names:\n"
+        f"  - {nc.CLASS_NAME}\n"
     )
     DATA_YAML_RESOLVED.write_text(content, encoding="utf-8")
     return DATA_YAML_RESOLVED
@@ -84,6 +83,7 @@ def main() -> None:
 
     data_yaml = _escribir_data_yaml_resuelto()
 
+    print(f"Version:   {nc.NOZZLE_VERSION}")
     print(f"Peso base: {PRETRAINED_PT}")
     print(f"Dataset:   {data_yaml}")
     print(f"Path:      {DATASET_ROOT.resolve()}")

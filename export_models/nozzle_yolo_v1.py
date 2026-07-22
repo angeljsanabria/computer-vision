@@ -247,7 +247,7 @@ def main() -> None:
     parser.add_argument(
         "--usb-index",
         type=int,
-        default=int(s.USB_INDEX),
+        default=int(0),
         help="Indice de camara USB (0 en PC; en RK3568 suele ser 10 u 11).",
     )
     parser.add_argument(
@@ -279,7 +279,7 @@ def main() -> None:
     print(f"Modo:    {args.modo}")
     print(f"Conf:    {args.conf}")
 
-    rtsp_url = args.rtsp_url.strip() or s.IP_CAM_RTSP_URL
+
     grabber: UltimoFrameCamara | None = None
     cap: cv2.VideoCapture | None = None
 
@@ -291,6 +291,7 @@ def main() -> None:
             )
         grabber = _iniciar_grabber(cap)
     else:
+        rtsp_url = args.rtsp_url.strip() or s.IP_CAM_RTSP_URL
         print(f"RTSP: {rtsp_url}")
         cap = _abrir_rtsp_con_reintentos(rtsp_url)
         grabber = _iniciar_grabber(cap)

@@ -1,6 +1,8 @@
 """
 Prueba en PC del modelo fuel nozzle exportado a ONNX.
 
+Config: yolo_train/nozzle_config.py
+
 Uso (desde la raiz del repo, despues de export_nozzle_onnx.py):
   python yolo_train/detect_nozzle_onnx_img.py
   python yolo_train/detect_nozzle_onnx_img.py --img ruta/a/foto.jpg
@@ -11,6 +13,7 @@ Requiere: ultralytics, opencv-python.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
@@ -19,14 +22,13 @@ from ultralytics import YOLO
 
 ROOT = Path(__file__).resolve().parent.parent
 SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-ONNX_PATH = ROOT / "Yolo-Weights" / "yolov8n_nozzle.onnx"
-DEFAULT_IMG = (
-    SCRIPT_DIR
-    / "Find fuel nozzle.yolov8"
-    / "valid"
-    / "images"
-)
+import nozzle_config as nc  # noqa: E402
+
+ONNX_PATH = nc.ONNX_LATEST
+DEFAULT_IMG = nc.DATASET_ROOT / "valid" / "images"
 
 CONF_MIN = 0.25
 DELAY_SEC = 5

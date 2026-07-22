@@ -1,0 +1,12 @@
+# Dataset Roboflow nozzle (export YOLOv8).
+# Plantilla de clases/rutas. train_nozzle.py genera data_nozzle_resolved.yaml
+# con path absoluto: Ultralytics resuelve path relativo bajo <repo>/datasets/, no yolo_train/.
+
+path: nozzle.yolov8
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 1
+names:
+  - nozzle

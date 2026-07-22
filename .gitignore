@@ -29,7 +29,7 @@ Thumbs.db
 
 # Pesos o modelos grandes (subilos por separado si querés)
 Yolo-Weights/
-models/*
+#models/*
 models/Yolo-Weights-face/
 videos/
 

@@ -14,7 +14,7 @@ Ejemplo:
   python get_dataset/get_dataset_from_vid.py
   python get_dataset/get_dataset_from_vid.py --video mi_clip.mp4
 """
-from __future__ import annotations
+from __future__ import annotations4
 
 import argparse
 import logging
