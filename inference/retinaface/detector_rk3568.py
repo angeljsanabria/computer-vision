@@ -4,13 +4,12 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-import cv2
 import numpy as np
 
 from inference.retinaface.constants import INPUT_HEIGHT, INPUT_WIDTH, LETTERBOX_FILL
 from inference.retinaface.postprocess import dets_desde_salidas_modelo
 from inference.types import FaceDetections
-from utils.image_utils import letterbox_bgr
+from utils.image_utils import bgr_to_rgb, letterbox_bgr
 
 try:
     from rknnlite.api import RKNNLite
@@ -79,7 +78,7 @@ class RetinaFaceDetectorRk3568:
             LETTERBOX_FILL,
             use_rga=self._use_rga,
         )
-        infer_rgb = cv2.cvtColor(letterbox_img, cv2.COLOR_BGR2RGB)
+        infer_rgb = bgr_to_rgb(letterbox_img, use_rga=self._use_rga)
         if infer_rgb.dtype != np.uint8:
             infer_rgb = infer_rgb.astype(np.uint8)
         input_tensor = np.expand_dims(infer_rgb, axis=0)

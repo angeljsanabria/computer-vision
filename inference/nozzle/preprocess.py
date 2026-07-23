@@ -5,13 +5,17 @@ import cv2
 import numpy as np
 
 from inference.nozzle.constants import INPUT_SIZE
-from utils.image_utils import LetterboxMeta, letterbox_bgr
+from utils.image_utils import LetterboxMeta, bgr_to_rgb, letterbox_bgr, resize_frame
 
 
 def stretch_bgr_to_rknn_input(frame_bgr: np.ndarray) -> np.ndarray:
     """Resize cuadrado + RGB uint8 NHWC (mean 0 / std 255 en export RKNN)."""
-    img = cv2.resize(frame_bgr, (INPUT_SIZE, INPUT_SIZE))
-    rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img = resize_frame(
+        frame_bgr,
+        (INPUT_SIZE, INPUT_SIZE),
+        interpolation=cv2.INTER_LINEAR,
+    )
+    rgb = bgr_to_rgb(img)
     return np.expand_dims(rgb, axis=0)
 
 
@@ -22,7 +26,7 @@ def letterbox_bgr_for_onnx(frame_bgr: np.ndarray, fill_value: int) -> tuple[np.n
 
 def letterbox_to_nchw_float01(canvas_bgr: np.ndarray) -> np.ndarray:
     """Canvas BGR letterbox -> tensor NCHW float32 [0, 1] RGB."""
-    rgb = cv2.cvtColor(canvas_bgr, cv2.COLOR_BGR2RGB)
+    rgb = bgr_to_rgb(canvas_bgr)
     chw = np.transpose(rgb, (2, 0, 1)).astype(np.float32) / 255.0
     return np.expand_dims(chw, axis=0)
 

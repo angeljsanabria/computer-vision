@@ -12,6 +12,7 @@ import numpy as np
 from inference.face_align import MOBILEFACENET_ALIGN_SIZE, landmarks_from_det_row
 from inference.face_pose import eye_roll_deg_from_landmarks
 from inference.face_crop import bbox_crop_with_margin
+from utils.image_utils import resize_frame
 
 
 def roll_fix_bbox_crop(
@@ -65,5 +66,9 @@ def crop_roll_fix_to_size(
     lmk = landmarks_from_det_row(det_row)
     lmk_crop = lmk - np.array([x1, y1], dtype=np.float32)
     fixed, roll_deg = roll_fix_bbox_crop(crop, lmk_crop)
-    out = cv2.resize(fixed, (out_size, out_size), interpolation=cv2.INTER_LINEAR)
+    out = resize_frame(
+        fixed,
+        (out_size, out_size),
+        interpolation=cv2.INTER_LINEAR,
+    )
     return out, roll_deg

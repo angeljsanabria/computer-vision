@@ -1,10 +1,10 @@
 """Tensor de entrada MobileFaceNet desde parche BGR 112x112."""
 from __future__ import annotations
 
-import cv2
 import numpy as np
 
 from inference.mobilefacenet.constants import IMAGENET_MEAN, IMAGENET_STD, INPUT_HW
+from utils.image_utils import bgr_to_rgb
 
 
 def _assert_bgr112(face_bgr: np.ndarray) -> None:
@@ -20,7 +20,7 @@ def bgr112_to_onnx_nchw(face_bgr: np.ndarray) -> np.ndarray:
     _assert_bgr112(face_bgr)
     if face_bgr.size == 0:
         raise ValueError("recorte vacio")
-    rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+    rgb = bgr_to_rgb(face_bgr).astype(np.float32) / 255.0
     norm = (rgb - IMAGENET_MEAN) / IMAGENET_STD
     chw = np.transpose(norm, (2, 0, 1))
     return np.expand_dims(chw.astype(np.float32), axis=0)
@@ -29,7 +29,7 @@ def bgr112_to_onnx_nchw(face_bgr: np.ndarray) -> np.ndarray:
 def bgr112_to_rknn_nhwc(face_bgr: np.ndarray) -> np.ndarray:
     """BGR uint8 112x112 -> RGB uint8 NHWC (1, 112, 112, 3); mean/std en el .rknn."""
     _assert_bgr112(face_bgr)
-    rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
+    rgb = bgr_to_rgb(face_bgr)
     if rgb.dtype != np.uint8:
         rgb = rgb.astype(np.uint8)
     return np.expand_dims(rgb, axis=0)

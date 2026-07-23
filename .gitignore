@@ -54,4 +54,8 @@ yolo_train/**/
 get_dataset/*/**
 facemesh-models/calib/*.jpg
 
+# my_rga build artifacts
+# native/wheels/*.whl
+native/my_rga/dist/
+native/my_rga/build/
 

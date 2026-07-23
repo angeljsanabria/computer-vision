@@ -34,7 +34,7 @@ HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
 LOG_MODE = os.getenv("LOG_MODE", "prod").lower()  # prod | dev
 
-# 1.3 Procesamiento de imagen (RGA RK3568; legacy OpenCV por defecto)
+# 1.3 Procesamiento de imagen (RGA RK3568; solo efectivo con INFERENCE_BACKEND=rk3568)
 USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 
 # 1.4 Identidad reconocida (FSM FACE_RECOGNIZED)
@@ -329,6 +329,16 @@ def validar_todo():
             "CONFIG ERROR: INFERENCE_BACKEND debe ser none, pc o rk3568."
         )
         sys.exit(1)
+
+    if USE_RGA and INFERENCE_BACKEND != "rk3568":
+        logging.warning(
+            "USE_RGA=true pero INFERENCE_BACKEND=%s; RGA se ignora (solo rk3568).",
+            INFERENCE_BACKEND,
+        )
+    elif USE_RGA:
+        logging.info(
+            "RGA activo: resize/letterbox/cvtColor via my_rga (fallback OpenCV si falta wheel)"
+        )
 
     if INFERENCE_BACKEND == "pc":
         pc_path = RETINAFACE_MODEL_PC

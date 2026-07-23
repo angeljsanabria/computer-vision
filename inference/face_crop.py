@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 
 from inference.face_align import MOBILEFACENET_ALIGN_SIZE
+from utils.image_utils import resize_frame
 
 
 def bbox_crop_with_margin(
@@ -41,7 +42,7 @@ def crop_bbox_to_size(
     crop = frame_bgr[y1 : y2 + 1, x1 : x2 + 1]
     if crop.size == 0:
         raise ValueError("recorte bbox vacio")
-    return cv2.resize(
+    return resize_frame(
         crop,
         (out_size, out_size),
         interpolation=cv2.INTER_LINEAR,

@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 
 from inference.facemesh.constants import INPUT_HW, INPUT_SIZE
+from utils.image_utils import bgr_to_rgb, resize_frame
 
 
 def _assert_bgr192(face_bgr: np.ndarray) -> None:
@@ -19,7 +20,7 @@ def crop_to_bgr192(face_crop_bgr: np.ndarray) -> np.ndarray:
     """Recorte arbitrario -> BGR uint8 192x192 (resize lineal)."""
     if face_crop_bgr.size == 0:
         raise ValueError("recorte vacio")
-    return cv2.resize(
+    return resize_frame(
         face_crop_bgr,
         (INPUT_SIZE, INPUT_SIZE),
         interpolation=cv2.INTER_LINEAR,
@@ -29,7 +30,7 @@ def crop_to_bgr192(face_crop_bgr: np.ndarray) -> np.ndarray:
 def bgr192_to_onnx_nchw(face_bgr: np.ndarray) -> np.ndarray:
     """BGR uint8 192x192 -> RGB float32 NCHW (1, 3, 192, 192) en [0, 1]."""
     _assert_bgr192(face_bgr)
-    rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
+    rgb = bgr_to_rgb(face_bgr).astype(np.float32) / 255.0
     chw = np.transpose(rgb, (2, 0, 1))
     return np.expand_dims(chw.astype(np.float32), axis=0)
 
@@ -37,7 +38,7 @@ def bgr192_to_onnx_nchw(face_bgr: np.ndarray) -> np.ndarray:
 def bgr192_to_rknn_nhwc(face_bgr: np.ndarray) -> np.ndarray:
     """BGR uint8 192x192 -> RGB uint8 NHWC (1, 192, 192, 3); pendiente mean/std en .rknn."""
     _assert_bgr192(face_bgr)
-    rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
+    rgb = bgr_to_rgb(face_bgr)
     if rgb.dtype != np.uint8:
         rgb = rgb.astype(np.uint8)
     return np.expand_dims(rgb, axis=0)

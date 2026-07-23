@@ -1,8 +1,8 @@
 """
 Utilidades para procesamiento de imagenes y frames.
 
-Este modulo proporciona funciones para ajustar frames manteniendo
-el aspect ratio y otras operaciones comunes de procesamiento de imagenes.
+En RK3568 con USE_RGA=true delega resize/letterbox/cvtColor al backend RGA
+(via utils/image_backend.py). En PC el comportamiento es OpenCV exclusivo.
 """
 from __future__ import annotations
 
@@ -10,6 +10,12 @@ from typing import NamedTuple
 
 import cv2
 import numpy as np
+
+from utils.image_backend import (
+    bgr_to_rgb_backend,
+    letterbox_bgr_backend,
+    resize_bgr,
+)
 
 
 class LetterboxMeta(NamedTuple):
@@ -26,6 +32,17 @@ class LetterboxMeta(NamedTuple):
     offset_y: int
 
 
+def bgr_to_rgb(
+    frame_bgr: np.ndarray,
+    *,
+    use_rga: bool = False,
+) -> np.ndarray:
+    """Convierte BGR uint8 a RGB uint8 (OpenCV en PC; RGA en RK3568 si USE_RGA)."""
+    if frame_bgr.ndim != 3 or frame_bgr.shape[2] != 3:
+        raise ValueError("frame_bgr debe ser (H, W, 3) BGR")
+    return bgr_to_rgb_backend(frame_bgr, use_rga=use_rga)
+
+
 def resize_frame(
     frame: np.ndarray,
     out_wh: tuple[int, int],
@@ -34,18 +51,15 @@ def resize_frame(
     use_rga: bool = False,
 ) -> np.ndarray:
     """
-    Redimensiona un frame (H, W, C). OpenCV por defecto; RGA si ``use_rga``.
+    Redimensiona un frame (H, W, C). OpenCV en PC; RGA en RK3568 si USE_RGA.
 
     Args:
         frame: Array numpy (alto, ancho, canales).
         out_wh: (ancho, alto) destino, convencion OpenCV.
-        interpolation: Flag ``cv2.INTER_*`` (solo aplica en ruta OpenCV legacy).
-        use_rga: Si True, ruta RGA de Rockchip (pendiente; hoy usa OpenCV).
+        interpolation: Flag ``cv2.INTER_*`` (solo aplica en ruta OpenCV).
+        use_rga: Compat legacy; solo efectivo con INFERENCE_BACKEND=rk3568.
     """
-    if use_rga:
-        # TODO: completar con toolkit de Rockchip (RGA resize).
-        return cv2.resize(frame, out_wh, interpolation=interpolation)
-    return cv2.resize(frame, out_wh, interpolation=interpolation)
+    return resize_bgr(frame, out_wh, interpolation, use_rga=use_rga)
 
 
 def letterbox_bgr(
@@ -90,28 +104,18 @@ def letterbox_bgr(
     """
     if image_bgr.ndim != 3 or image_bgr.shape[2] != 3:
         raise ValueError("image_bgr debe ser (H, W, 3) BGR")
-    target_width, target_height = out_wh[0], out_wh[1]
-    image_height, image_width = image_bgr.shape[:2]
 
-    aspect_ratio = min(target_width / image_width, target_height / image_height)
-    new_width = int(image_width * aspect_ratio)
-    new_height = int(image_height * aspect_ratio)
-
-    resized = resize_frame(
+    canvas, aspect_ratio, offset_x, offset_y = letterbox_bgr_backend(
         image_bgr,
-        (new_width, new_height),
-        interpolation=cv2.INTER_AREA,
+        out_wh,
+        fill_value,
         use_rga=use_rga,
     )
-
-    canvas = (np.ones((target_height, target_width, 3), dtype=np.uint8) * fill_value).astype(
-        np.uint8
+    meta = LetterboxMeta(
+        aspect_ratio=aspect_ratio,
+        offset_x=offset_x,
+        offset_y=offset_y,
     )
-    offset_x = (target_width - new_width) // 2
-    offset_y = (target_height - new_height) // 2
-    canvas[offset_y : offset_y + new_height, offset_x : offset_x + new_width] = resized
-
-    meta = LetterboxMeta(aspect_ratio=aspect_ratio, offset_x=offset_x, offset_y=offset_y)
     return canvas, meta
 
 
