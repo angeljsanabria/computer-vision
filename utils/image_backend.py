@@ -1,12 +1,12 @@
 """
 Backend de imagen: OpenCV (PC / fallback) y RGA (RK3568 + USE_RGA).
 
-La activacion de RGA nunca ocurre fuera de INFERENCE_BACKEND=rk3568.
+Main arranca la instancia activa con ``ImageBackend.start(use_rga=...)`` tras
+``validar_todo()``. El resto del pipeline usa ``image_utils`` sin pasar flags.
 """
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 import cv2
@@ -15,21 +15,7 @@ import numpy as np
 _my_rga_module: Any | None = None
 _my_rga_import_failed = False
 _rga_fallback_logged = False
-
-
-def should_use_rga() -> bool:
-    """True solo en placa RK3568 con USE_RGA=true."""
-    backend = os.getenv("INFERENCE_BACKEND", "pc").lower()
-    use_rga = os.getenv("USE_RGA", "false").lower() == "true"
-    return backend == "rk3568" and use_rga
-
-
-def effective_use_rga(*, explicit: bool = False) -> bool:
-    """Gate unificado; en PC siempre False aunque explicit=True."""
-    if os.getenv("INFERENCE_BACKEND", "pc").lower() != "rk3568":
-        return False
-    env_on = os.getenv("USE_RGA", "false").lower() == "true"
-    return env_on or explicit
+_active: ImageBackend | None = None
 
 
 def _log_rga_fallback_once(reason: str) -> None:
@@ -146,41 +132,83 @@ def rga_bgr_to_rgb(frame_bgr: np.ndarray) -> np.ndarray | None:
         return None
 
 
+class ImageBackend:
+    """Resize, letterbox y BGR->RGB; RGA opcional segun flag de instancia."""
+
+    __slots__ = ("_use_rga",)
+
+    def __init__(self, *, use_rga: bool = False) -> None:
+        self._use_rga = bool(use_rga)
+
+    @property
+    def use_rga(self) -> bool:
+        return self._use_rga
+
+    @classmethod
+    def start(cls, *, use_rga: bool = False) -> ImageBackend:
+        """Registra la instancia activa del backend (llamar una vez desde main)."""
+        global _active
+        backend = cls(use_rga=use_rga)
+        _active = backend
+        if use_rga:
+            logging.debug("ImageBackend: RGA habilitado")
+        return backend
+
+    def resize_bgr(
+        self,
+        frame: np.ndarray,
+        out_wh: tuple[int, int],
+        interpolation: int = cv2.INTER_AREA,
+    ) -> np.ndarray:
+        if self._use_rga:
+            out = rga_resize(frame, out_wh, interpolation)
+            if out is not None:
+                return out
+        return opencv_resize(frame, out_wh, interpolation)
+
+    def letterbox_bgr(
+        self,
+        image_bgr: np.ndarray,
+        out_wh: tuple[int, int],
+        fill_value: int,
+    ) -> tuple[np.ndarray, float, int, int]:
+        if self._use_rga:
+            out = rga_letterbox_bgr(image_bgr, out_wh, fill_value)
+            if out is not None:
+                return out
+        return opencv_letterbox_bgr(image_bgr, out_wh, fill_value)
+
+    def bgr_to_rgb(self, frame_bgr: np.ndarray) -> np.ndarray:
+        if self._use_rga:
+            out = rga_bgr_to_rgb(frame_bgr)
+            if out is not None:
+                return out
+        return opencv_bgr_to_rgb(frame_bgr)
+
+
+def active_backend() -> ImageBackend:
+    """Instancia activa; OpenCV-only si main no llamo ``start`` (scripts offline)."""
+    global _active
+    if _active is None:
+        _active = ImageBackend(use_rga=False)
+    return _active
+
+
 def resize_bgr(
     frame: np.ndarray,
     out_wh: tuple[int, int],
     interpolation: int = cv2.INTER_AREA,
-    *,
-    use_rga: bool = False,
 ) -> np.ndarray:
-    if effective_use_rga(explicit=use_rga):
-        out = rga_resize(frame, out_wh, interpolation)
-        if out is not None:
-            return out
-    return opencv_resize(frame, out_wh, interpolation)
+    return active_backend().resize_bgr(frame, out_wh, interpolation)
 
 
 def letterbox_bgr_backend(
     image_bgr: np.ndarray,
     out_wh: tuple[int, int],
     fill_value: int,
-    *,
-    use_rga: bool = False,
 ) -> tuple[np.ndarray, float, int, int]:
-    if effective_use_rga(explicit=use_rga):
-        out = rga_letterbox_bgr(image_bgr, out_wh, fill_value)
-        if out is not None:
-            return out
-    return opencv_letterbox_bgr(image_bgr, out_wh, fill_value)
+    return active_backend().letterbox_bgr(image_bgr, out_wh, fill_value)
 
 
-def bgr_to_rgb_backend(
-    frame_bgr: np.ndarray,
-    *,
-    use_rga: bool = False,
-) -> np.ndarray:
-    if effective_use_rga(explicit=use_rga):
-        out = rga_bgr_to_rgb(frame_bgr)
-        if out is not None:
-            return out
-    return opencv_bgr_to_rgb(frame_bgr)
+def bgr_to_rgb_backend(frame_bgr: np.ndarray) -> np.ndarray:
+    return active_backend().bgr_to_rgb(frame_bgr)

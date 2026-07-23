@@ -28,11 +28,8 @@ class Mog2MotionSensor:
     con frames nuevos del stream con normalidad.
     """
 
-    def __init__(
-        self, config: Mog2Config | None = None, *, use_rga: bool = False
-    ) -> None:
+    def __init__(self, config: Mog2Config | None = None) -> None:
         self._cfg = config or Mog2Config()
-        self._use_rga = use_rga
         self._umbral_base = self._cfg.movimiento_pixeles
         self._umbral_pixeles = self._umbral_base
         self._process_wh = (self._cfg.process_width, self._cfg.process_height)
@@ -77,7 +74,6 @@ class Mog2MotionSensor:
             frame_bgr,
             self._process_wh,
             interpolation=cv2.INTER_AREA,
-            use_rga=self._use_rga,
         )
         self._fgbg.apply(small, learningRate=self._cfg.warmup_learning_rate)
 
@@ -135,7 +131,6 @@ class Mog2MotionSensor:
             frame_bgr,
             self._process_wh,
             interpolation=cv2.INTER_AREA,
-            use_rga=self._use_rga,
         )
         mask = self._fgbg.apply(small)
         pixel_count = int(cv2.countNonZero(mask))

@@ -3,9 +3,10 @@
 Compara salidas RGA vs OpenCV en placa RK3568.
 
 Uso en placa:
-  INFERENCE_BACKEND=rk3568 USE_RGA=true python scripts/validate_rga_vs_opencv.py
+  python scripts/validate_rga_vs_opencv.py
 
 Requiere my_rga instalado (pip install native/wheels/my_rga-*.whl en placa).
+El script arranca ImageBackend con RGA activo (no depende de variables de entorno).
 """
 from __future__ import annotations
 
@@ -36,10 +37,10 @@ def main() -> int:
         print("ERROR: my_rga no instalado. pip install rknn-toolkit-lite/my_rga-*.whl")
         return 1
 
-    from utils.image_backend import opencv_letterbox_bgr, opencv_resize
+    from utils.image_backend import ImageBackend, opencv_letterbox_bgr, opencv_resize
     from utils.image_utils import bgr_to_rgb, letterbox_bgr, resize_frame
 
-    os.environ["USE_RGA"] = "true"
+    ImageBackend.start(use_rga=True)
     rng = np.random.default_rng(0)
 
     cases = [

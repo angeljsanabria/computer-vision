@@ -30,8 +30,6 @@ class RetinaFaceDetectorRk3568:
         model_path: str | Path,
         score_deteccion: float,
         score_pre_nms: float,
-        *,
-        use_rga: bool = False,
     ) -> None:
         if RKNNLite is None:
             raise RuntimeError(
@@ -46,7 +44,6 @@ class RetinaFaceDetectorRk3568:
 
         self._score_deteccion = float(score_deteccion)
         self._score_pre_nms = float(score_pre_nms)
-        self._use_rga = use_rga
         self._rknn: RKNNLite | None = RKNNLite()
         if self._rknn.load_rknn(str(path)) != 0:
             raise RuntimeError(f"load_rknn failed: {path}")
@@ -76,9 +73,8 @@ class RetinaFaceDetectorRk3568:
             frame_bgr,
             (INPUT_WIDTH, INPUT_HEIGHT),
             LETTERBOX_FILL,
-            use_rga=self._use_rga,
         )
-        infer_rgb = bgr_to_rgb(letterbox_img, use_rga=self._use_rga)
+        infer_rgb = bgr_to_rgb(letterbox_img)
         if infer_rgb.dtype != np.uint8:
             infer_rgb = infer_rgb.astype(np.uint8)
         input_tensor = np.expand_dims(infer_rgb, axis=0)

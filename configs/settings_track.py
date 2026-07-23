@@ -402,13 +402,15 @@ def validar_todo():
         sys.exit(1)
 
     if USE_RGA and INFERENCE_BACKEND != "rk3568":
-        logging.warning(
-            "USE_RGA=true pero INFERENCE_BACKEND=%s; RGA se ignora (solo rk3568).",
+        logging.critical(
+            "CONFIG ERROR: USE_RGA=true requiere INFERENCE_BACKEND=rk3568 (actual: %s).",
             INFERENCE_BACKEND,
         )
-    elif USE_RGA:
+        sys.exit(1)
+    if USE_RGA:
         logging.info(
-            "RGA activo: resize/letterbox/cvtColor via my_rga (fallback OpenCV si falta wheel)"
+            "RGA activo (rk3568): resize/letterbox/cvtColor via my_rga "
+            "(fallback OpenCV si falta wheel)"
         )
 
     if INFERENCE_BACKEND == "pc":

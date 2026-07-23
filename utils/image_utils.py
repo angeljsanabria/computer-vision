@@ -1,8 +1,9 @@
 """
 Utilidades para procesamiento de imagenes y frames.
 
-En RK3568 con USE_RGA=true delega resize/letterbox/cvtColor al backend RGA
-(via utils/image_backend.py). En PC el comportamiento es OpenCV exclusivo.
+RGA vs OpenCV lo decide la instancia activa de ``ImageBackend`` (arrancada
+desde main con ``ImageBackend.start(use_rga=...)``). En PC o scripts offline
+sin ``start``, el comportamiento es OpenCV exclusivo.
 """
 from __future__ import annotations
 
@@ -32,42 +33,33 @@ class LetterboxMeta(NamedTuple):
     offset_y: int
 
 
-def bgr_to_rgb(
-    frame_bgr: np.ndarray,
-    *,
-    use_rga: bool = False,
-) -> np.ndarray:
-    """Convierte BGR uint8 a RGB uint8 (OpenCV en PC; RGA en RK3568 si USE_RGA)."""
+def bgr_to_rgb(frame_bgr: np.ndarray) -> np.ndarray:
+    """Convierte BGR uint8 a RGB uint8 (OpenCV o RGA segun ImageBackend activo)."""
     if frame_bgr.ndim != 3 or frame_bgr.shape[2] != 3:
         raise ValueError("frame_bgr debe ser (H, W, 3) BGR")
-    return bgr_to_rgb_backend(frame_bgr, use_rga=use_rga)
+    return bgr_to_rgb_backend(frame_bgr)
 
 
 def resize_frame(
     frame: np.ndarray,
     out_wh: tuple[int, int],
     interpolation: int = cv2.INTER_AREA,
-    *,
-    use_rga: bool = False,
 ) -> np.ndarray:
     """
-    Redimensiona un frame (H, W, C). OpenCV en PC; RGA en RK3568 si USE_RGA.
+    Redimensiona un frame (H, W, C). OpenCV o RGA segun ImageBackend activo.
 
     Args:
         frame: Array numpy (alto, ancho, canales).
         out_wh: (ancho, alto) destino, convencion OpenCV.
         interpolation: Flag ``cv2.INTER_*`` (solo aplica en ruta OpenCV).
-        use_rga: Compat legacy; solo efectivo con INFERENCE_BACKEND=rk3568.
     """
-    return resize_bgr(frame, out_wh, interpolation, use_rga=use_rga)
+    return resize_bgr(frame, out_wh, interpolation)
 
 
 def letterbox_bgr(
     image_bgr: np.ndarray,
     out_wh: tuple[int, int],
     fill_value: int,
-    *,
-    use_rga: bool = False,
 ) -> tuple[np.ndarray, LetterboxMeta]:
     """
     Letterbox en espacio BGR: escala la imagen manteniendo aspect ratio, centra el
@@ -109,7 +101,6 @@ def letterbox_bgr(
         image_bgr,
         out_wh,
         fill_value,
-        use_rga=use_rga,
     )
     meta = LetterboxMeta(
         aspect_ratio=aspect_ratio,
@@ -119,9 +110,7 @@ def letterbox_bgr(
     return canvas, meta
 
 
-def ajustar_frame_manteniendo_aspect_ratio(
-    frame, max_ancho, max_alto, *, use_rga: bool = False
-):
+def ajustar_frame_manteniendo_aspect_ratio(frame, max_ancho, max_alto):
     """
     Ajusta el frame manteniendo el aspect ratio original.
     Agrega barras negras (letterboxing/pillarboxing) si es necesario.
@@ -154,7 +143,6 @@ def ajustar_frame_manteniendo_aspect_ratio(
         frame,
         (nuevo_ancho, nuevo_alto),
         interpolation=cv2.INTER_LINEAR,
-        use_rga=use_rga,
     )
     
     # Crear imagen negra del tamano de la ventana usando numpy

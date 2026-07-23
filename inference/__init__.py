@@ -42,8 +42,6 @@ def build_face_detector(
     model_path: str,
     score_deteccion: float,
     score_pre_nms: float,
-    *,
-    use_rga: bool = False,
 ) -> FaceDetector | None:
     """
     Factory segun backend.
@@ -59,7 +57,6 @@ def build_face_detector(
             model_path=model_path,
             score_deteccion=score_deteccion,
             score_pre_nms=score_pre_nms,
-            use_rga=use_rga,
         )
     if backend == "rk3568":
         from inference.retinaface.detector_rk3568 import RetinaFaceDetectorRk3568
@@ -68,7 +65,6 @@ def build_face_detector(
             model_path=model_path,
             score_deteccion=score_deteccion,
             score_pre_nms=score_pre_nms,
-            use_rga=use_rga,
         )
 
     logging.critical(

@@ -95,6 +95,7 @@ from inference.face_preprocess import prepare_face_patch  # noqa: E402
 from inference.retinaface.select_best import distancia_interocular, mejores_caras  # noqa: E402
 from ui import FrameView, PipelineDisplay  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
+from utils.image_backend import ImageBackend  # noqa: E402
 from utils.ip_cam_urls import build_rtmp_url, build_rtsp_url, build_snap_url  # noqa: E402
 
 # ---------------------------------------------------------------------------
@@ -361,6 +362,7 @@ def main() -> int:
     Retorna 0 si termino bien; 1 si hubo excepcion no controlada en el bucle.
     """
     s.validar_todo()
+    ImageBackend.start(use_rga=s.USE_RGA)
 
     mog2_cfg = Mog2Config(
         process_width=s.MOG2_PROCESS_WIDTH,
@@ -377,7 +379,7 @@ def main() -> int:
         recognized_refresh_s=s.FSM_RECOGNIZED_REFRESH_S,
         enable_mov_detection=s.ENABLE_MOV_DETECTION,
     )
-    motion = Mog2MotionSensor(mog2_cfg, use_rga=s.USE_RGA)
+    motion = Mog2MotionSensor(mog2_cfg)
     fsm = MotionFaceFsm(fsm_cfg)
 
     backend = s.INFERENCE_BACKEND
@@ -396,7 +398,6 @@ def main() -> int:
         retinaface_model,
         s.RETINAFACE_SCORE_DETECCION,
         s.RETINAFACE_SCORE_PRE_NMS,
-        use_rga=s.USE_RGA,
     )
     if face is not None:
         logging.debug("RetinaFace activo (backend=%s)", s.INFERENCE_BACKEND)

@@ -56,8 +56,6 @@ class RetinaFaceDetectorPc:
         model_path: str | Path,
         score_deteccion: float,
         score_pre_nms: float,
-        *,
-        use_rga: bool = False,
     ) -> None:
         if ort is None:
             raise RuntimeError(
@@ -69,7 +67,6 @@ class RetinaFaceDetectorPc:
 
         self._score_deteccion = float(score_deteccion)
         self._score_pre_nms = float(score_pre_nms)
-        self._use_rga = use_rga
         self._session = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
         inputs = self._session.get_inputs()
         self._input_name = inputs[0].name
@@ -82,7 +79,6 @@ class RetinaFaceDetectorPc:
             frame_bgr,
             (INPUT_WIDTH, INPUT_HEIGHT),
             LETTERBOX_FILL,
-            use_rga=self._use_rga,
         )
         tensor = _preprocess_canvas_for_onnx(self._inp0_meta, letterbox_img)
         ort_outputs = self._session.run(None, {self._input_name: tensor})

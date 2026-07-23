@@ -5,34 +5,27 @@ import cv2
 import numpy as np
 import pytest
 
-from utils.image_backend import (
-    effective_use_rga,
-    opencv_letterbox_bgr,
-    opencv_resize,
-    resize_bgr,
-    should_use_rga,
-)
+from utils.image_backend import ImageBackend, opencv_letterbox_bgr, opencv_resize, resize_bgr
 from utils.image_utils import LetterboxMeta, bgr_to_rgb, letterbox_bgr, resize_frame
 
 
 @pytest.fixture(autouse=True)
-def _pc_env(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("INFERENCE_BACKEND", "pc")
-    monkeypatch.setenv("USE_RGA", "false")
+def _opencv_backend() -> None:
+    ImageBackend.start(use_rga=False)
 
 
-def test_should_use_rga_false_on_pc(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("INFERENCE_BACKEND", "pc")
-    monkeypatch.setenv("USE_RGA", "true")
-    assert should_use_rga() is False
-    assert effective_use_rga(explicit=True) is False
+def test_active_backend_defaults_to_opencv() -> None:
+    backend = ImageBackend.start(use_rga=False)
+    assert backend.use_rga is False
 
 
-def test_should_use_rga_only_rk3568(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("INFERENCE_BACKEND", "rk3568")
-    monkeypatch.setenv("USE_RGA", "true")
-    assert should_use_rga() is True
-    assert effective_use_rga() is True
+def test_start_with_rga_true_falls_back_to_opencv_without_my_rga() -> None:
+    """En PC my_rga no esta; use_rga=True debe degradar a OpenCV sin fallar."""
+    ImageBackend.start(use_rga=True)
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    out = resize_bgr(frame, (50, 50), cv2.INTER_LINEAR)
+    expected = cv2.resize(frame, (50, 50), interpolation=cv2.INTER_LINEAR)
+    np.testing.assert_array_equal(out, expected)
 
 
 def test_resize_frame_matches_opencv() -> None:
@@ -63,12 +56,3 @@ def test_bgr_to_rgb_channel_order() -> None:
     rgb = bgr_to_rgb(bgr)
     assert rgb.shape == (1, 1, 3)
     assert tuple(rgb[0, 0]) == (30, 20, 10)
-
-
-def test_resize_bgr_ignores_use_rga_on_pc(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("INFERENCE_BACKEND", "pc")
-    monkeypatch.setenv("USE_RGA", "true")
-    frame = np.zeros((100, 100, 3), dtype=np.uint8)
-    out = resize_bgr(frame, (50, 50), cv2.INTER_LINEAR, use_rga=True)
-    expected = cv2.resize(frame, (50, 50), interpolation=cv2.INTER_LINEAR)
-    np.testing.assert_array_equal(out, expected)
