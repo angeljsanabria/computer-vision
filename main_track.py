@@ -115,7 +115,7 @@ from bytetrack import (  # noqa: E402
 )
 from bytetrack.nozzle_tracker import NozzleByteTracker  # noqa: E402
 from ui import DisplayBanner, FrameView, PipelineDisplay  # noqa: E402
-from ui.facemesh_overlay import filter_landmarks_for_bbox  # noqa: E402
+from ui.facemesh_overlay import filter_hold_for_tracks  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 from utils.image_backend import ImageBackend  # noqa: E402
 from utils.ip_cam_urls import build_rtmp_url, build_rtsp_url, build_snap_url  # noqa: E402
@@ -406,21 +406,12 @@ def _tick_facemesh_if_needed(
             if landmarks is not None:
                 hold[track.track_id] = landmarks
 
-    frame_w = int(frame.shape[1])
-    top_by_id = {track.track_id: track for track in top}
-    out: dict[int, FaceMeshLandmarks] = {}
-    for tid in top_ids:
-        if tid not in hold:
-            continue
-        track = top_by_id[tid]
-        bbox_w = max(0, int(track.tlbr[2] - track.tlbr[0]))
-        out[tid] = filter_landmarks_for_bbox(
-            hold[tid],
-            bbox_width=bbox_w,
-            frame_width=frame_w,
-            full_points_bbox_frac=full_points_bbox_frac,
-        )
-    return out
+    return filter_hold_for_tracks(
+        {tid: hold[tid] for tid in top_ids if tid in hold},
+        top,
+        frame_width=int(frame.shape[1]),
+        full_points_bbox_frac=full_points_bbox_frac,
+    )
 
 
 def _tick_nozzle_if_needed(

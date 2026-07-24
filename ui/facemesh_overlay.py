@@ -1,6 +1,9 @@
 """Dibujo de landmarks FaceMesh sobre frames BGR."""
 from __future__ import annotations
 
+from collections.abc import Iterable
+from typing import Protocol
+
 import cv2
 import numpy as np
 
@@ -8,6 +11,11 @@ from inference.facemesh.landmark_indices import SMALL_FACE_DISPLAY_INDICES
 from inference.types import FaceMeshLandmarks
 
 _SMALL_FACE_INDEX_ARRAY = np.asarray(SMALL_FACE_DISPLAY_INDICES, dtype=np.int32)
+
+
+class _TrackBbox(Protocol):
+    track_id: int
+    tlbr: np.ndarray
 
 
 def filter_landmarks_for_bbox(
@@ -33,6 +41,30 @@ def filter_landmarks_for_bbox(
         points=landmarks.points[_SMALL_FACE_INDEX_ARRAY],
         crop_xyxy=landmarks.crop_xyxy,
     )
+
+
+def filter_hold_for_tracks(
+    hold: dict[int, FaceMeshLandmarks],
+    tracks: Iterable[_TrackBbox],
+    *,
+    frame_width: int,
+    full_points_bbox_frac: float,
+) -> dict[int, FaceMeshLandmarks]:
+    """Aplica ``filter_landmarks_for_bbox`` a cada entrada de ``hold`` con bbox del track."""
+    track_by_id = {track.track_id: track for track in tracks}
+    out: dict[int, FaceMeshLandmarks] = {}
+    for tid, landmarks in hold.items():
+        track = track_by_id.get(tid)
+        if track is None:
+            continue
+        bbox_w = max(0, int(track.tlbr[2] - track.tlbr[0]))
+        out[tid] = filter_landmarks_for_bbox(
+            landmarks,
+            bbox_width=bbox_w,
+            frame_width=frame_width,
+            full_points_bbox_frac=full_points_bbox_frac,
+        )
+    return out
 
 
 def draw_facemesh_points(
