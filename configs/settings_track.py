@@ -21,8 +21,9 @@ DISPLAY_WIDTH = int(os.getenv("DISPLAY_WIDTH", "1920"))         # 0
 DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "1080"))       # 0
 
 # Banner superior (demo). Vacio = desactivado.
-# DisplayBanner.try_from_path lo resuelve una sola vez al arranque.
-DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/baner_test.jpg")
+# try_resolve_from_path (desde main): busca {stem}_{DISPLAY_WIDTH}.png|.jpg
+# en la misma carpeta; fallback al archivo de esta ruta (ej. baner_test.jpg).
+DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/banner.jpg")
 
 # RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
 # FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
@@ -44,8 +45,8 @@ FACE_MESH_EVERY_N_FRAMES = int(os.getenv("FACE_MESH_EVERY_N_FRAMES", "2"))
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
-CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 1080))   #  High 2560    Medium 1080     Low 640
-CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 720))  #  High 1920    Medium 720      Low 480
+CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 1920))   #  High 2560    Medium 1080     Low 640
+CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 1080))  #  High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))

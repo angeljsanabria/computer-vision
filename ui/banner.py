@@ -7,6 +7,8 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+_WIDTH_VARIANT_SUFFIXES = (".png", ".jpg", ".jpeg")
+
 
 class DisplayBanner:
     """
@@ -23,10 +25,17 @@ class DisplayBanner:
         self._scaled: np.ndarray | None = None
         self._scaled_width = 0
 
+    @staticmethod
+    def _read_bgr(file_path: Path) -> np.ndarray | None:
+        image = cv2.imread(str(file_path), cv2.IMREAD_COLOR)
+        if image is None or image.size == 0:
+            return None
+        return image
+
     @classmethod
     def try_from_path(cls, path: str | None) -> DisplayBanner | None:
         """
-        Resuelve el asset una sola vez.
+        Resuelve el asset una sola vez (ruta fija).
 
         Returns:
             Instancia si el archivo existe y se lee; ``None`` si path vacio,
@@ -40,8 +49,8 @@ class DisplayBanner:
             logging.info("Display banner desactivado: no existe %s", file_path)
             return None
 
-        image = cv2.imread(str(file_path), cv2.IMREAD_COLOR)
-        if image is None or image.size == 0:
+        image = cls._read_bgr(file_path)
+        if image is None:
             logging.warning(
                 "Display banner desactivado: no se pudo leer %s", file_path
             )
@@ -54,6 +63,63 @@ class DisplayBanner:
             image.shape[0],
         )
         return cls(image)
+
+    @classmethod
+    def try_resolve_from_path(
+        cls,
+        path: str | None,
+        display_width: int = 0,
+    ) -> DisplayBanner | None:
+        """
+        Resuelve banner por ancho de display o fallback al path base.
+
+        ``path`` apunta al asset por defecto (ej. ``../data/baner_test.jpg``).
+        Si ``display_width > 0``, busca antes ``{stem}_{width}.png|.jpg|.jpeg``
+        en la misma carpeta; si no hay variante usable, usa el archivo de
+        ``path``. Mismo contrato que ``try_from_path`` si nada sirve: ``None``
+        y pipeline sin banner.
+        """
+        if not path:
+            return None
+
+        base_path = Path(path)
+        parent = base_path.parent
+        stem = base_path.stem
+
+        candidates: list[Path] = []
+        if display_width > 0:
+            for ext in _WIDTH_VARIANT_SUFFIXES:
+                candidates.append(parent / f"{stem}_{display_width}{ext}")
+        if base_path not in candidates:
+            candidates.append(base_path)
+
+        for candidate in candidates:
+            if not candidate.is_file():
+                continue
+            image = cls._read_bgr(candidate)
+            if image is None:
+                logging.warning(
+                    "Display banner desactivado: no se pudo leer %s", candidate
+                )
+                continue
+            logging.info(
+                "Display banner activo: %s (%dx%d)",
+                candidate,
+                image.shape[1],
+                image.shape[0],
+            )
+            if display_width > 0 and candidate == base_path:
+                logging.info(
+                    "Display banner: sin variante %s_%d.*; usando %s",
+                    stem,
+                    display_width,
+                    base_path.name,
+                )
+            return cls(image)
+
+        if not base_path.is_file():
+            logging.info("Display banner desactivado: no existe %s", base_path)
+        return None
 
     def paste_top(self, frame_bgr: np.ndarray) -> int:
         """

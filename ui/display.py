@@ -19,7 +19,7 @@ class PipelineDisplay:
     Ventana OpenCV: overlay de pipeline + letterbox fullscreen + banner.
 
     Si ``enabled=False``, no carga cv2 ni overlay (headless / RK3568).
-    ``banner`` se inyecta desde main (``DisplayBanner.try_from_path`` o None).
+    ``banner`` se inyecta desde main (``DisplayBanner.try_resolve_from_path`` o None).
     """
 
     def __init__(

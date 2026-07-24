@@ -28,6 +28,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   DISPLAY_IS_ENABLE    — true/false (overlay OpenCV)
   DISPLAY_FORCE_FULL_SCREEN    — true/false (overlay OpenCV) set WND_PROP_FULLSCREEN
   DISPLAY_WIDTH / DISPLAY_HEIGHT — tamano ventana (0 = sin resizeWindow)
+  DISPLAY_BANNER_PATH    — banner fallback; busca {stem}_{DISPLAY_WIDTH}.png|.jpg en la misma carpeta
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
   FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
@@ -754,7 +755,10 @@ def main() -> int:
         display_width=s.DISPLAY_WIDTH,
         display_height=s.DISPLAY_HEIGHT,
         banner=(
-            DisplayBanner.try_from_path(s.DISPLAY_BANNER_PATH)
+            DisplayBanner.try_resolve_from_path(
+                s.DISPLAY_BANNER_PATH,
+                s.DISPLAY_WIDTH,
+            )
             if s.DISPLAY_IS_ENABLE
             else None
         ),
