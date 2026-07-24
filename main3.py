@@ -29,7 +29,7 @@ face_mesh = build_face_mesh("pc", str(_FACE_MESH_MODEL))
 if face_mesh is None:
     raise RuntimeError("No se pudo crear FaceMesh")
 
-cap = cv2.VideoCapture(1)
+cap = cv2.VideoCapture(0)
 cv2.namedWindow(_WINDOW, cv2.WINDOW_NORMAL)
 cv2.setWindowProperty(_WINDOW, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)
 

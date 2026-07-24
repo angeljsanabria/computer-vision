@@ -42,6 +42,11 @@ FACE_MESH_TOP_N = int(os.getenv("FACE_MESH_TOP_N", 2))
 # Inferir cada N frames; el resto reusa hold (throttle). 1 = cada frame.
 # Hold tambien cubre frames sin det RetinaFace (anti-parpadeo).
 FACE_MESH_EVERY_N_FRAMES = int(os.getenv("FACE_MESH_EVERY_N_FRAMES", "2"))
+# Ancho bbox track / ancho frame: por encima de esta fraccion se dibujan los 468 puntos;
+# por debajo, omite ojos + boca/nariz/perioral; dibuja el resto (landmark_indices.py).
+FACE_MESH_FULL_POINTS_BBOX_FRAC = float(
+    os.getenv("FACE_MESH_FULL_POINTS_BBOX_FRAC", "0.133333")
+)
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
@@ -195,7 +200,7 @@ FACEMESH_MODEL_RK3568 = os.getenv(
 )
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
-EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
+EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.95"))
 EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "../data")
 
 # 7. TRACKING VISUAL (ByteTrack sobre detecciones RetinaFace ya filtradas)
@@ -218,7 +223,7 @@ BYTETRACK_TRACK_BUFFER = int(os.getenv("BYTETRACK_TRACK_BUFFER", "20"))
 BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
 
 # 7.1 Nozzle YOLOv8 (deteccion + ByteTrack paralelo al pipeline facial; solo overlay/log)
-ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "true").lower() == "true"
+ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "false").lower() == "true"
 NOZZLE_MODEL_PC = os.getenv(
     "NOZZLE_MODEL_PC",
     "models_onnx/yolov8n_nozzle_v2.onnx",
@@ -482,6 +487,13 @@ def validar_todo():
                 FACE_MESH_EVERY_N_FRAMES,
             )
             sys.exit(1)
+        if not (0.0 < FACE_MESH_FULL_POINTS_BBOX_FRAC <= 1.0):
+            logging.critical(
+                "CONFIG ERROR: FACE_MESH_FULL_POINTS_BBOX_FRAC debe estar en (0, 1] "
+                "(got %.6f).",
+                FACE_MESH_FULL_POINTS_BBOX_FRAC,
+            )
+            sys.exit(1)
         if FACE_MESH_TOP_N > FACE_PROCESS_TOP_N:
             logging.warning(
                 "FACE_MESH_TOP_N (%d) > FACE_PROCESS_TOP_N (%d): "
@@ -509,10 +521,12 @@ def validar_todo():
                 )
                 sys.exit(1)
             logging.info(
-                "FaceMesh PC: %s (top %d desconocidos, cada %d frame(s)+hold)",
+                "FaceMesh PC: %s (top %d desconocidos, cada %d frame(s)+hold, "
+                "full pts si bbox > %.0f%% ancho frame; sino mesh sin boca/nariz/perioral)",
                 mesh_pc,
                 FACE_MESH_TOP_N,
                 FACE_MESH_EVERY_N_FRAMES,
+                FACE_MESH_FULL_POINTS_BBOX_FRAC * 100.0,
             )
         elif INFERENCE_BACKEND == "rk3568":
             mesh_rk = FACEMESH_MODEL_RK3568
@@ -523,10 +537,12 @@ def validar_todo():
                 )
                 sys.exit(1)
             logging.info(
-                "FaceMesh RK3568: %s (top %d desconocidos, cada %d frame(s)+hold)",
+                "FaceMesh RK3568: %s (top %d desconocidos, cada %d frame(s)+hold, "
+                "full pts si bbox > %.0f%% ancho frame; sino mesh sin boca/nariz/perioral)",
                 mesh_rk,
                 FACE_MESH_TOP_N,
                 FACE_MESH_EVERY_N_FRAMES,
+                FACE_MESH_FULL_POINTS_BBOX_FRAC * 100.0,
             )
         else:
             logging.info(

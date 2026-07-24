@@ -4,7 +4,35 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from inference.facemesh.landmark_indices import SMALL_FACE_DISPLAY_INDICES
 from inference.types import FaceMeshLandmarks
+
+_SMALL_FACE_INDEX_ARRAY = np.asarray(SMALL_FACE_DISPLAY_INDICES, dtype=np.int32)
+
+
+def filter_landmarks_for_bbox(
+    landmarks: FaceMeshLandmarks,
+    *,
+    bbox_width: int,
+    frame_width: int,
+    full_points_bbox_frac: float,
+) -> FaceMeshLandmarks:
+    """
+    Landmarks listos para overlay segun tamano del bbox en pantalla.
+
+    Si ``bbox_width`` supera ``frame_width * full_points_bbox_frac``, devuelve
+    los 468 puntos. Si no, omite ojos y region boca/nariz (nucleo + anillo perioral);
+    devuelve el resto del mesh (ver ``inference/facemesh/landmark_indices.py``).
+    """
+    if frame_width <= 0 or bbox_width <= 0:
+        return landmarks
+    threshold = frame_width * full_points_bbox_frac
+    if bbox_width > threshold:
+        return landmarks
+    return FaceMeshLandmarks(
+        points=landmarks.points[_SMALL_FACE_INDEX_ARRAY],
+        crop_xyxy=landmarks.crop_xyxy,
+    )
 
 
 def draw_facemesh_points(
@@ -14,7 +42,7 @@ def draw_facemesh_points(
     point_color: tuple[int, int, int] = (0, 255, 0),
     point_radius: int = 1,
 ) -> None:
-    """Dibuja solo los 468 puntos sobre ``vis`` (in-place, sin bbox)."""
+    """Dibuja los landmarks recibidos sobre ``vis`` (in-place, sin bbox)."""
     if landmarks is None:
         return
 

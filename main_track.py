@@ -37,6 +37,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   ENABLE_FACEMESH        — UX landmarks 468 en tracks sin MATCH (requiere display)
   FACE_MESH_TOP_N        — max desconocidos con mesh por frame (defecto 2)
   FACE_MESH_EVERY_N_FRAMES — inferir cada N frames; hold anti-parpadeo (defecto 2)
+  FACE_MESH_FULL_POINTS_BBOX_FRAC — bbox/ancho frame; encima 468 pts, sino sin boca/nariz/perioral
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
   EMBED_AND_FACEDETEC_COOLDOWN_S — segundos entre embeds/deteccion (0 = cada tick con cara)
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
@@ -114,6 +115,7 @@ from bytetrack import (  # noqa: E402
 )
 from bytetrack.nozzle_tracker import NozzleByteTracker  # noqa: E402
 from ui import DisplayBanner, FrameView, PipelineDisplay  # noqa: E402
+from ui.facemesh_overlay import filter_landmarks_for_bbox  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 from utils.image_backend import ImageBackend  # noqa: E402
 from utils.ip_cam_urls import build_rtmp_url, build_rtsp_url, build_snap_url  # noqa: E402
@@ -333,6 +335,8 @@ def _tick_facemesh_if_needed(
     identity_by_track: dict[int, IdentityMatch],
     hold: dict[int, FaceMeshLandmarks],
     frame_idx: int,
+    *,
+    full_points_bbox_frac: float,
 ) -> dict[int, FaceMeshLandmarks]:
     """
     FaceMesh UX: landmarks solo en tracks sin MATCH, hasta FACE_MESH_TOP_N.
@@ -341,6 +345,10 @@ def _tick_facemesh_if_needed(
     - throttle: solo infiere cuando ``frame_idx % FACE_MESH_EVERY_N_FRAMES == 0``
     - anti-parpadeo: si no hay det correlacionada, reusa landmarks previos
     - MATCH / track muerto: se elimina del hold
+
+    El dict devuelto aplica ``filter_landmarks_for_bbox`` por track (bbox actual
+    vs ancho de frame): bbox grande -> 468 pts; bbox chico -> sin ojos ni region boca/nariz.
+    ``hold`` conserva siempre los 468 puntos de inferencia.
 
     Corre despues de actualizar ``identity_by_track``. Sin display o sin
     estimator limpia hold y no hace trabajo.
@@ -398,7 +406,21 @@ def _tick_facemesh_if_needed(
             if landmarks is not None:
                 hold[track.track_id] = landmarks
 
-    return {tid: hold[tid] for tid in top_ids if tid in hold}
+    frame_w = int(frame.shape[1])
+    top_by_id = {track.track_id: track for track in top}
+    out: dict[int, FaceMeshLandmarks] = {}
+    for tid in top_ids:
+        if tid not in hold:
+            continue
+        track = top_by_id[tid]
+        bbox_w = max(0, int(track.tlbr[2] - track.tlbr[0]))
+        out[tid] = filter_landmarks_for_bbox(
+            hold[tid],
+            bbox_width=bbox_w,
+            frame_width=frame_w,
+            full_points_bbox_frac=full_points_bbox_frac,
+        )
+    return out
 
 
 def _tick_nozzle_if_needed(
@@ -983,6 +1005,7 @@ def main() -> int:
                         identity_by_track,
                         facemesh_hold,
                         facemesh_frame_idx,
+                        full_points_bbox_frac=s.FACE_MESH_FULL_POINTS_BBOX_FRAC,
                     )
                     facemesh_frame_idx += 1
 
