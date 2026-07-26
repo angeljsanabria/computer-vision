@@ -22,8 +22,11 @@ Opcional: actualizar `data_nozzle.yaml` (`path` + `names`) — el train regenera
 ```bash
 python yolo_train/train_nozzle.py
 python yolo_train/export_nozzle_onnx.py
-# WSL:
+python yolo_train/gen_nozzle_rknn_dataset.py
+# WSL (rknn-toolkit2 2.3.2):
 python yolo_train/exp_yolov8n_nozzle_rknn.py
+# FP sin INT8 (solo comparar):
+python yolo_train/exp_yolov8n_nozzle_rknn.py --no-quant
 ```
 
 ## 4. Salidas (version v3)

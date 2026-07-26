@@ -39,3 +39,7 @@ RKNN_LATEST = ROOT / "Yolo-Weights" / "yolov8n_nozzle.rknn"
 DATASET_BACKUP_V2 = SCRIPT_DIR / "nozzle_v2.yolov8"
 ONNX_BACKUP_V2 = ROOT / "Yolo-Weights" / "yolov8n_nozzle_v2.onnx"
 WEIGHTS_BACKUP_V2 = ROOT / "Yolo-Weights" / "nozzle_v2_best.pt"
+
+# Calibracion INT8 RKNN (gen_nozzle_rknn_dataset.py -> exp_yolov8n_nozzle_rknn.py)
+RKNN_CALIB_DATASET = SCRIPT_DIR / "rknn_nozzle_dataset.txt"
+RKNN_CALIB_MAX_IMAGES = 120

@@ -4,11 +4,11 @@ import logging
 
 # 1. CONFIGURACIONES GENERALES
 # 1.0 Plataforma
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "PC").lower()  # "none", "pc", "rk3568"
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "RK3568").lower()  # "none", "pc", "rk3568"
 
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, RTMP, SNAP, USB
-MAX_FPS = float(os.getenv("MAX_FPS", 20.0))
+MODO = os.getenv("CONFIG_MODO", "RTMP").upper()     # RTSP, RTMP, SNAP, USB
+MAX_FPS = float(os.getenv("MAX_FPS", 25.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
     os.getenv("DISPLAY_IS_ENABLE", "true").lower() == "true"
@@ -21,18 +21,17 @@ DISPLAY_WIDTH = int(os.getenv("DISPLAY_WIDTH", "1920"))         # 0
 DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "1080"))       # 0
 
 # Banner superior (demo). Vacio = desactivado.
-# try_resolve_from_path (desde main): busca {stem}_{DISPLAY_WIDTH}.png|.jpg
-# en la misma carpeta; fallback al archivo de esta ruta (ej. baner_test.jpg).
-DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/banner.jpg")
+# DisplayBanner.try_from_path lo resuelve una sola vez al arranque.
+DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/banner.png")
 
 # RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
 # FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
 FACE_DETECT_FULLRATE = (
-    os.getenv("FACE_DETECT_FULLRATE", str(DISPLAY_IS_ENABLE)).lower() == "true"
+    os.getenv("FACE_DETECT_FULLRATE", "true").lower() == "true"
 )
 # Cuantas caras mostrar (bbox/track) entre las que pasan RETINAFACE_SCORE_DETECCION.
 # Ej.: 20 detectadas, 10 pasan umbral, N=5 -> las 5 mejores en pantalla.
-FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 10))
+FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 6))
 # De esas N rankeadas, cuantas reciben embed + reconocimiento (mejores primero).
 FACE_EMBED_TOP_N = int(os.getenv("FACE_EMBED_TOP_N", 2))
 # FaceMesh UX: landmarks solo en tracks sin MATCH (desconocidos). Requiere display.
@@ -50,15 +49,17 @@ FACE_MESH_FULL_POINTS_BBOX_FRAC = float(
 
 # 1.2 Detalles de Captura
 BUFFER_SIZE = int(os.getenv("BUFFER_SIZE", "1"))
-CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 1920))   #  High 2560    Medium 1080     Low 640
-CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 1080))  #  High 1920    Medium 720      Low 480
+CAP_FRAME_WIDTH = int(os.getenv("CAP_FRAME_WIDTH", 1080))   #  High 2560    Medium 1080     Low 640
+CAP_FRAME_HEIGHT = int(os.getenv("CAP_FRAME_HEIGHT", 720))  #  High 1920    Medium 720      Low 480
 REINTENTO_SEG = float(os.getenv("REINTENTO_SEG", "10"))
 HTTP_TIMEOUT_S = float(os.getenv("HTTP_TIMEOUT_S", "10"))
 LOG_CADA_N_FRAMES = int(os.getenv("LOG_CADA_N_FRAMES", "25"))
 LOG_MODE = os.getenv("LOG_MODE", "prod").lower()  # prod | dev
+PROFILER_ENABLE = os.getenv("PROFILER_ENABLE", "false").lower() == "true"
+PROFILER_LOG_EVERY_N_FRAMES = int(os.getenv("PROFILER_LOG_EVERY_N_FRAMES", "30"))
 
 # 1.3 Procesamiento de imagen (RGA RK3568; solo efectivo con INFERENCE_BACKEND=rk3568)
-USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
+USE_RGA = os.getenv("USE_RGA", "true").lower() == "true"
 
 # 1.4 Identidad reconocida (FSM FACE_RECOGNIZED)
 # Intervalo entre embeds en FACE_RECOGED; cada MATCH renueva el timer de identidad.
@@ -200,7 +201,7 @@ FACEMESH_MODEL_RK3568 = os.getenv(
 )
 
 # 6.4 Identidad (coseno vs galeria .npy; mismo criterio que RetinaFace_from_cam_with_id.py)
-EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.95"))
+EMBED_SIM_MIN_MATCH = float(os.getenv("EMBED_SIM_MIN_MATCH", "0.55"))
 EMBED_REF_GALLERY_DIR = os.getenv("EMBED_REF_GALLERY_DIR", "../data")
 
 # 7. TRACKING VISUAL (ByteTrack sobre detecciones RetinaFace ya filtradas)
@@ -299,6 +300,18 @@ def validar_todo():
     if MAX_FPS <= 0:
         logging.critical("CONFIG ERROR: MAX_FPS debe ser > 0.")
         sys.exit(1)
+
+    if PROFILER_LOG_EVERY_N_FRAMES < 1:
+        logging.critical(
+            "CONFIG ERROR: PROFILER_LOG_EVERY_N_FRAMES debe ser >= 1."
+        )
+        sys.exit(1)
+
+    if PROFILER_ENABLE:
+        logging.info(
+            "Profiler activo: log cada %d frames procesados",
+            PROFILER_LOG_EVERY_N_FRAMES,
+        )
 
     if WARMUP_FRAMES < 1:
         logging.critical("CONFIG ERROR: WARMUP_FRAMES debe ser >= 1.")
@@ -482,13 +495,6 @@ def validar_todo():
                 FACE_MESH_EVERY_N_FRAMES,
             )
             sys.exit(1)
-        if not (0.0 < FACE_MESH_FULL_POINTS_BBOX_FRAC <= 1.0):
-            logging.critical(
-                "CONFIG ERROR: FACE_MESH_FULL_POINTS_BBOX_FRAC debe estar en (0, 1] "
-                "(got %.6f).",
-                FACE_MESH_FULL_POINTS_BBOX_FRAC,
-            )
-            sys.exit(1)
         if FACE_MESH_TOP_N > FACE_PROCESS_TOP_N:
             logging.warning(
                 "FACE_MESH_TOP_N (%d) > FACE_PROCESS_TOP_N (%d): "
@@ -516,12 +522,10 @@ def validar_todo():
                 )
                 sys.exit(1)
             logging.info(
-                "FaceMesh PC: %s (top %d desconocidos, cada %d frame(s)+hold, "
-                "full pts si bbox > %.0f%% ancho frame; sino mesh sin boca/nariz/perioral)",
+                "FaceMesh PC: %s (top %d desconocidos, cada %d frame(s)+hold)",
                 mesh_pc,
                 FACE_MESH_TOP_N,
                 FACE_MESH_EVERY_N_FRAMES,
-                FACE_MESH_FULL_POINTS_BBOX_FRAC * 100.0,
             )
         elif INFERENCE_BACKEND == "rk3568":
             mesh_rk = FACEMESH_MODEL_RK3568
@@ -532,12 +536,10 @@ def validar_todo():
                 )
                 sys.exit(1)
             logging.info(
-                "FaceMesh RK3568: %s (top %d desconocidos, cada %d frame(s)+hold, "
-                "full pts si bbox > %.0f%% ancho frame; sino mesh sin boca/nariz/perioral)",
+                "FaceMesh RK3568: %s (top %d desconocidos, cada %d frame(s)+hold)",
                 mesh_rk,
                 FACE_MESH_TOP_N,
                 FACE_MESH_EVERY_N_FRAMES,
-                FACE_MESH_FULL_POINTS_BBOX_FRAC * 100.0,
             )
         else:
             logging.info(

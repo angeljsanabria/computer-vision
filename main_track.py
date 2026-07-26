@@ -46,6 +46,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   EMBED_SIM_MIN_MATCH      — umbral coseno identidad (defecto 0.57)
   EMBED_REF_GALLERY_DIR    — carpeta con gallery.npy + gallery_meta.json (defecto ../data/)
   LOG_MODE                 — PROD (INFO, default) | DEV (DEBUG, telemetria)
+  PROFILER_ENABLE          — true/false latencia por etapa [PROF] (default true en dev)
+  PROFILER_LOG_EVERY_N_FRAMES — ventana de log profiler (default 30)
   ENABLE_ENDPOINT          — true/false (GET /api/v1/vision-status via vision_http)
   HTTP_API_HOST / HTTP_API_PORT — bind del servidor (default 0.0.0.0:8008)
   IMG_QUALITY_CHECK_ENABLE — true/false snapshot headless (default false)
@@ -119,6 +121,7 @@ from ui.facemesh_overlay import filter_hold_for_tracks  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 from utils.image_backend import ImageBackend  # noqa: E402
 from utils.ip_cam_urls import build_rtmp_url, build_rtsp_url, build_snap_url  # noqa: E402
+from utils.pipeline_profiler import PipelineProfiler  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Helpers locales (orquestacion del pipeline por etapas).
@@ -860,22 +863,41 @@ def main() -> int:
         facemesh_hold: dict[int, FaceMeshLandmarks] = {}
         facemesh_frame_idx = 0
         nozzle_frame_idx = 0
+        profiler = PipelineProfiler(
+            enabled=s.PROFILER_ENABLE,
+            log_every_n=s.PROFILER_LOG_EVERY_N_FRAMES,
+        )
 
         while True:
             try:
+                t_cap = profiler.mark()
                 has_frame, frame = capture.get_frame()
 
                 if has_frame and frame is not None:
+                    t_frame_start = profiler.mark()
+                    profiler.begin_frame()
+                    if profiler.enabled:
+                        profiler.add("capture", t_frame_start - t_cap)
+
                     now_ns = time.monotonic_ns()
                     now_s = now_ns / _NS_PER_S
+                    t0 = profiler.mark()
                     mov, fsm_out = _tick_mog2_fsm(motion, fsm, frame, now_ns)
+                    profiler.lap("mog2", t0)
+                    t0 = profiler.mark()
                     dets, fsm_out = _tick_retinaface_if_needed(
                         face, fsm, motion, frame, now_ns, fsm_out, t_ultimo_embed_ns
                     )
+                    profiler.lap("rf", t0)
+                    t0 = profiler.mark()
                     tracks = _tick_bytetrack_if_needed(face_tracker, dets)
+                    profiler.lap("bt", t0)
+                    t0 = profiler.mark()
                     embed_batch, t_ultimo_embed_ns = _tick_embed_if_needed(
                         embedder, frame, dets, fsm_out, now_ns, t_ultimo_embed_ns
                     )
+                    profiler.lap("embed", t0)
+                    t0 = profiler.mark()
                     live_identity: IdentityMatch | None = None
                     batch_any_match = False
                     batch_best_match: IdentityMatch | None = None
@@ -987,7 +1009,9 @@ def main() -> int:
                     else:
                         display_identity = None
                         identity_stale = False
+                    profiler.lap("match", t0)
 
+                    t0 = profiler.mark()
                     facemesh_by_track = _tick_facemesh_if_needed(
                         face_mesh,
                         frame,
@@ -999,7 +1023,9 @@ def main() -> int:
                         full_points_bbox_frac=s.FACE_MESH_FULL_POINTS_BBOX_FRAC,
                     )
                     facemesh_frame_idx += 1
+                    profiler.lap("mesh", t0)
 
+                    t0 = profiler.mark()
                     nozzle_dets: NozzleDetections | None = None
                     nozzle_tracks: TrackResult | None = None
                     if (
@@ -1022,7 +1048,9 @@ def main() -> int:
                             nozzle_frame_idx, nozzle_dets, nozzle_tracks
                         )
                     nozzle_frame_idx += 1
+                    profiler.lap("nozzle", t0)
 
+                    t0 = profiler.mark()
                     view = FrameView(
                         mov=mov,
                         fsm=fsm_out,
@@ -1042,6 +1070,9 @@ def main() -> int:
                     if display.poll_quit():
                         logging.debug("Salida solicitada desde ventana (q).")
                         break
+                    profiler.lap("disp", t0)
+                    profiler.lap("total", t_frame_start)
+                    profiler.maybe_log()
                 else:
                     if display.poll_quit():
                         logging.debug("Salida solicitada desde ventana (q).")
