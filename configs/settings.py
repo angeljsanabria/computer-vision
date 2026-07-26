@@ -336,11 +336,6 @@ def validar_todo():
             INFERENCE_BACKEND,
         )
         sys.exit(1)
-    if USE_RGA:
-        logging.info(
-            "RGA activo (rk3568): resize/letterbox/cvtColor via my_rga "
-            "(fallback OpenCV si falta wheel)"
-        )
 
     if INFERENCE_BACKEND == "pc":
         pc_path = RETINAFACE_MODEL_PC

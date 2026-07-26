@@ -14,6 +14,7 @@ import numpy as np
 
 _my_rga_module: Any | None = None
 _my_rga_import_failed = False
+_my_rga_import_error: str | None = None
 _rga_fallback_logged = False
 _active: ImageBackend | None = None
 
@@ -27,7 +28,7 @@ def _log_rga_fallback_once(reason: str) -> None:
 
 
 def _try_import_my_rga() -> Any | None:
-    global _my_rga_module, _my_rga_import_failed
+    global _my_rga_module, _my_rga_import_failed, _my_rga_import_error
     if _my_rga_import_failed:
         return None
     if _my_rga_module is not None:
@@ -36,10 +37,11 @@ def _try_import_my_rga() -> Any | None:
         import my_rga as mod
 
         _my_rga_module = mod
+        _my_rga_import_error = None
         return mod
     except ImportError as exc:
         _my_rga_import_failed = True
-        _log_rga_fallback_once(str(exc))
+        _my_rga_import_error = str(exc)
         return None
 
 
@@ -132,6 +134,25 @@ def rga_bgr_to_rgb(frame_bgr: np.ndarray) -> np.ndarray | None:
         return None
 
 
+def _log_startup_status(*, use_rga: bool) -> None:
+    """Un solo log de arranque: USE_RGA y estado de carga de my_rga."""
+    if not use_rga:
+        logging.info("ImageBackend: USE_RGA=false (OpenCV)")
+        return
+    mod = _try_import_my_rga()
+    if mod is not None:
+        logging.info(
+            "ImageBackend: USE_RGA=true, my_rga cargado (%s)",
+            getattr(mod, "__file__", "my_rga"),
+        )
+        return
+    reason = _my_rga_import_error or "import fallido"
+    logging.warning(
+        "ImageBackend: USE_RGA=true, my_rga no cargado (%s); OpenCV fallback",
+        reason,
+    )
+
+
 class ImageBackend:
     """Resize, letterbox y BGR->RGB; RGA opcional segun flag de instancia."""
 
@@ -150,8 +171,7 @@ class ImageBackend:
         global _active
         backend = cls(use_rga=use_rga)
         _active = backend
-        if use_rga:
-            logging.debug("ImageBackend: RGA habilitado")
+        _log_startup_status(use_rga=use_rga)
         return backend
 
     def resize_bgr(
