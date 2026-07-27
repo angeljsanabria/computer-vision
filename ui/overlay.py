@@ -44,9 +44,6 @@ def _draw_label(
 class DebugOverlay:
     """Dibuja bbox/tracks e identidad sobre una copia del frame."""
 
-    def __init__(self) -> None:
-        self._keep_alive_phase = 0
-
     def render(self, frame_bgr: np.ndarray, view: FrameView) -> np.ndarray:
         vis = frame_bgr.copy()
         if view.tracks is not None:
@@ -61,53 +58,6 @@ class DebugOverlay:
         self._draw_identity(vis, view)
         self._draw_nozzle(vis, view)
         return vis
-
-    def draw_keep_alive(self, vis: np.ndarray, *, below_y: int = 0) -> None:
-        """
-        Indicador de vida sobre el canvas final.
-
-        ``below_y``: borde inferior del banner. Si es > 0, dibuja justo debajo
-        a la derecha; si es 0, esquina inferior derecha.
-        """
-        h, w = vis.shape[:2]
-        if h <= 0 or w <= 0:
-            return
-
-        alive = self._next_keep_alive()
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        scale = 1.2
-        thickness = 2
-        (tw, th), _ = cv2.getTextSize(alive, font, scale, thickness)
-        pad = 4
-        box_w = tw + pad * 2
-        box_h = th + pad * 2
-
-        if below_y > 0:
-            # Pegado al borde inferior del banner (derecha).
-            x1 = max(0, w - box_w - 8)
-            y1 = min(below_y + 1, max(0, h - box_h))
-        else:
-            x1 = max(0, w - box_w - 8)
-            y1 = max(0, h - box_h - 8)
-
-        x2 = min(w, x1 + box_w)
-        y2 = min(h, y1 + box_h)
-        cv2.rectangle(vis, (x1, y1), (x2, y2), (0, 0, 0), -1)
-        cv2.putText(
-            vis,
-            alive,
-            (x1 + pad, y2 - pad),
-            font,
-            scale,
-            (255, 255, 255),
-            thickness,
-            cv2.LINE_AA,
-        )
-
-    def _next_keep_alive(self) -> str:
-        dots = "." * (self._keep_alive_phase + 1)
-        self._keep_alive_phase = (self._keep_alive_phase + 1) % 3
-        return dots
 
     def _draw_faces(self, vis: np.ndarray, dets: FaceDetections | None) -> None:
         if dets is None or not dets.has_faces:

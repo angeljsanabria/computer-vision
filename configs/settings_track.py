@@ -24,23 +24,32 @@ DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "1080"))       # 0
 # DisplayBanner.try_from_path lo resuelve una sola vez al arranque.
 DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/banner.png")
 
-# RetinaFace a full rate (cada frame). Sin display conviene espaciarlo en
-# FACE_RECOGNIZED (solo aporta el bbox del overlay). Default = DISPLAY_IS_ENABLE.
+# RetinaFace: ritmo de inferencia. Ya NO se combina con EMBED_COOLDOWN_S.
+# FULLRATE=true  -> RF cada frame con run_face_detector.
+# FULLRATE=false -> RF solo si (frame_idx % RETINAFACE_EVERY_N_FRAMES == 0);
+#                   en skip: hold last_face_* (no update vacio; no tick_face).
+# Default demo (Fase 3): throttle ON; FULLRATE=true solo si se pide max reactividad.
 FACE_DETECT_FULLRATE = (
     os.getenv("FACE_DETECT_FULLRATE", "true").lower() == "true"
 )
+# Throttle RF cuando FULLRATE=false. Frames del pipeline (no del RTMP/USB).
+# 1 ~= full rate aunque FULLRATE=false. Demo medido: N=5 ~14-15 FPS (nozzle off).
+RETINAFACE_EVERY_N_FRAMES = int(os.getenv("RETINAFACE_EVERY_N_FRAMES", "5"))
+# Misses RF consecutivos (EMPTY) antes de soltar hold facial. 1 = soltar al primer
+# frame sin cara (comportamiento clasico). Skip EVERY_N no cuenta.
+FACE_HOLD_MAX_MISSES = int(os.getenv("FACE_HOLD_MAX_MISSES", "1"))
 # Cuantas caras mostrar (bbox/track) entre las que pasan RETINAFACE_SCORE_DETECCION.
 # Ej.: 20 detectadas, 10 pasan umbral, N=5 -> las 5 mejores en pantalla.
-FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 6))
+FACE_PROCESS_TOP_N = int(os.getenv("FACE_PROCESS_TOP_N", 4))
 # De esas N rankeadas, cuantas reciben embed + reconocimiento (mejores primero).
-FACE_EMBED_TOP_N = int(os.getenv("FACE_EMBED_TOP_N", 2))
+FACE_EMBED_TOP_N = int(os.getenv("FACE_EMBED_TOP_N", 1))
 # FaceMesh UX: landmarks solo en tracks sin MATCH (desconocidos). Requiere display.
 ENABLE_FACEMESH = os.getenv("ENABLE_FACEMESH", "true").lower() == "true"
-# Maximo de desconocidos con mesh por frame (presupuesto CPU; tipico 2-3).
-FACE_MESH_TOP_N = int(os.getenv("FACE_MESH_TOP_N", 2))
+# Maximo de desconocidos con mesh por frame (presupuesto CPU; tipico 1-2).
+FACE_MESH_TOP_N = int(os.getenv("FACE_MESH_TOP_N", 1))
 # Inferir cada N frames; el resto reusa hold (throttle). 1 = cada frame.
 # Hold tambien cubre frames sin det RetinaFace (anti-parpadeo).
-FACE_MESH_EVERY_N_FRAMES = int(os.getenv("FACE_MESH_EVERY_N_FRAMES", "2"))
+FACE_MESH_EVERY_N_FRAMES = int(os.getenv("FACE_MESH_EVERY_N_FRAMES", "3"))
 # Ancho bbox track / ancho frame: por encima de esta fraccion se dibujan los 468 puntos;
 # por debajo, omite ojos + boca/nariz/perioral; dibuja el resto (landmark_indices.py).
 FACE_MESH_FULL_POINTS_BBOX_FRAC = float(
@@ -174,10 +183,19 @@ FACE_CROP_MARGIN_FRAC = float(os.getenv("FACE_CROP_MARGIN_FRAC", "0.15"))
 EMBED_MIN_SCORE = float(
     os.getenv("EMBED_MIN_SCORE", "0.75")
 )
-# Embed (FACE_PROCESSED/RECOGNIZED) y, sin FACE_DETECT_FULLRATE, RetinaFace en
-# FACE_RECOGNIZED: como maximo cada EMBED_AND_FACEDETEC_COOLDOWN_S. 0 = cada tick con cara.
-EMBED_AND_FACEDETEC_COOLDOWN_S = float(
-    os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S", "1.0")
+# Solo embed (FACE_PROCESSED/RECOGNIZED). No controla RetinaFace.
+# Compat: si EMBED_COOLDOWN_S no esta, acepta EMBED_AND_FACEDETEC_COOLDOWN_S (legacy).
+# 0 = cada tick con cara (util para metricas).
+EMBED_COOLDOWN_S = float(
+    os.getenv(
+        "EMBED_COOLDOWN_S",
+        os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S", "1.0"),
+    )
+)
+# Si true: no re-embeber caras cuyo track_id ya tiene MATCH en identity_by_track.
+# NO_MATCH sigue con cooldown. Tracks nuevos siempre candidatan.
+EMBED_ONCE_PER_TRACK = (
+    os.getenv("EMBED_ONCE_PER_TRACK", "true").lower() == "true"
 )
 
 # 6.3 MobileFaceNet (rutas segun INFERENCE_BACKEND)
@@ -231,19 +249,25 @@ NOZZLE_MODEL_PC = os.getenv(
 )
 NOZZLE_MODEL_RK3568 = os.getenv(
     "NOZZLE_MODEL_RK3568",
-    "models/yolov8n_nozzle_v2.rknn",
+    "models/yolov8n_nozzle_v3.rknn",
 )
-NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.30"))
+# Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
+NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.50"))
 NOZZLE_NMS_IOU = float(os.getenv("NOZZLE_NMS_IOU", "0.45"))
 NOZZLE_PROCESS_TOP_N = int(os.getenv("NOZZLE_PROCESS_TOP_N", "10"))
-NOZZLE_EVERY_N_FRAMES = int(os.getenv("NOZZLE_EVERY_N_FRAMES", "1"))
+# Demo medido: every 7 + hold TTL; N=1 satura NPU con RF.
+NOZZLE_EVERY_N_FRAMES = int(os.getenv("NOZZLE_EVERY_N_FRAMES", "7"))
+# Misses consecutivos de YOLO (modelo corrio y dio 0) antes de soltar hold.
+# Skip every_n NO cuenta. Con N=7 y ~13 FPS, 3 misses ~= 1.5 s sin objeto.
+NOZZLE_HOLD_MAX_MISSES = int(os.getenv("NOZZLE_HOLD_MAX_MISSES", "3"))
+# TRACK debe permitir activar dets que pasaron SCORE (activacion >= THRESH+0.1).
 NOZZLE_BYTETRACK_TRACK_THRESH = float(
-    os.getenv("NOZZLE_BYTETRACK_TRACK_THRESH", "0.65")
+    os.getenv("NOZZLE_BYTETRACK_TRACK_THRESH", "0.40")
 )
 NOZZLE_BYTETRACK_MATCH_THRESH = float(
     os.getenv("NOZZLE_BYTETRACK_MATCH_THRESH", "0.70")
 )
-NOZZLE_BYTETRACK_TRACK_BUFFER = int(os.getenv("NOZZLE_BYTETRACK_TRACK_BUFFER", "20"))
+NOZZLE_BYTETRACK_TRACK_BUFFER = int(os.getenv("NOZZLE_BYTETRACK_TRACK_BUFFER", "30"))
 NOZZLE_BYTETRACK_FRAME_RATE = float(
     os.getenv("NOZZLE_BYTETRACK_FRAME_RATE", str(MAX_FPS))
 )
@@ -469,6 +493,18 @@ def validar_todo():
     if FACE_EMBED_TOP_N < 1:
         logging.critical("CONFIG ERROR: FACE_EMBED_TOP_N debe ser >= 1.")
         sys.exit(1)
+    if RETINAFACE_EVERY_N_FRAMES < 1:
+        logging.critical(
+            "CONFIG ERROR: RETINAFACE_EVERY_N_FRAMES debe ser >= 1 (got %d).",
+            RETINAFACE_EVERY_N_FRAMES,
+        )
+        sys.exit(1)
+    if FACE_HOLD_MAX_MISSES < 1:
+        logging.critical(
+            "CONFIG ERROR: FACE_HOLD_MAX_MISSES debe ser >= 1 (got %d).",
+            FACE_HOLD_MAX_MISSES,
+        )
+        sys.exit(1)
     if FACE_EMBED_TOP_N > FACE_PROCESS_TOP_N:
         logging.warning(
             "FACE_EMBED_TOP_N (%d) > FACE_PROCESS_TOP_N (%d): "
@@ -476,6 +512,23 @@ def validar_todo():
             FACE_EMBED_TOP_N,
             FACE_PROCESS_TOP_N,
             FACE_PROCESS_TOP_N,
+        )
+    if FACE_DETECT_FULLRATE:
+        logging.info(
+            "RetinaFace: FULLRATE=true (cada frame con gate FSM); "
+            "RETINAFACE_EVERY_N_FRAMES=%d ignorado hasta FULLRATE=false",
+            RETINAFACE_EVERY_N_FRAMES,
+        )
+    else:
+        if RETINAFACE_EVERY_N_FRAMES > 10:
+            logging.warning(
+                "RETINAFACE_EVERY_N_FRAMES=%d es alto con FULLRATE=false: "
+                "bbox en hold mas tiempo; identidad/FSM menos reactivos.",
+                RETINAFACE_EVERY_N_FRAMES,
+            )
+        logging.info(
+            "RetinaFace: FULLRATE=false; inferir cada %d frame(s) de pipeline + hold",
+            RETINAFACE_EVERY_N_FRAMES,
         )
     logging.info(
         "Caras bbox/track: top %d (score >= RETINAFACE_SCORE_DETECCION=%.2f); "
@@ -603,23 +656,37 @@ def validar_todo():
             EMBED_MIN_SCORE,
         )
 
-    if EMBED_AND_FACEDETEC_COOLDOWN_S < 0:
+    if EMBED_COOLDOWN_S < 0:
         logging.critical(
-            "CONFIG ERROR: EMBED_AND_FACEDETEC_COOLDOWN_S debe ser >= 0 (got %.2f).",
-            EMBED_AND_FACEDETEC_COOLDOWN_S,
+            "CONFIG ERROR: EMBED_COOLDOWN_S debe ser >= 0 (got %.2f).",
+            EMBED_COOLDOWN_S,
         )
         sys.exit(1)
 
-    if EMBED_AND_FACEDETEC_COOLDOWN_S == 0:
+    if (
+        os.getenv("EMBED_COOLDOWN_S") is None
+        and os.getenv("EMBED_AND_FACEDETEC_COOLDOWN_S") is not None
+    ):
+        logging.warning(
+            "EMBED_AND_FACEDETEC_COOLDOWN_S esta deprecado; usar EMBED_COOLDOWN_S "
+            "(solo embed; ya no afecta RetinaFace). Valor efectivo=%.1f s",
+            EMBED_COOLDOWN_S,
+        )
+
+    if EMBED_COOLDOWN_S == 0:
         logging.info(
-            "Embed/deteccion: sin cooldown (cada tick con cara; util para metricas)"
+            "Embed: sin cooldown (cada tick con cara; util para metricas)"
         )
     else:
         logging.info(
-            "Embed/deteccion: cooldown %.1f s (RetinaFace full rate=%s)",
-            EMBED_AND_FACEDETEC_COOLDOWN_S,
+            "Embed: cooldown %.1f s (no controla RetinaFace; FULLRATE=%s)",
+            EMBED_COOLDOWN_S,
             FACE_DETECT_FULLRATE,
         )
+    logging.info(
+        "Embed: once_per_track=%s (skip si track_id ya tiene MATCH)",
+        EMBED_ONCE_PER_TRACK,
+    )
 
     if os.getenv("EMBED_MIN_SCORE") is not None:
         embed_min_src = "EMBED_MIN_SCORE (env)"
@@ -783,13 +850,27 @@ def validar_todo():
                 NOZZLE_BYTETRACK_FRAME_RATE,
             )
             sys.exit(1)
-        if NOZZLE_SCORE_DETECCION >= NOZZLE_BYTETRACK_TRACK_THRESH:
+        if NOZZLE_HOLD_MAX_MISSES < 1:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_HOLD_MAX_MISSES debe ser >= 1 (got %d).",
+                NOZZLE_HOLD_MAX_MISSES,
+            )
+            sys.exit(1)
+        if NOZZLE_BYTETRACK_TRACK_THRESH + 0.1 > NOZZLE_SCORE_DETECCION + 0.05:
             logging.warning(
-                "NOZZLE_SCORE_DETECCION (%.2f) >= NOZZLE_BYTETRACK_TRACK_THRESH (%.2f): "
-                "pocas detecciones entraran al pool bajo de ByteTrack; bajar "
-                "NOZZLE_SCORE_DETECCION si se busca continuidad con scores debiles.",
+                "NOZZLE_BYTETRACK_TRACK_THRESH+0.1 (%.2f) > SCORE_DETECCION (%.2f): "
+                "dets validas pueden no activar track. Bajar TRACK_THRESH "
+                "(fantasmas se filtran con SCORE, no con THRESH).",
+                NOZZLE_BYTETRACK_TRACK_THRESH + 0.1,
+                NOZZLE_SCORE_DETECCION,
+            )
+        elif NOZZLE_SCORE_DETECCION >= NOZZLE_BYTETRACK_TRACK_THRESH:
+            logging.info(
+                "Nozzle: SCORE=%.2f >= TRACK_THRESH=%.2f (pool alto); "
+                "hold_max_misses=%d",
                 NOZZLE_SCORE_DETECCION,
                 NOZZLE_BYTETRACK_TRACK_THRESH,
+                NOZZLE_HOLD_MAX_MISSES,
             )
         if INFERENCE_BACKEND == "pc":
             nozzle_pc = NOZZLE_MODEL_PC

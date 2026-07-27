@@ -16,8 +16,8 @@ class MotionFaceFsm:
       - Entrada: unico MATCH en FACE_PROCESSED (notify_embed_match).
       - Salida: timer de identidad vencido -> FACE_PROCESSED (refresca cara/mov).
       - No reacciona a hay_cara / MOG2 / FSM_TIMEOUT_FACE_S.
-      - Embed igual que FACE_PROCESSED (cooldown EMBED_AND_FACEDETEC_COOLDOWN_S
-        en main_mov); cada MATCH renueva el timer a recognized_refresh_s; NO_MATCH
+      - Embed igual que FACE_PROCESSED (cooldown EMBED_COOLDOWN_S
+        en main; solo embed, no RetinaFace); cada MATCH renueva el timer a recognized_refresh_s; NO_MATCH
         no expulsa mientras el timer siga activo.
 
     FACE_PROCESSED / FACE_OUT siguen las reglas de deteccion de cara (RetinaFace).
@@ -67,6 +67,16 @@ class MotionFaceFsm:
         if self._t_timer_hasta is None:
             return None
         return max(0.0, self._t_timer_hasta - now)
+
+    def touch_recognized(self, now: float) -> None:
+        """
+        Renueva el timer de FACE_RECOGNIZED sin log ni cambio de estado.
+
+        Uso: track vivo con MATCH en cache (EMBED_ONCE_PER_TRACK) cuando no
+        hay re-embed; evita que el timer venza por falta de notify_embed_match.
+        """
+        if self.state == FlowState.FACE_RECOGNIZED and self._recognized_id:
+            self._renovar_timer(now)
 
     def _volver_a_face_processed(
         self, now: float, motivo: str, events: list[str]

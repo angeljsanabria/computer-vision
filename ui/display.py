@@ -101,10 +101,8 @@ class PipelineDisplay:
         import cv2
 
         vis = self._overlay.render(frame_bgr, view)
-        banner_h = 0
         if self._banner is not None:
-            banner_h = self._banner.paste_top(vis)
-        self._overlay.draw_keep_alive(vis, below_y=banner_h)
+            self._banner.paste_top(vis)
         if self._window_size is not None:
             vis, _ = letterbox_bgr(vis, self._window_size, fill_value=0)
         cv2.imshow(self._window_name, vis)

@@ -11,7 +11,7 @@ Flujo por frame:
   3. ``MotionFaceFsm.tick_motion()`` — transiciones IDLE / MOV_*.
   4. ``_sync_umbral_mog2()`` — histéresis de umbral MOG2 segun estado FSM.
   5. Si ``run_face_detector``: RetinaFace + ``tick_face()``.
-  6. Si ``run_embedding``: preprocess + MobileFaceNet (cooldown ``EMBED_AND_FACEDETEC_COOLDOWN_S``).
+  6. Si ``run_embedding``: preprocess + MobileFaceNet (cooldown ``EMBED_COOLDOWN_S``).
   7. Tras embed: ``gallery @ live`` vs ``gallery.npy`` + meta ``gallery_meta.json``.
 
 Estados FSM (resumen):
@@ -39,7 +39,12 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   FACE_MESH_EVERY_N_FRAMES — inferir cada N frames; hold anti-parpadeo (defecto 2)
   FACE_MESH_FULL_POINTS_BBOX_FRAC — bbox/ancho frame; encima 468 pts, sino sin boca/nariz/perioral
   EMBED_MIN_SCORE        — score minimo RetinaFace para embed
-  EMBED_AND_FACEDETEC_COOLDOWN_S — segundos entre embeds/deteccion (0 = cada tick con cara)
+  EMBED_COOLDOWN_S       — segundos entre embeds (0 = cada tick con cara; no afecta RF)
+  EMBED_ONCE_PER_TRACK   — true=no re-embeber track_id con MATCH (defecto true)
+  FACE_DETECT_FULLRATE   — true=RF cada frame; false=throttle RETINAFACE_EVERY_N_FRAMES
+  RETINAFACE_EVERY_N_FRAMES — RF cada N frames de pipeline si FULLRATE=false (hold en skip)
+  FACE_HOLD_MAX_MISSES   — misses RF (EMPTY) antes de soltar hold facial (defecto 1)
+  NOZZLE_HOLD_MAX_MISSES — misses YOLO antes de soltar hold nozzle (defecto 3)
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
   FACE_ROT_ALIGNMENT_SIMPLE_ENABLE   — true=hibrido crop/roll-fix
   FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
@@ -119,6 +124,7 @@ from bytetrack.nozzle_tracker import NozzleByteTracker  # noqa: E402
 from ui import DisplayBanner, FrameView, PipelineDisplay  # noqa: E402
 from ui.facemesh_overlay import filter_hold_for_tracks  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
+from utils.detection_hold import DetectionHold, InferOutcome  # noqa: E402
 from utils.image_backend import ImageBackend  # noqa: E402
 from utils.ip_cam_urls import build_rtmp_url, build_rtsp_url, build_snap_url  # noqa: E402
 from utils.pipeline_profiler import PipelineProfiler  # noqa: E402
@@ -128,7 +134,8 @@ from utils.pipeline_profiler import PipelineProfiler  # noqa: E402
 #
 # MOG2, FSM e inferencia viven en mov_detect/ e inference/. La UI vive en ui/.
 # Reloj del bucle: time.monotonic_ns() (int). FSM aun trabaja en segundos:
-# se convierte en la frontera (now_ns / _NS_PER_S). Cooldown embed/deteccion en ns.
+# se convierte en la frontera (now_ns / _NS_PER_S). Cooldown embed en ns.
+# Hold: utils.detection_hold (SKIPPED / EMPTY / DETECTED; miss TTL).
 # ---------------------------------------------------------------------------
 
 _NS_PER_S = 1_000_000_000
@@ -215,21 +222,6 @@ def _tick_mog2_fsm(
     return mov, fsm_out
 
 
-def _debe_saltar_deteccion(
-    state: FlowState, now_ns: int, t_ultimo_embed_ns: int | None
-) -> bool:
-    """En FACE_RECOGNIZED sin full-rate, RetinaFace sigue el cooldown de embed."""
-    if s.FACE_DETECT_FULLRATE or state != FlowState.FACE_RECOGNIZED:
-        return False
-    cooldown_ns = int(s.EMBED_AND_FACEDETEC_COOLDOWN_S * _NS_PER_S)
-    if cooldown_ns <= 0:
-        return False
-    return (
-        t_ultimo_embed_ns is not None
-        and (now_ns - t_ultimo_embed_ns) < cooldown_ns
-    )
-
-
 def _tick_retinaface_if_needed(
     face: FaceDetector | None,
     fsm: MotionFaceFsm,
@@ -237,18 +229,23 @@ def _tick_retinaface_if_needed(
     frame,
     now_ns: int,
     fsm_out: FsmTickResult,
-    t_ultimo_embed_ns: int | None,
-) -> tuple[FaceDetections | None, FsmTickResult]:
+    frame_idx: int,
+) -> tuple[InferOutcome, FsmTickResult]:
     """
     RetinaFace + ranking + tick_face cuando la FSM lo indica.
 
-    Devuelve las mejores ``FACE_PROCESS_TOP_N`` caras (bbox/track/overlay).
-    La FSM usa ``hay_cara`` sobre todas las detecciones del modelo, no solo las filtradas.
+    Devuelve ``InferOutcome`` (SKIPPED / EMPTY / DETECTED) + FSM actualizada.
+    La FSM usa ``hay_cara`` sobre el raw del modelo, no solo el top-N.
+
+    Ritmo: no usa ``EMBED_COOLDOWN_S``. FULLRATE o ``frame % EVERY_N == 0``.
+    SKIPPED: sin ``tick_face`` (el hold del caller no interpreta “sin cara”).
     """
     if not fsm_out.run_face_detector or face is None:
-        return None, fsm_out
-    if _debe_saltar_deteccion(fsm_out.state, now_ns, t_ultimo_embed_ns):
-        return None, fsm_out
+        return InferOutcome.skipped(), fsm_out
+
+    every_n = max(1, int(s.RETINAFACE_EVERY_N_FRAMES))
+    if not s.FACE_DETECT_FULLRATE and (frame_idx % every_n) != 0:
+        return InferOutcome.skipped(), fsm_out
 
     raw = face.detect(frame)
     dets = mejores_caras(raw, top_n=s.FACE_PROCESS_TOP_N)
@@ -261,7 +258,9 @@ def _tick_retinaface_if_needed(
             logging.info("Ya no hay detecciones de rostros.")
         elif fsm_out.state == FlowState.FACE_LOOKING:
             logging.info("Sin caras; vigilancia facial activa (FACE_LOOKING).")
-    return dets, fsm_out
+    if dets.has_faces:
+        return InferOutcome.detected(dets), fsm_out
+    return InferOutcome.empty(), fsm_out
 
 
 def _tick_bytetrack_if_needed(
@@ -309,6 +308,20 @@ def _track_id_for_bbox(
         if iou > best_iou:
             best_iou, best_id = iou, track.track_id
     return best_id if best_iou >= min_iou else None
+
+
+def _live_matched_person_id(
+    identity_by_track: dict[int, IdentityMatch],
+    tracks: TrackResult | None,
+) -> str | None:
+    """person_id de un MATCH cuyo track_id sigue en ByteTrack; None si no hay."""
+    if tracks is None or not tracks.tracks:
+        return None
+    live_ids = {t.track_id for t in tracks.tracks}
+    for tid, idm in identity_by_track.items():
+        if tid in live_ids and idm.is_match:
+            return idm.person_id
+    return None
 
 
 def _det_row_for_track(
@@ -422,27 +435,33 @@ def _tick_nozzle_if_needed(
     fsm_out: FsmTickResult,
     frame,
     frame_idx: int,
-) -> NozzleDetections | None:
+) -> InferOutcome:
     """
-    Nozzle YOLO: mismo gate FSM que RetinaFace, sin cooldown facial.
+    Nozzle YOLO con mismo gate FSM que RetinaFace.
 
-    Throttle opcional via NOZZLE_EVERY_N_FRAMES. No altera FSM ni matcher.
+    ``SKIPPED`` — every_n / gate off / sin detector.
+    ``EMPTY`` — modelo corrio sin dets (o fallo detect).
+    ``DETECTED`` — hay dets tras filtro SCORE.
+    El hold (miss TTL) lo aplica el caller via ``DetectionHold``.
     """
     if not s.ENABLE_NOZZLE or nozzle is None or not fsm_out.run_face_detector:
-        return None
+        return InferOutcome.skipped()
     every_n = max(1, int(s.NOZZLE_EVERY_N_FRAMES))
     if (frame_idx % every_n) != 0:
-        return None
+        return InferOutcome.skipped()
     try:
         raw = nozzle.detect(frame)
     except Exception as exc:
         logging.warning("[Nozzle] fallo detect(): %s", exc)
-        return None
-    return mejores_nozzles(
+        return InferOutcome.empty()
+    dets = mejores_nozzles(
         raw,
         top_n=s.NOZZLE_PROCESS_TOP_N,
         min_score=s.NOZZLE_SCORE_DETECCION,
     )
+    if dets.has_detections:
+        return InferOutcome.detected(dets)
+    return InferOutcome.empty()
 
 
 def _tick_nozzle_bytetrack_if_needed(
@@ -459,51 +478,49 @@ def _tick_nozzle_bytetrack_if_needed(
         return None
 
 
-def _log_nozzle_periodic(
-    frame_idx: int,
-    dets: NozzleDetections | None,
-    tracks: TrackResult | None,
-) -> None:
+def _log_nozzle_periodic(frame_idx: int, hold: DetectionHold) -> None:
     if frame_idx % s.LOG_CADA_N_FRAMES != 0:
         return
-    n_dets = int(dets.dets.shape[0]) if dets is not None and dets.has_detections else 0
+    dets = hold.dets
+    tracks = hold.tracks
+    n_dets = int(dets.dets.shape[0]) if isinstance(dets, NozzleDetections) and dets.has_detections else 0
     n_tracks = len(tracks.tracks) if tracks is not None and tracks.tracks else 0
     best = 0.0
-    if dets is not None and dets.has_detections:
+    if isinstance(dets, NozzleDetections) and dets.has_detections:
         best = float(np.max(dets.dets[:, 4]))
     elif tracks is not None and tracks.tracks:
         best = max(t.score for t in tracks.tracks)
-    msg = "[Nozzle] dets=%d tracks=%d best_score=%.3f"
-    if n_dets > 0 or n_tracks > 0:
-        logging.info(msg, n_dets, n_tracks, best)
+    msg = "[Nozzle] hold_dets=%d hold_tracks=%d best_score=%.3f misses=%d"
+    if n_dets > 0 or n_tracks > 0 or hold.misses > 0:
+        logging.info(msg, n_dets, n_tracks, best, hold.misses)
     else:
-        logging.debug(msg, n_dets, n_tracks, best)
+        logging.debug(msg, n_dets, n_tracks, best, hold.misses)
 
 
 def _tick_embed_if_needed(
     embedder: FaceEmbedder | None,
     frame,
     dets: FaceDetections | None,
+    tracks: TrackResult | None,
+    identity_by_track: dict[int, IdentityMatch],
     fsm_out: FsmTickResult,
     now_ns: int,
     t_ultimo_embed_ns: int | None,
 ) -> tuple[list[tuple[FaceEmbedding, np.ndarray]], int | None]:
     """
     Preprocess + MobileFaceNet en FACE_PROCESSED y FACE_RECOGNIZED; en ambos
-    estados se respeta el cooldown EMBED_AND_FACEDETEC_COOLDOWN_S. En FACE_RECOGNIZED cada MATCH
-    renueva el timer de sesion (FSM_RECOGNIZED_REFRESH_S).
+    estados se respeta el cooldown EMBED_COOLDOWN_S (solo embed; no RF).
 
-    ``dets`` ya viene rankeado (``mejores_caras``, ``FACE_PROCESS_TOP_N``).
-    Solo las primeras ``FACE_EMBED_TOP_N`` filas son candidatas a embed; cada
-    una debe superar ``EMBED_MIN_SCORE``. Cada par (embedding, bbox) correlaciona
-    display con ByteTrack.
+    Si ``EMBED_ONCE_PER_TRACK``: omite caras cuyo ``track_id`` ya tiene MATCH
+    en ``identity_by_track`` (variante conservadora). NO_MATCH / track nuevo
+    siguen candidatan. ``dets`` debe ser fresco del frame RF (no hold).
     """
     if not fsm_out.run_embedding or embedder is None:
         return [], t_ultimo_embed_ns
     if dets is None or not dets.has_faces:
         return [], t_ultimo_embed_ns
 
-    cooldown_ns = int(s.EMBED_AND_FACEDETEC_COOLDOWN_S * _NS_PER_S)
+    cooldown_ns = int(s.EMBED_COOLDOWN_S * _NS_PER_S)
     if (
         cooldown_ns > 0
         and t_ultimo_embed_ns is not None
@@ -513,9 +530,17 @@ def _tick_embed_if_needed(
 
     embed_top_n = min(s.FACE_EMBED_TOP_N, int(dets.dets.shape[0]))
     results: list[tuple[FaceEmbedding, np.ndarray]] = []
+    skipped_cached = 0
     for row in dets.dets[:embed_top_n]:
         if float(row[4]) < s.EMBED_MIN_SCORE:
             continue
+        bbox = row[:4]
+        if s.EMBED_ONCE_PER_TRACK:
+            tid = _track_id_for_bbox(bbox, tracks)
+            cached = identity_by_track.get(tid) if tid is not None else None
+            if cached is not None and cached.is_match:
+                skipped_cached += 1
+                continue
         try:
             patch = prepare_face_patch(
                 frame,
@@ -538,9 +563,17 @@ def _tick_embed_if_needed(
             patch.used_roll_fix,
             patch.roll_deg,
         )
-        results.append((FaceEmbedding(vector=vector), row[:4].copy()))
+        results.append((FaceEmbedding(vector=vector), bbox.copy()))
 
     if not results:
+        # Solo skips por MATCH cacheado: consumir cooldown para no reentrar
+        # cada frame (spam de logs / trabajo inutil).
+        if skipped_cached > 0:
+            logging.debug(
+                "[Embed] skip %d cara(s) cached MATCH (cooldown renovado)",
+                skipped_cached,
+            )
+            return [], now_ns
         return [], t_ultimo_embed_ns
     return results, now_ns
 
@@ -649,7 +682,7 @@ def main() -> int:
             "MobileFaceNet activo (backend=%s, embed_min_score=%.2f, cooldown=%.1f s)",
             s.INFERENCE_BACKEND,
             s.EMBED_MIN_SCORE,
-            s.EMBED_AND_FACEDETEC_COOLDOWN_S,
+            s.EMBED_COOLDOWN_S,
         )
     else:
         logging.debug(
@@ -861,6 +894,9 @@ def main() -> int:
         last_identity: IdentityMatch | None = None
         identity_by_track: dict[int, IdentityMatch] = {}
         facemesh_hold: dict[int, FaceMeshLandmarks] = {}
+        face_hold = DetectionHold()
+        nozzle_hold = DetectionHold()
+        face_detect_frame_idx = 0
         facemesh_frame_idx = 0
         nozzle_frame_idx = 0
         profiler = PipelineProfiler(
@@ -885,16 +921,46 @@ def main() -> int:
                     mov, fsm_out = _tick_mog2_fsm(motion, fsm, frame, now_ns)
                     profiler.lap("mog2", t0)
                     t0 = profiler.mark()
-                    dets, fsm_out = _tick_retinaface_if_needed(
-                        face, fsm, motion, frame, now_ns, fsm_out, t_ultimo_embed_ns
+                    face_outcome, fsm_out = _tick_retinaface_if_needed(
+                        face,
+                        fsm,
+                        motion,
+                        frame,
+                        now_ns,
+                        fsm_out,
+                        face_detect_frame_idx,
                     )
+                    face_detect_frame_idx += 1
                     profiler.lap("rf", t0)
                     t0 = profiler.mark()
-                    tracks = _tick_bytetrack_if_needed(face_tracker, dets)
+                    if not fsm_out.run_face_detector:
+                        face_hold.force_clear(
+                            lambda: _tick_bytetrack_if_needed(face_tracker, None)
+                        )
+                    else:
+                        face_hold.apply(
+                            face_outcome,
+                            max_misses=s.FACE_HOLD_MAX_MISSES,
+                            update_tracks=lambda d: _tick_bytetrack_if_needed(
+                                face_tracker, d
+                            ),
+                            clear_tracks=lambda: _tick_bytetrack_if_needed(
+                                face_tracker, None
+                            ),
+                        )
+                    dets_fresh = face_outcome.fresh_dets
+                    tracks = face_hold.tracks
                     profiler.lap("bt", t0)
                     t0 = profiler.mark()
                     embed_batch, t_ultimo_embed_ns = _tick_embed_if_needed(
-                        embedder, frame, dets, fsm_out, now_ns, t_ultimo_embed_ns
+                        embedder,
+                        frame,
+                        dets_fresh,
+                        tracks,
+                        identity_by_track,
+                        fsm_out,
+                        now_ns,
+                        t_ultimo_embed_ns,
                     )
                     profiler.lap("embed", t0)
                     t0 = profiler.mark()
@@ -966,8 +1032,8 @@ def main() -> int:
                             refresh_restante = fsm.recognized_refresh_remaining_s(now_s)
                             if refresh_restante is None or refresh_restante <= 0.0:
                                 n_personas = (
-                                    int(dets.dets.shape[0])
-                                    if dets is not None and dets.has_faces
+                                    int(dets_fresh.dets.shape[0])
+                                    if dets_fresh is not None and dets_fresh.has_faces
                                     else 0
                                 )
                                 if n_personas == 1:
@@ -986,12 +1052,27 @@ def main() -> int:
                                     refresh_restante,
                                 )
 
+                    # Sin re-embed (ONCE_PER_TRACK): renovar timer si el track
+                    # MATCH sigue vivo; si no, el refresh de 15 s expulsaria.
+                    if s.EMBED_ONCE_PER_TRACK and not embed_batch:
+                        live_pid = _live_matched_person_id(identity_by_track, tracks)
+                        if live_pid is not None:
+                            fsm.touch_recognized(now_s)
+
                     fsm_out = fsm.refresh_outputs(now_s)
 
                     if fsm_out.state == FlowState.IDLE:
                         last_identity = None
                         identity_by_track.clear()
                         facemesh_hold.clear()
+                        face_hold.force_clear(
+                            lambda: _tick_bytetrack_if_needed(face_tracker, None)
+                        )
+                        nozzle_hold.force_clear(
+                            lambda: _tick_nozzle_bytetrack_if_needed(
+                                nozzle_tracker, NozzleDetections.empty()
+                            )
+                        )
                         display_identity = None
                         identity_stale = False
                     elif fsm_out.state == FlowState.FACE_RECOGNIZED and last_identity:
@@ -1015,8 +1096,8 @@ def main() -> int:
                     facemesh_by_track = _tick_facemesh_if_needed(
                         face_mesh,
                         frame,
-                        dets,
-                        tracks,
+                        face_hold.dets,
+                        face_hold.tracks,
                         identity_by_track,
                         facemesh_hold,
                         facemesh_frame_idx,
@@ -1026,26 +1107,30 @@ def main() -> int:
                     profiler.lap("mesh", t0)
 
                     t0 = profiler.mark()
-                    nozzle_dets: NozzleDetections | None = None
-                    nozzle_tracks: TrackResult | None = None
                     if (
                         s.ENABLE_NOZZLE
                         and nozzle is not None
                         and fsm_out.run_face_detector
                     ):
-                        nozzle_dets = _tick_nozzle_if_needed(
+                        nozzle_outcome = _tick_nozzle_if_needed(
                             nozzle, fsm_out, frame, nozzle_frame_idx
                         )
-                        dets_for_track = (
-                            nozzle_dets
-                            if nozzle_dets is not None
-                            else NozzleDetections.empty()
+                        nozzle_hold.apply(
+                            nozzle_outcome,
+                            max_misses=s.NOZZLE_HOLD_MAX_MISSES,
+                            update_tracks=lambda d: _tick_nozzle_bytetrack_if_needed(
+                                nozzle_tracker, d
+                            ),
+                            clear_tracks=lambda: _tick_nozzle_bytetrack_if_needed(
+                                nozzle_tracker, NozzleDetections.empty()
+                            ),
                         )
-                        nozzle_tracks = _tick_nozzle_bytetrack_if_needed(
-                            nozzle_tracker, dets_for_track
-                        )
-                        _log_nozzle_periodic(
-                            nozzle_frame_idx, nozzle_dets, nozzle_tracks
+                        _log_nozzle_periodic(nozzle_frame_idx, nozzle_hold)
+                    else:
+                        nozzle_hold.force_clear(
+                            lambda: _tick_nozzle_bytetrack_if_needed(
+                                nozzle_tracker, NozzleDetections.empty()
+                            )
                         )
                     nozzle_frame_idx += 1
                     profiler.lap("nozzle", t0)
@@ -1054,17 +1139,17 @@ def main() -> int:
                     view = FrameView(
                         mov=mov,
                         fsm=fsm_out,
-                        dets=dets,
+                        dets=face_hold.dets,
                         identity=display_identity,
                         identity_is_stale=identity_stale,
-                        tracks=tracks,
+                        tracks=face_hold.tracks,
                         identity_by_track=identity_by_track or None,
                         facemesh_by_track=facemesh_by_track or None,
-                        nozzle_dets=nozzle_dets,
-                        nozzle_tracks=nozzle_tracks,
+                        nozzle_dets=nozzle_hold.dets,
+                        nozzle_tracks=nozzle_hold.tracks,
                     )
                     _publish_vision_http_status(
-                        fsm, fsm_out, dets, last_identity, now_ns
+                        fsm, fsm_out, face_hold.dets, last_identity, now_ns
                     )
                     display.show(frame, view)
                     if display.poll_quit():
