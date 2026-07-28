@@ -29,6 +29,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   DISPLAY_FORCE_FULL_SCREEN    — true/false (overlay OpenCV) set WND_PROP_FULLSCREEN
   DISPLAY_WIDTH / DISPLAY_HEIGHT — tamano ventana (0 = sin resizeWindow)
   DISPLAY_BANNER_PATH    — banner fallback; busca {stem}_{DISPLAY_WIDTH}.png|.jpg en la misma carpeta
+  CTK_COLORS_AND_FONT  — true/false (MATCH #0547C5 + Red Hat Display; false=legacy)
+  CTK_OVERLAY_FONT_PATH — TTF (default ../data/fonts/RedHatDisplay-Medium.ttf)
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
   FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
@@ -122,6 +124,7 @@ from bytetrack import (  # noqa: E402
 )
 from bytetrack.nozzle_tracker import NozzleByteTracker  # noqa: E402
 from ui import DisplayBanner, FrameView, PipelineDisplay  # noqa: E402
+from ui.overlay_theme import resolve_overlay_theme  # noqa: E402
 from ui.facemesh_overlay import filter_hold_for_tracks  # noqa: E402
 from utils.capture_cameras import CaptureCameras  # noqa: E402
 from utils.detection_hold import DetectionHold, InferOutcome  # noqa: E402
@@ -810,6 +813,10 @@ def main() -> int:
             )
             if s.DISPLAY_IS_ENABLE
             else None
+        ),
+        overlay_theme=resolve_overlay_theme(
+            ctk_colors_and_font=s.CTK_COLORS_AND_FONT,
+            font_path=s.CTK_OVERLAY_FONT_PATH,
         ),
     )
     capture: CaptureCameras | None = None

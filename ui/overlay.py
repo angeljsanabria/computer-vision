@@ -7,6 +7,8 @@ import numpy as np
 from inference.nozzle.types import NozzleDetections
 from inference.types import FaceDetections
 from ui.facemesh_overlay import draw_facemesh_points
+from ui.overlay_text import OverlayTextRenderer
+from ui.overlay_theme import OverlayTheme
 from ui.types import FrameView
 
 
@@ -18,31 +20,12 @@ def _track_color(track_id: int) -> tuple[int, int, int]:
     return (b, g, r)
 
 
-def _draw_label(
-    vis: np.ndarray, x1: int, y1: int, label: str, color: tuple[int, int, int]
-) -> None:
-    """Label con fondo solido (legible sobre cualquier imagen de fondo). ``\\n`` separa lineas."""
-    lines = label.split("\n")
-    sizes = [cv2.getTextSize(line, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)[0] for line in lines]
-    line_h = sizes[0][1] + 10
-    tw = max(w for w, _ in sizes)
-    txt_y1 = max(y1 - line_h * len(lines), 0)
-    cv2.rectangle(vis, (x1, txt_y1), (x1 + tw, txt_y1 + line_h * len(lines)), color, -1)
-    for i, line in enumerate(lines):
-        cv2.putText(
-            vis,
-            line,
-            (x1, txt_y1 + line_h * (i + 1) - 5),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.5,
-            (255, 255, 255),
-            1,
-            cv2.LINE_AA,
-        )
-
-
 class DebugOverlay:
     """Dibuja bbox/tracks e identidad sobre una copia del frame."""
+
+    def __init__(self, theme: OverlayTheme | None = None) -> None:
+        self._theme = theme if theme is not None else OverlayTheme.legacy()
+        self._text = OverlayTextRenderer(self._theme)
 
     def render(self, frame_bgr: np.ndarray, view: FrameView) -> np.ndarray:
         vis = frame_bgr.copy()
@@ -67,7 +50,7 @@ class DebugOverlay:
             score = float(row[4])
             color = (0, 255, 0)
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-            _draw_label(vis, x1, y1, f"#{idx + 1} {score:.2f}", color)
+            self._text.draw_label(vis, x1, y1, f"#{idx + 1} {score:.2f}", color)
 
     def _draw_tracks(self, vis: np.ndarray, view: FrameView) -> None:
         id_map = view.identity_by_track or {}
@@ -80,7 +63,7 @@ class DebugOverlay:
             is_match = idm is not None and idm.is_match
             if is_match:
                 label = f"{idm.nombre}\nID: {idm.person_id}"
-                color = (0, 0, 255) if view.identity_is_stale else (0, 200, 0)
+                color = self._theme.match_color(is_stale=view.identity_is_stale)
             else:
                 label = f"Desconocido\n# {track.track_id}"
                 color = _track_color(track.track_id)
@@ -90,7 +73,7 @@ class DebugOverlay:
                 landmarks = mesh_map.get(track.track_id)
                 if landmarks is not None:
                     draw_facemesh_points(vis, landmarks, point_color=color)
-            _draw_label(vis, x1, y1, label, color)
+            self._text.draw_label(vis, x1, y1, label, color)
 
     def _draw_nozzle(self, vis: np.ndarray, view: FrameView) -> None:
         """Bboxes nozzle: dets crudas si existen; tracks encima para continuidad."""
@@ -101,7 +84,7 @@ class DebugOverlay:
                 x1, y1, x2, y2 = map(int, track.tlbr)
                 color = (255, 200, 0)
                 cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-                _draw_label(
+                self._text.draw_label(
                     vis,
                     x1,
                     y1,
@@ -117,7 +100,9 @@ class DebugOverlay:
             x1, y1, x2, y2 = map(int, row[:4])
             score = float(row[4])
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-            _draw_label(vis, x1, y1, f"nozzle #{idx + 1}\n{score:.2f}", color)
+            self._text.draw_label(
+                vis, x1, y1, f"nozzle #{idx + 1}\n{score:.2f}", color
+            )
 
     def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:
         """Barra inferior solo con identidad confirmada (activa o retenida)."""
@@ -129,15 +114,5 @@ class DebugOverlay:
         cv2.rectangle(vis, (0, h - 32), (w, h), (0, 0, 0), -1)
 
         bar = f"{idm.nombre}  ID: {idm.person_id}"
-        color = (0, 0, 255) if view.identity_is_stale else (0, 200, 0)
-
-        cv2.putText(
-            vis,
-            bar,
-            (6, h - 10),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            color,
-            1,
-            cv2.LINE_AA,
-        )
+        color = self._theme.match_color(is_stale=view.identity_is_stale)
+        self._text.draw_bar_text(vis, bar, x=6, baseline_y=h - 10, color=color)

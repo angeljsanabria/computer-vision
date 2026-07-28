@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 
     from ui.banner import DisplayBanner
     from ui.overlay import DebugOverlay
+    from ui.overlay_theme import OverlayTheme
 
 
 class PipelineDisplay:
@@ -20,6 +21,7 @@ class PipelineDisplay:
 
     Si ``enabled=False``, no carga cv2 ni overlay (headless / RK3568).
     ``banner`` se inyecta desde main (``DisplayBanner.try_resolve_from_path`` o None).
+    ``overlay_theme`` define color MATCH y tipografia (legacy vs CTK).
     """
 
     def __init__(
@@ -31,6 +33,7 @@ class PipelineDisplay:
         window_width: int = 0,
         window_height: int = 0,
         banner: DisplayBanner | None = None,
+        overlay_theme: OverlayTheme | None = None,
     ) -> None:
         self._enabled = enabled
         self._window_name = window_name
@@ -52,7 +55,7 @@ class PipelineDisplay:
         if enabled:
             from ui.overlay import DebugOverlay
 
-            self._overlay = DebugOverlay()
+            self._overlay = DebugOverlay(theme=overlay_theme)
 
     @classmethod
     def from_settings(
@@ -64,6 +67,7 @@ class PipelineDisplay:
         display_height: int,
         window_name: str = "pipeline_mov",
         banner: DisplayBanner | None = None,
+        overlay_theme: OverlayTheme | None = None,
     ) -> PipelineDisplay:
         return cls(
             enabled=enabled,
@@ -72,6 +76,7 @@ class PipelineDisplay:
             window_width=display_width,
             window_height=display_height,
             banner=banner,
+            overlay_theme=overlay_theme,
         )
 
     def setup(self) -> None:

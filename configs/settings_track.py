@@ -24,6 +24,17 @@ DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "1080"))       # 0
 # DisplayBanner.try_from_path lo resuelve una sola vez al arranque.
 DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/banner.png")
 
+# Branding CTK en overlay: color MATCH #0547C5 + Red Hat Display (Pillow/TTF).
+# false = verde legacy + Hershey (comportamiento historico).
+CTK_COLORS_AND_FONT = (
+    os.getenv("CTK_COLORS_AND_FONT", "false").lower() == "true"
+)
+# Misma convencion que DISPLAY_BANNER_PATH (cwd / env de deploy).
+CTK_OVERLAY_FONT_PATH = os.getenv(
+    "CTK_OVERLAY_FONT_PATH",
+    "../data/fonts/RedHatDisplay-Medium.ttf",
+)
+
 # RetinaFace: ritmo de inferencia. Ya NO se combina con EMBED_COOLDOWN_S.
 # FULLRATE=true  -> RF cada frame con run_face_detector.
 # FULLRATE=false -> RF solo si (frame_idx % RETINAFACE_EVERY_N_FRAMES == 0);
@@ -313,6 +324,21 @@ def validar_todo():
             "CONFIG ERROR: DISPLAY_WIDTH y DISPLAY_HEIGHT deben ser ambos > 0 o ambos 0."
         )
         sys.exit(1)
+
+    if CTK_COLORS_AND_FONT:
+        if not os.path.isfile(CTK_OVERLAY_FONT_PATH):
+            logging.info(
+                "CTK_COLORS_AND_FONT=true: no se encontro %s; "
+                "colores CTK con fuente Hershey.",
+                CTK_OVERLAY_FONT_PATH,
+            )
+        else:
+            logging.info(
+                "CTK overlay theme ON: match #0547C5 + font %s",
+                CTK_OVERLAY_FONT_PATH,
+            )
+    else:
+        logging.info("CTK overlay theme OFF (verde legacy + Hershey)")
 
     if MODO not in ["RTSP", "RTMP", "SNAP", "USB"]:
         logging.critical(
