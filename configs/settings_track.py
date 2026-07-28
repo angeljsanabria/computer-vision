@@ -23,6 +23,10 @@ DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "1080"))       # 0
 # Banner superior (demo). Vacio = desactivado.
 # DisplayBanner.try_from_path lo resuelve una sola vez al arranque.
 DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/banner.png")
+# Barra inferior de identidad (nombre + ID) en overlay. Solo UX; no afecta matcher/FSM.
+DISPLAY_IDENTITY_BAR = (
+    os.getenv("DISPLAY_IDENTITY_BAR", "true").lower() == "true"
+)
 
 # Branding CTK en overlay: color MATCH #0547C5 + Red Hat Display (Pillow/TTF).
 # false = verde legacy + Hershey (comportamiento historico).
@@ -324,6 +328,8 @@ def validar_todo():
             "CONFIG ERROR: DISPLAY_WIDTH y DISPLAY_HEIGHT deben ser ambos > 0 o ambos 0."
         )
         sys.exit(1)
+    if DISPLAY_IS_ENABLE:
+        logging.info("Display identity bar: %s", DISPLAY_IDENTITY_BAR)
 
     if CTK_COLORS_AND_FONT:
         if not os.path.isfile(CTK_OVERLAY_FONT_PATH):

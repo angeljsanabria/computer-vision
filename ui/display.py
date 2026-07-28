@@ -22,6 +22,7 @@ class PipelineDisplay:
     Si ``enabled=False``, no carga cv2 ni overlay (headless / RK3568).
     ``banner`` se inyecta desde main (``DisplayBanner.try_resolve_from_path`` o None).
     ``overlay_theme`` define color MATCH y tipografia (legacy vs CTK).
+    ``show_identity_bar`` controla la franja inferior de nombre/ID.
     """
 
     def __init__(
@@ -34,6 +35,7 @@ class PipelineDisplay:
         window_height: int = 0,
         banner: DisplayBanner | None = None,
         overlay_theme: OverlayTheme | None = None,
+        show_identity_bar: bool = True,
     ) -> None:
         self._enabled = enabled
         self._window_name = window_name
@@ -55,7 +57,10 @@ class PipelineDisplay:
         if enabled:
             from ui.overlay import DebugOverlay
 
-            self._overlay = DebugOverlay(theme=overlay_theme)
+            self._overlay = DebugOverlay(
+                theme=overlay_theme,
+                show_identity_bar=show_identity_bar,
+            )
 
     @classmethod
     def from_settings(
@@ -68,6 +73,7 @@ class PipelineDisplay:
         window_name: str = "pipeline_mov",
         banner: DisplayBanner | None = None,
         overlay_theme: OverlayTheme | None = None,
+        show_identity_bar: bool = True,
     ) -> PipelineDisplay:
         return cls(
             enabled=enabled,
@@ -77,6 +83,7 @@ class PipelineDisplay:
             window_height=display_height,
             banner=banner,
             overlay_theme=overlay_theme,
+            show_identity_bar=show_identity_bar,
         )
 
     def setup(self) -> None:
@@ -95,7 +102,7 @@ class PipelineDisplay:
             cv2.setWindowProperty(
                 self._window_name, cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN
             )
-            
+
         cv2.waitKey(1)
         self._opened = True
         logging.debug("Display activo (q en ventana para salir).")

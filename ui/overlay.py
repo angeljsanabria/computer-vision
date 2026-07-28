@@ -23,9 +23,15 @@ def _track_color(track_id: int) -> tuple[int, int, int]:
 class DebugOverlay:
     """Dibuja bbox/tracks e identidad sobre una copia del frame."""
 
-    def __init__(self, theme: OverlayTheme | None = None) -> None:
+    def __init__(
+        self,
+        theme: OverlayTheme | None = None,
+        *,
+        show_identity_bar: bool = True,
+    ) -> None:
         self._theme = theme if theme is not None else OverlayTheme.legacy()
         self._text = OverlayTextRenderer(self._theme)
+        self._show_identity_bar = show_identity_bar
 
     def render(self, frame_bgr: np.ndarray, view: FrameView) -> np.ndarray:
         vis = frame_bgr.copy()
@@ -106,6 +112,8 @@ class DebugOverlay:
 
     def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:
         """Barra inferior solo con identidad confirmada (activa o retenida)."""
+        if not self._show_identity_bar:
+            return
         idm = view.identity
         if idm is None or not idm.is_match:
             return

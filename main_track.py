@@ -29,6 +29,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   DISPLAY_FORCE_FULL_SCREEN    — true/false (overlay OpenCV) set WND_PROP_FULLSCREEN
   DISPLAY_WIDTH / DISPLAY_HEIGHT — tamano ventana (0 = sin resizeWindow)
   DISPLAY_BANNER_PATH    — banner fallback; busca {stem}_{DISPLAY_WIDTH}.png|.jpg en la misma carpeta
+  DISPLAY_IDENTITY_BAR — true/false (barra inferior nombre+ID; default true)
   CTK_COLORS_AND_FONT  — true/false (MATCH #0547C5 + Red Hat Display; false=legacy)
   CTK_OVERLAY_FONT_PATH — TTF (default ../data/fonts/RedHatDisplay-Medium.ttf)
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
@@ -818,6 +819,7 @@ def main() -> int:
             ctk_colors_and_font=s.CTK_COLORS_AND_FONT,
             font_path=s.CTK_OVERLAY_FONT_PATH,
         ),
+        show_identity_bar=s.DISPLAY_IDENTITY_BAR,
     )
     capture: CaptureCameras | None = None
     exit_code = 0
