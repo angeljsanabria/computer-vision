@@ -1,14 +1,15 @@
 """
-Fine-tune YOLOv8n (COCO preentrenado) para detectar fuel nozzle.
+Fine-tune YOLOv8n (COCO preentrenado) para Bidon/Pico (nozzle_bidones).
 
-Config central: yolo_train/nozzle_config.py (NOZZLE_VERSION, DATASET_DIR).
+Config central: yolo_train/nozzle_config.py (NOZZLE_VERSION, DATASET_DIR, IMGSZ).
 
 Uso (desde la raiz del repo):
+  python yolo_train/prepare_nozzle_detect_labels.py
   python yolo_train/train_nozzle.py
   python yolo_train/train_nozzle.py --epochs 50 --batch 8
 
 Salida tipica:
-  yolo_train/runs/detect/nozzle_v2/weights/best.pt
+  yolo_train/runs/detect/nozzle_bidones_v4/weights/best.pt
 
 Siguiente paso: python yolo_train/export_nozzle_onnx.py
 """
@@ -32,7 +33,7 @@ DATA_YAML_RESOLVED = nc.DATA_YAML_RESOLVED
 RUN_NAME = nc.RUN_NAME
 
 EPOCHS = 100
-IMGSZ = 640
+IMGSZ = nc.IMGSZ
 BATCH = 16
 
 
@@ -45,29 +46,35 @@ def _validar_rutas() -> None:
     train_img = DATASET_ROOT / "train" / "images"
     val_img = DATASET_ROOT / "valid" / "images"
     if not train_img.is_dir() or not any(train_img.iterdir()):
-        raise SystemExit(f"Sin imagenes de entrenamiento en: {train_img}")
+        raise SystemExit(
+            f"Sin imagenes de entrenamiento en: {train_img}\n"
+            "Corre: python yolo_train/prepare_nozzle_detect_labels.py"
+        )
     if not val_img.is_dir() or not any(val_img.iterdir()):
         raise SystemExit(f"Sin imagenes de validacion en: {val_img}")
 
 
 def _escribir_data_yaml_resuelto() -> Path:
     path_str = DATASET_ROOT.resolve().as_posix()
+    names_block = "\n".join(f"  - {name}" for name in nc.CLASS_NAMES)
     content = (
         f"path: {path_str}\n"
         "train: train/images\n"
         "val: valid/images\n"
         "test: test/images\n"
         "\n"
-        "nc: 1\n"
-        f"names:\n"
-        f"  - {nc.CLASS_NAME}\n"
+        f"nc: {len(nc.CLASS_NAMES)}\n"
+        "names:\n"
+        f"{names_block}\n"
     )
     DATA_YAML_RESOLVED.write_text(content, encoding="utf-8")
     return DATA_YAML_RESOLVED
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Fine-tune YOLOv8n para fuel nozzle.")
+    parser = argparse.ArgumentParser(
+        description="Fine-tune YOLOv8n Bidon/Pico (nozzle_bidones)."
+    )
     parser.add_argument("--epochs", type=int, default=EPOCHS, help="Epocas de entrenamiento.")
     parser.add_argument("--batch", type=int, default=BATCH, help="Batch size.")
     parser.add_argument("--imgsz", type=int, default=IMGSZ, help="Tamano de entrada (px).")
@@ -87,6 +94,7 @@ def main() -> None:
     print(f"Peso base: {PRETRAINED_PT}")
     print(f"Dataset:   {data_yaml}")
     print(f"Path:      {DATASET_ROOT.resolve()}")
+    print(f"Clases:    {list(nc.CLASS_NAMES)}")
     print(f"Epocas:    {args.epochs}  batch: {args.batch}  imgsz: {args.imgsz}")
 
     model = YOLO(str(PRETRAINED_PT))

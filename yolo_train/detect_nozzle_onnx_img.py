@@ -27,7 +27,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 import nozzle_config as nc  # noqa: E402
 
-ONNX_PATH = nc.ONNX_LATEST
+ONNX_PATH = nc.ONNX_VERSIONED
 DEFAULT_IMG = nc.DATASET_ROOT / "valid" / "images"
 
 CONF_MIN = 0.25

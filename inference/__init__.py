@@ -7,6 +7,7 @@ from typing import Protocol
 import numpy as np
 
 from inference.nozzle.types import NozzleDetections
+from inference.nozzle_bidon.types import NozzleBidonDetections
 from inference.types import (
     FaceDetections,
     FaceEmbedding,
@@ -33,6 +34,12 @@ class FaceMeshEstimator(Protocol):
 
 class NozzleDetector(Protocol):
     def detect(self, frame_bgr: np.ndarray) -> NozzleDetections: ...
+
+    def release(self) -> None: ...
+
+
+class NozzleBidonDetector(Protocol):
+    def detect(self, frame_bgr: np.ndarray) -> NozzleBidonDetections: ...
 
     def release(self) -> None: ...
 
@@ -161,6 +168,43 @@ def build_nozzle_detector(
     return None
 
 
+def build_nozzle_bidon_detector(
+    backend: str,
+    model_path: str,
+    score_deteccion: float,
+    nms_iou: float,
+) -> NozzleBidonDetector | None:
+    """
+    Factory Bidon/Pico (nozzle_bidones_v4).
+
+    Mismo backend: ``none`` / ``pc`` / ``rk3568``.
+    """
+    if backend == "none":
+        return None
+    if backend == "pc":
+        from inference.nozzle_bidon.detector_pc import NozzleBidonDetectorPc
+
+        return NozzleBidonDetectorPc(
+            model_path=model_path,
+            score_deteccion=score_deteccion,
+            nms_iou=nms_iou,
+        )
+    if backend == "rk3568":
+        from inference.nozzle_bidon.detector_rk3568 import NozzleBidonDetectorRk3568
+
+        return NozzleBidonDetectorRk3568(
+            model_path=model_path,
+            score_deteccion=score_deteccion,
+            nms_iou=nms_iou,
+        )
+
+    logging.critical(
+        "INFERENCE_BACKEND invalido: '%s'. Usar none, pc o rk3568.",
+        backend,
+    )
+    return None
+
+
 def build_identity_matcher(
     backend: str,
     gallery_dir: str,
@@ -190,11 +234,14 @@ __all__ = [
     "FaceMeshEstimator",
     "FaceMeshLandmarks",
     "FaceSelection",
+    "NozzleBidonDetections",
+    "NozzleBidonDetector",
     "NozzleDetections",
     "NozzleDetector",
     "build_embedder",
     "build_face_detector",
     "build_face_mesh",
     "build_identity_matcher",
+    "build_nozzle_bidon_detector",
     "build_nozzle_detector",
 ]

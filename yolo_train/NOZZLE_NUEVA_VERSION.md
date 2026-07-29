@@ -1,54 +1,70 @@
-# Nozzle YOLO — nueva version / otro dataset
+# Nozzle Bidon/Pico — nozzle_bidones_v4
 
-## 1. Dataset Roboflow
+## Objetivos
 
-Export YOLOv8 → carpeta en `yolo_train/`, ej. `nozzle_v3.yolov8/`  
-(debe tener `train/valid/test` con `images/` + `labels/`)
+- Dataset Roboflow `picos_y_bidones` (2 clases).
+- Entrada **416** (prueba vs v3@640).
+- RKNN **hybrid INT8** (output0 FP16).
+- Runtime: paquete nuevo `inference/nozzle_bidon/` (no muta `inference/nozzle`).
 
-## 2. Config (unico archivo a tocar)
+## Nombres de clase
 
-`yolo_train/nozzle_config.py`:
+| ID en labels | Roboflow | Producto |
+|--------------|----------|----------|
+| 0 | jerrycan | Bidon |
+| 1 | nozzle | Pico |
 
-```python
-NOZZLE_VERSION = "v3"
-DATASET_DIR = "nozzle_v3.yolov8"
-CLASS_NAME = "nozzle"   # como en data.yaml del export
-```
+Los `.txt` del export **no se reescriben** por rename; solo el mapa en config.
 
-Opcional: actualizar `data_nozzle.yaml` (`path` + `names`) — el train regenera el resolved.
+## 1. Dataset
 
-## 3. Entrenar → export → RKNN
+Export Roboflow **YOLOv8** (no OBB) en:
+
+`yolo_train/picos_y_bidones.v1i.yolov8/`
+
+Si las labels son poligono (seg), convertir a bbox:
 
 ```bash
-python yolo_train/train_nozzle.py
-python yolo_train/export_nozzle_onnx.py
-python yolo_train/gen_nozzle_rknn_dataset.py
-# WSL (rknn-toolkit2 2.3.2):
-python yolo_train/exp_yolov8n_nozzle_rknn.py
-# FP sin INT8 (solo comparar):
-python yolo_train/exp_yolov8n_nozzle_rknn.py --no-quant
+python yolo_train/prepare_nozzle_detect_labels.py
 ```
 
-## 4. Salidas (version v3)
+Salida: `yolo_train/picos_y_bidones.v1i.yolov8_detect/`
+
+## 2. Config
+
+Hub: `yolo_train/nozzle_config.py`
+
+- `NOZZLE_VERSION = "nozzle_bidones_v4"`
+- `DATASET_DIR = "picos_y_bidones.v1i.yolov8_detect"`
+- `CLASS_NAMES = ("Bidon", "Pico")`
+- `IMGSZ = 416` / `RKNN_INPUT_SIZE = 416`
+
+## 3. Entrenar → ONNX → calib → RKNN
+
+```bash
+python yolo_train/prepare_nozzle_detect_labels.py
+python yolo_train/train_nozzle.py
+python yolo_train/export_nozzle_onnx.py
+python yolo_train/prepare_nozzle_calib_v4.py
+# WSL rknn-toolkit2 2.3.2:
+python yolo_train/exp_yolov8n_nozzle_rknn_v4.py
+```
+
+## 4. Artefactos
 
 | Artefacto | Ruta |
 |-----------|------|
-| Pesos | `yolo_train/runs/detect/nozzle_v3/weights/best.pt` |
-| ONNX | `Yolo-Weights/yolov8n_nozzle_v3.onnx` |
-| RKNN | `Yolo-Weights/yolov8n_nozzle_v3.rknn` |
-| Alias desplegado | `Yolo-Weights/yolov8n_nozzle.onnx` / `.rknn` (se sobrescriben al export) |
+| Pesos | `yolo_train/runs/detect/nozzle_bidones_v4/weights/best.pt` |
+| ONNX | `Yolo-Weights/yolov8n_nozzle_bidones_v4.onnx` |
+| RKNN | `Yolo-Weights/yolov8n_nozzle_bidones_v4.rknn` |
+| Deploy placa | `models/yolov8n_nozzle_bidones_v4.rknn` |
 
-## 5. Backup version anterior
-
-Antes de entrenar v3, copiar a mano si queres congelar v2:
-
-- `nozzle.yolov8` → `nozzle_v2.yolov8` (ya hecho)
-- `yolov8n_nozzle.onnx` → `yolov8n_nozzle_v2.onnx` (ya hecho)
-
-## 6. Probar
+## 5. Runtime placa
 
 ```bash
-python export_models/nozzle_yolo_v1.py --modo usb --display
-# o ONNX versionado:
-python export_models/nozzle_yolo_v1.py --modo usb --onnx Yolo-Weights/yolov8n_nozzle_v3.onnx
+ENABLE_NOZZLE=true
+NOZZLE_MODEL_RK3568=models/yolov8n_nozzle_bidones_v4.rknn
 ```
+
+`main_track` usa solo `inference/nozzle_bidon/` + `build_nozzle_bidon_detector`.  
+El paquete `inference/nozzle/` (v3@640) permanece en el repo como modulo; no lo cablea este pipeline.

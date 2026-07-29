@@ -1,19 +1,16 @@
 """
-Export nozzle RKNN v3 (RK3568) con hybrid INT8.
+Export nozzle_bidones RKNN v4 (RK3568) con hybrid INT8.
 
-Problema v2 INT8: cuantizacion plena de YOLOv8 Ultralytics deja output0 en cero
-(best_score=0.000 en placa). Solucion: hybrid quant (backbone INT8 + output0 FP16).
-
-Patron alineado a RetinaFace/FaceMesh (mean 0 / std 255, calib representativa)
-+ hybrid_quant del SDK (examples/functions/hybrid_quant/).
+Mismo esquema que v3: backbone INT8 + output0 FP16 (evita cls=0 en INT8 pleno).
+Calibracion stretch a nc.RKNN_INPUT_SIZE (416).
 
 Flujo:
-  python yolo_train/prepare_nozzle_calib_v3.py
-  python yolo_train/exp_yolov8n_nozzle_rknn_v3.py
+  python yolo_train/prepare_nozzle_calib_v4.py
+  python yolo_train/exp_yolov8n_nozzle_rknn_v4.py
 
 Salida:
-  Yolo-Weights/yolov8n_nozzle_v3.rknn
-  models/yolov8n_nozzle_v3.rknn
+  Yolo-Weights/yolov8n_nozzle_bidones_v4.rknn
+  models/yolov8n_nozzle_bidones_v4.rknn  (deploy placa)
 
 WSL + rknn-toolkit2 2.3.2 (venv cp311 x86_64).
 """
@@ -30,7 +27,7 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 import nozzle_config as nc  # noqa: E402
-from prepare_nozzle_calib_v3 import build_calib_v3  # noqa: E402
+from prepare_nozzle_calib_v4 import build_calib_v4  # noqa: E402
 
 from rknn.api import RKNN
 
@@ -52,7 +49,6 @@ def _validate_dataset(dataset_path: Path) -> None:
 
 
 def _dataset_with_abs_paths(dataset_path: Path, out_path: Path) -> Path:
-    """RKNN resuelve paths del dataset respecto al cwd; usamos rutas absolutas."""
     lines: list[str] = []
     for line in dataset_path.read_text(encoding="utf-8").splitlines():
         rel = line.strip()
@@ -71,8 +67,8 @@ def _ensure_calib() -> Path:
     if path.is_file() and path.stat().st_size > 0:
         _validate_dataset(path)
         return path
-    print("--> Generando calibracion v3 (640 stretch)...")
-    n = build_calib_v3(
+    print(f"--> Generando calibracion v4 ({nc.RKNN_INPUT_SIZE} stretch)...")
+    n = build_calib_v4(
         dataset_root=nc.DATASET_ROOT.resolve(),
         out_dir=nc.RKNN_CALIB_DIR.resolve(),
         dataset_txt=path,
@@ -84,14 +80,12 @@ def _ensure_calib() -> Path:
 
 
 def _patch_quant_cfg(cfg_path: Path, fp16_nodes: tuple[str, ...]) -> None:
-    """Fuerza custom_quantize_layers con los nodos FP16 (fix ultralytics#23340)."""
     import re
 
     text = cfg_path.read_text(encoding="utf-8")
     entries = "\n".join(f"    {node}: float16" for node in fp16_nodes)
     replacement = f"custom_quantize_layers:\n{entries}"
 
-    # Reemplaza bloque completo (vacio {}, o con entradas previas) hasta quantize_parameters
     pattern = re.compile(
         r"^custom_quantize_layers:.*?(?=^quantize_parameters:)",
         flags=re.M | re.S,
@@ -155,14 +149,14 @@ def _run_hybrid_step2(
         os.chdir(old_cwd)
 
 
-def export_hybrid_v3(
+def export_hybrid_v4(
     dataset_path: Path, *, use_mmse: bool = False, step2_only: bool = False
 ) -> Path:
     onnx_path = nc.ONNX_RKNN_SOURCE.resolve()
     if not onnx_path.is_file():
         raise SystemExit(
             f"No se encuentra ONNX fuente: {onnx_path}\n"
-            "Usa el v2 entrenado o: python yolo_train/export_nozzle_onnx.py"
+            "Corre: python yolo_train/export_nozzle_onnx.py"
         )
 
     build_dir = nc.RKNN_BUILD_DIR.resolve()
@@ -266,7 +260,9 @@ def _deploy(out_rknn: Path) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export nozzle RKNN v3 hybrid INT8.")
+    parser = argparse.ArgumentParser(
+        description="Export nozzle_bidones RKNN v4 hybrid INT8."
+    )
     parser.add_argument(
         "--full-int8",
         action="store_true",
@@ -280,13 +276,13 @@ def main() -> None:
     parser.add_argument(
         "--step2-only",
         action="store_true",
-        help="Reutiliza artefactos step1 en rknn_build_v3/ (patch FP16 + step2).",
+        help="Reutiliza artefactos step1 en rknn_build_v4/ (patch FP16 + step2).",
     )
     parser.add_argument(
         "--dataset",
         type=Path,
         default=None,
-        help="dataset.txt calibracion (default rknn_nozzle_v3_dataset.txt).",
+        help="dataset.txt calibracion (default rknn_nozzle_v4_dataset.txt).",
     )
     args = parser.parse_args()
 
@@ -298,20 +294,21 @@ def main() -> None:
     if not dataset_path.is_file():
         raise SystemExit(
             f"No existe {dataset_path}\n"
-            "Corre: python yolo_train/prepare_nozzle_calib_v3.py"
+            "Corre: python yolo_train/prepare_nozzle_calib_v4.py"
         )
     _validate_dataset(dataset_path)
 
     print(f"RKNN export:  {nc.RKNN_EXPORT_VERSION}")
     print(f"ONNX fuente:  {nc.ONNX_RKNN_SOURCE}")
     print(f"Calibracion:  {dataset_path}")
+    print(f"Input size:   {nc.RKNN_INPUT_SIZE}")
     print(f"Modo:         {'full INT8' if args.full_int8 else 'hybrid INT8 + output0 FP16'}")
     print(f"Algorithm:    {'mmse' if args.mmse else 'normal (default)'}")
 
     if args.full_int8:
         out = export_full_int8(dataset_path, use_mmse=args.mmse)
     else:
-        out = export_hybrid_v3(
+        out = export_hybrid_v4(
             dataset_path,
             use_mmse=args.mmse,
             step2_only=args.step2_only,

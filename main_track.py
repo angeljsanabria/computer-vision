@@ -32,6 +32,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   DISPLAY_IDENTITY_BAR — true/false (barra inferior nombre+ID; default true)
   CTK_COLORS_AND_FONT  — true/false (MATCH #0547C5 + Red Hat Display; false=legacy)
   CTK_OVERLAY_FONT_PATH — TTF (default ../data/fonts/RedHatDisplay-Medium.ttf)
+  ENABLE_NOZZLE — Bidon/Pico via inference/nozzle_bidon (modelo v4)
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
   FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
@@ -96,12 +97,12 @@ from inference import (  # noqa: E402
     FaceDetector,
     FaceEmbedder,
     FaceMeshEstimator,
-    NozzleDetector,
+    NozzleBidonDetector,
     build_embedder,
     build_face_detector,
     build_face_mesh,
     build_identity_matcher,
-    build_nozzle_detector,
+    build_nozzle_bidon_detector,
 )
 from inference.identity.matcher import (  # noqa: E402
     GALLERY_ALIGN_META_NAME,
@@ -113,8 +114,8 @@ from inference.identity.types import IdentityMatch  # noqa: E402
 from inference.types import FaceDetections, FaceEmbedding, FaceMeshLandmarks  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
 from inference.facemesh.from_detection import estimate_from_det  # noqa: E402
-from inference.nozzle.select_best import mejores_nozzles  # noqa: E402
-from inference.nozzle.types import NozzleDetections  # noqa: E402
+from inference.nozzle_bidon.select_best import mejores_bidones  # noqa: E402
+from inference.nozzle_bidon.types import NozzleBidonDetections  # noqa: E402
 from inference.retinaface.select_best import mejores_caras  # noqa: E402
 from bytetrack import (  # noqa: E402
     ByteTrackConfig,
@@ -434,14 +435,18 @@ def _tick_facemesh_if_needed(
     )
 
 
+def _nozzle_empty_dets() -> NozzleBidonDetections:
+    return NozzleBidonDetections.empty()
+
+
 def _tick_nozzle_if_needed(
-    nozzle: NozzleDetector | None,
+    nozzle: NozzleBidonDetector | None,
     fsm_out: FsmTickResult,
     frame,
     frame_idx: int,
 ) -> InferOutcome:
     """
-    Nozzle YOLO con mismo gate FSM que RetinaFace.
+    Nozzle Bidon/Pico YOLO con mismo gate FSM que RetinaFace.
 
     ``SKIPPED`` — every_n / gate off / sin detector.
     ``EMPTY`` — modelo corrio sin dets (o fallo detect).
@@ -458,7 +463,7 @@ def _tick_nozzle_if_needed(
     except Exception as exc:
         logging.warning("[Nozzle] fallo detect(): %s", exc)
         return InferOutcome.empty()
-    dets = mejores_nozzles(
+    dets = mejores_bidones(
         raw,
         top_n=s.NOZZLE_PROCESS_TOP_N,
         min_score=s.NOZZLE_SCORE_DETECCION,
@@ -470,7 +475,7 @@ def _tick_nozzle_if_needed(
 
 def _tick_nozzle_bytetrack_if_needed(
     tracker: NozzleByteTracker | None,
-    dets: NozzleDetections | None,
+    dets: NozzleBidonDetections | None,
 ) -> TrackResult | None:
     """ByteTrack nozzle; aislado con try/except como el tracker facial."""
     if tracker is None:
@@ -487,10 +492,11 @@ def _log_nozzle_periodic(frame_idx: int, hold: DetectionHold) -> None:
         return
     dets = hold.dets
     tracks = hold.tracks
-    n_dets = int(dets.dets.shape[0]) if isinstance(dets, NozzleDetections) and dets.has_detections else 0
+    has_dets = dets is not None and dets.has_detections
+    n_dets = int(dets.dets.shape[0]) if has_dets else 0
     n_tracks = len(tracks.tracks) if tracks is not None and tracks.tracks else 0
     best = 0.0
-    if isinstance(dets, NozzleDetections) and dets.has_detections:
+    if has_dets:
         best = float(np.max(dets.dets[:, 4]))
     elif tracks is not None and tracks.tracks:
         best = max(t.score for t in tracks.tracks)
@@ -583,7 +589,7 @@ def _tick_embed_if_needed(
 
 
 def _release_runtime(
-    obj: FaceDetector | FaceEmbedder | FaceMeshEstimator | NozzleDetector | None,
+    obj: FaceDetector | FaceEmbedder | FaceMeshEstimator | NozzleBidonDetector | None,
 ) -> None:
     """Libera runtime si el objeto expone release() (p. ej. RKNNLite en RK3568)."""
     if obj is None:
@@ -760,7 +766,7 @@ def main() -> int:
     else:
         logging.debug("FaceMesh desactivado (ENABLE_FACEMESH=false)")
 
-    nozzle: NozzleDetector | None = None
+    nozzle: NozzleBidonDetector | None = None
     nozzle_tracker: NozzleByteTracker | None = None
     if s.ENABLE_NOZZLE:
         if backend == "pc":
@@ -770,7 +776,7 @@ def main() -> int:
         else:
             nozzle_model = ""
         if nozzle_model:
-            nozzle = build_nozzle_detector(
+            nozzle = build_nozzle_bidon_detector(
                 backend,
                 nozzle_model,
                 s.NOZZLE_SCORE_DETECCION,
@@ -787,7 +793,8 @@ def main() -> int:
         )
         if nozzle is not None:
             logging.debug(
-                "Nozzle activo (backend=%s, top_n=%d, every_n=%d, track_thresh=%.2f)",
+                "Nozzle bidon activo (backend=%s, top_n=%d, every_n=%d, "
+                "track_thresh=%.2f)",
                 s.INFERENCE_BACKEND,
                 s.NOZZLE_PROCESS_TOP_N,
                 s.NOZZLE_EVERY_N_FRAMES,
@@ -1079,7 +1086,7 @@ def main() -> int:
                         )
                         nozzle_hold.force_clear(
                             lambda: _tick_nozzle_bytetrack_if_needed(
-                                nozzle_tracker, NozzleDetections.empty()
+                                nozzle_tracker, _nozzle_empty_dets()
                             )
                         )
                         display_identity = None
@@ -1131,14 +1138,14 @@ def main() -> int:
                                 nozzle_tracker, d
                             ),
                             clear_tracks=lambda: _tick_nozzle_bytetrack_if_needed(
-                                nozzle_tracker, NozzleDetections.empty()
+                                nozzle_tracker, _nozzle_empty_dets()
                             ),
                         )
                         _log_nozzle_periodic(nozzle_frame_idx, nozzle_hold)
                     else:
                         nozzle_hold.force_clear(
                             lambda: _tick_nozzle_bytetrack_if_needed(
-                                nozzle_tracker, NozzleDetections.empty()
+                                nozzle_tracker, _nozzle_empty_dets()
                             )
                         )
                     nozzle_frame_idx += 1

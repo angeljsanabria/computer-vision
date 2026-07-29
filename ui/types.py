@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from bytetrack.types import TrackResult
 from inference.identity.types import IdentityMatch
-from inference.nozzle.types import NozzleDetections
+from inference.nozzle_bidon.types import NozzleBidonDetections
 from inference.types import FaceDetections, FaceMeshLandmarks
 from mov_detect.types import FsmTickResult, MotionResult
 
@@ -24,6 +24,6 @@ class FrameView:
     identity_by_track: dict[int, IdentityMatch] | None = None
     # FaceMesh UX: landmarks por track_id (solo desconocidos; lo llena main_track).
     facemesh_by_track: dict[int, FaceMeshLandmarks] | None = None
-    # Nozzle YOLO: detecciones crudas del frame (si hubo inferencia) y tracks ByteTrack.
-    nozzle_dets: NozzleDetections | None = None
+    # Nozzle Bidon/Pico: detecciones crudas del frame y tracks ByteTrack.
+    nozzle_dets: NozzleBidonDetections | None = None
     nozzle_tracks: TrackResult | None = None

@@ -4,10 +4,10 @@ import logging
 
 # 1. CONFIGURACIONES GENERALES
 # 1.0 Plataforma
-INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "RK3568").lower()  # "none", "pc", "rk3568"
+INFERENCE_BACKEND = os.getenv("INFERENCE_BACKEND", "PC").lower()  # "none", "pc", "rk3568"
 
 # 1.1 Captura
-MODO = os.getenv("CONFIG_MODO", "RTMP").upper()     # RTSP, RTMP, SNAP, USB
+MODO = os.getenv("CONFIG_MODO", "USB").upper()     # RTSP, RTMP, SNAP, USB
 MAX_FPS = float(os.getenv("MAX_FPS", 25.0))
 WARMUP_FRAMES = int(os.getenv("WARMUP_FRAMES", 15))
 DISPLAY_IS_ENABLE = (
@@ -83,7 +83,7 @@ PROFILER_ENABLE = os.getenv("PROFILER_ENABLE", "false").lower() == "true"
 PROFILER_LOG_EVERY_N_FRAMES = int(os.getenv("PROFILER_LOG_EVERY_N_FRAMES", "30"))
 
 # 1.3 Procesamiento de imagen (RGA RK3568; solo efectivo con INFERENCE_BACKEND=rk3568)
-USE_RGA = os.getenv("USE_RGA", "true").lower() == "true"
+USE_RGA = os.getenv("USE_RGA", "false").lower() == "true"
 
 # 1.4 Identidad reconocida (FSM FACE_RECOGNIZED)
 # Intervalo entre embeds en FACE_RECOGED; cada MATCH renueva el timer de identidad.
@@ -256,15 +256,15 @@ BYTETRACK_TRACK_BUFFER = int(os.getenv("BYTETRACK_TRACK_BUFFER", "20"))
 # FPS real del pipeline para escalar el buffer temporal (defecto = MAX_FPS).
 BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
 
-# 7.1 Nozzle YOLOv8 (deteccion + ByteTrack paralelo al pipeline facial; solo overlay/log)
-ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "false").lower() == "true"
+# 7.1 Nozzle Bidon/Pico YOLOv8 (inference/nozzle_bidon; deteccion + ByteTrack)
+ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "true").lower() == "true"
 NOZZLE_MODEL_PC = os.getenv(
     "NOZZLE_MODEL_PC",
-    "models_onnx/yolov8n_nozzle_v2.onnx",
+    "models_onnx/yolov8n_nozzle_bidones_v4.onnx",
 )
 NOZZLE_MODEL_RK3568 = os.getenv(
     "NOZZLE_MODEL_RK3568",
-    "models/yolov8n_nozzle_v3.rknn",
+    "models/yolov8n_nozzle_bidones_v4.rknn",
 )
 # Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
 NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.50"))

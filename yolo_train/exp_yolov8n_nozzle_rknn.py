@@ -13,8 +13,7 @@ Sin cuantizar (debug / comparar latencia FP):
 Uso en PC/WSL con rknn-toolkit2 2.3.2 (venv x86_64).
 
 Salida:
-  Yolo-Weights/yolov8n_nozzle_v2.rknn  (versionado)
-  Yolo-Weights/yolov8n_nozzle.rknn     (alias ultimo desplegado)
+  Yolo-Weights/yolov8n_<version>.rknn  (versionado; ver nozzle_config)
 """
 from __future__ import annotations
 
@@ -34,7 +33,6 @@ from rknn.api import RKNN
 
 ONNX_PATH = nc.ONNX_VERSIONED
 RKNN_PATH = nc.RKNN_VERSIONED
-RKNN_LATEST = nc.RKNN_LATEST
 RKNN_CALIB_DATASET = nc.RKNN_CALIB_DATASET
 TARGET_PLATFORM = "rk3568"
 DO_QUANTIZATION_DEFAULT = True
@@ -124,12 +122,10 @@ def main() -> None:
         raise SystemExit(f"export failed: {ret}")
 
     rknn.release()
-    shutil.copy2(str(RKNN_PATH), str(RKNN_LATEST))
     print("OK ->", RKNN_PATH)
-    print("OK ->", RKNN_LATEST, "(alias desplegado)")
     if do_quant:
         print(
-            "Despliega a placa: copiar a models/yolov8n_nozzle_v2.rknn "
+            f"Despliega a placa: copiar a {nc.RKNN_DEPLOY} "
             "(o NOZZLE_MODEL_RK3568 en settings)."
         )
 

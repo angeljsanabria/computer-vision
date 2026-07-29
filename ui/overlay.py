@@ -4,7 +4,7 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from inference.nozzle.types import NozzleDetections
+from inference.nozzle_bidon.types import NozzleBidonDetections
 from inference.types import FaceDetections
 from ui.facemesh_overlay import draw_facemesh_points
 from ui.overlay_text import OverlayTextRenderer
@@ -86,6 +86,7 @@ class DebugOverlay:
         if view.nozzle_dets is not None and view.nozzle_dets.has_detections:
             self._draw_nozzle_dets(vis, view.nozzle_dets)
         elif view.nozzle_tracks is not None and view.nozzle_tracks.tracks:
+            # ByteTrack no conserva class_id: solo id + score (sin inventar nombre).
             for track in view.nozzle_tracks.tracks:
                 x1, y1, x2, y2 = map(int, track.tlbr)
                 color = (255, 200, 0)
@@ -94,21 +95,24 @@ class DebugOverlay:
                     vis,
                     x1,
                     y1,
-                    f"nozzle #{track.track_id}\n{track.score:.2f}",
+                    f"#{track.track_id}\n{track.score:.2f}",
                     color,
                 )
 
-    def _draw_nozzle_dets(self, vis: np.ndarray, dets: NozzleDetections | None) -> None:
+    def _draw_nozzle_dets(
+        self,
+        vis: np.ndarray,
+        dets: NozzleBidonDetections | None,
+    ) -> None:
         if dets is None or not dets.has_detections:
             return
         color = (255, 200, 0)
         for idx, row in enumerate(dets.dets):
             x1, y1, x2, y2 = map(int, row[:4])
             score = float(row[4])
+            label = f"{dets.class_name(idx)} #{idx + 1}\n{score:.2f}"
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-            self._text.draw_label(
-                vis, x1, y1, f"nozzle #{idx + 1}\n{score:.2f}", color
-            )
+            self._text.draw_label(vis, x1, y1, label, color)
 
     def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:
         """Barra inferior solo con identidad confirmada (activa o retenida)."""

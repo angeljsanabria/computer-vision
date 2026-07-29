@@ -1,18 +1,17 @@
 """
-Exporta best.pt del fine-tune nozzle a ONNX (misma receta que yolov8n COCO).
+Exporta best.pt del fine-tune nozzle_bidones a ONNX.
 
 Config: yolo_train/nozzle_config.py
-Receta (RKNN Toolkit 2.3.2): imgsz=640, opset=19.
+Receta (RKNN Toolkit 2.3.2): imgsz desde nc.IMGSZ (416), opset=19.
 
 Uso (desde la raiz del repo):
   python yolo_train/export_nozzle_onnx.py
-  python yolo_train/export_nozzle_onnx.py --weights yolo_train/runs/detect/nozzle_v2/weights/best.pt
+  python yolo_train/export_nozzle_onnx.py --weights yolo_train/runs/detect/nozzle_bidones_v4/weights/best.pt
 
 Salida:
-  Yolo-Weights/yolov8n_nozzle_v2.onnx  (versionado)
-  Yolo-Weights/yolov8n_nozzle.onnx     (alias ultimo desplegado)
+  Yolo-Weights/yolov8n_nozzle_bidones_v4.onnx
 
-Siguiente paso: python yolo_train/exp_yolov8n_nozzle_rknn.py
+Siguiente paso: python yolo_train/prepare_nozzle_calib_v4.py
 """
 from __future__ import annotations
 
@@ -29,14 +28,13 @@ import nozzle_config as nc  # noqa: E402
 
 DEFAULT_BEST_PT = nc.WEIGHTS_BEST_PT
 ONNX_OUT = nc.ONNX_VERSIONED
-ONNX_LATEST = nc.ONNX_LATEST
 
-IMGSZ = 640
+IMGSZ = nc.IMGSZ
 ONNX_OPSET = 19
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export ONNX del modelo nozzle fine-tuned.")
+    parser = argparse.ArgumentParser(description="Export ONNX nozzle_bidones fine-tuned.")
     parser.add_argument(
         "--weights",
         type=Path,
@@ -73,20 +71,15 @@ def main() -> None:
     )
 
     exported = Path(export_path).resolve()
-    for dst in (ONNX_OUT, ONNX_LATEST):
-        if dst.is_file() and exported.resolve() != dst.resolve():
-            dst.unlink()
-        if exported.resolve() != dst.resolve():
-            shutil.copy2(str(exported), str(dst))
-    if exported.exists() and exported.resolve() not in (
-        ONNX_OUT.resolve(),
-        ONNX_LATEST.resolve(),
-    ):
-        exported.unlink()
+    if exported.resolve() != ONNX_OUT.resolve():
+        if ONNX_OUT.is_file():
+            ONNX_OUT.unlink()
+        shutil.copy2(str(exported), str(ONNX_OUT))
+        if exported.exists():
+            exported.unlink()
 
     print(f"OK -> {ONNX_OUT}")
-    print(f"OK -> {ONNX_LATEST} (alias desplegado)")
-    print("Siguiente: python yolo_train/exp_yolov8n_nozzle_rknn.py")
+    print("Siguiente: python yolo_train/prepare_nozzle_calib_v4.py")
 
 
 if __name__ == "__main__":

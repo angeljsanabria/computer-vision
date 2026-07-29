@@ -1,12 +1,13 @@
-# Dataset Roboflow nozzle (export YOLOv8).
+# Dataset Bidon/Pico (export YOLOv8).
 # Plantilla de clases/rutas. train_nozzle.py genera data_nozzle_<version>_resolved.yaml
 # con path absoluto. Dataset activo: ver DATASET_DIR en nozzle_config.py.
 
-path: nozzle.yolov8
+path: picos_y_bidones.v1i.yolov8_detect
 train: train/images
 val: valid/images
 test: test/images
 
-nc: 1
+nc: 2
 names:
-  - nozzle
+  - Bidon
+  - Pico
