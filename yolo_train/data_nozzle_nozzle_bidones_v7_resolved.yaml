@@ -1,0 +1,9 @@
+path: /mnt/c/code/computer-vision/yolo_train/picos-bidones-v7.yolov8_detect
+train: train/images
+val: valid/images
+test: test/images
+
+nc: 2
+names:
+  - Bidon
+  - Pico

@@ -260,27 +260,27 @@ BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
 ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "true").lower() == "true"
 NOZZLE_MODEL_PC = os.getenv(
     "NOZZLE_MODEL_PC",
-    "models_onnx/yolov8n_nozzle_bidones_v4.onnx",
+    "models_onnx/yolov8n_nozzle_bidones_v7.onnx",
 )
 NOZZLE_MODEL_RK3568 = os.getenv(
     "NOZZLE_MODEL_RK3568",
-    "models/yolov8n_nozzle_bidones_v4.rknn",
+    "models/yolov8n_nozzle_bidones_v7.rknn",
 )
 # Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
-NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.50"))
+NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.55"))
 NOZZLE_NMS_IOU = float(os.getenv("NOZZLE_NMS_IOU", "0.45"))
-NOZZLE_PROCESS_TOP_N = int(os.getenv("NOZZLE_PROCESS_TOP_N", "10"))
+NOZZLE_PROCESS_TOP_N = int(os.getenv("NOZZLE_PROCESS_TOP_N", "2"))
 # Demo medido: every 7 + hold TTL; N=1 satura NPU con RF.
-NOZZLE_EVERY_N_FRAMES = int(os.getenv("NOZZLE_EVERY_N_FRAMES", "7"))
+NOZZLE_EVERY_N_FRAMES = int(os.getenv("NOZZLE_EVERY_N_FRAMES", "1"))
 # Misses consecutivos de YOLO (modelo corrio y dio 0) antes de soltar hold.
 # Skip every_n NO cuenta. Con N=7 y ~13 FPS, 3 misses ~= 1.5 s sin objeto.
 NOZZLE_HOLD_MAX_MISSES = int(os.getenv("NOZZLE_HOLD_MAX_MISSES", "3"))
 # TRACK debe permitir activar dets que pasaron SCORE (activacion >= THRESH+0.1).
 NOZZLE_BYTETRACK_TRACK_THRESH = float(
-    os.getenv("NOZZLE_BYTETRACK_TRACK_THRESH", "0.40")
+    os.getenv("NOZZLE_BYTETRACK_TRACK_THRESH", "0.45")
 )
 NOZZLE_BYTETRACK_MATCH_THRESH = float(
-    os.getenv("NOZZLE_BYTETRACK_MATCH_THRESH", "0.70")
+    os.getenv("NOZZLE_BYTETRACK_MATCH_THRESH", "0.75")
 )
 NOZZLE_BYTETRACK_TRACK_BUFFER = int(os.getenv("NOZZLE_BYTETRACK_TRACK_BUFFER", "30"))
 NOZZLE_BYTETRACK_FRAME_RATE = float(

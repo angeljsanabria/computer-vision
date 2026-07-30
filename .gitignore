@@ -23,6 +23,9 @@ ENV/
 *.bak
 *.swp
 
+# Zips
+*.zip
+
 # Archivos de configuración
 .DS_Store
 Thumbs.db

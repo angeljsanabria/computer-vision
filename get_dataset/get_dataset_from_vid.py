@@ -14,7 +14,7 @@ Ejemplo:
   python get_dataset/get_dataset_from_vid.py
   python get_dataset/get_dataset_from_vid.py --video mi_clip.mp4
 """
-from __future__ import annotations4
+from __future__ import annotations
 
 import argparse
 import logging
@@ -37,14 +37,14 @@ BRIGHTNESS_ALPHA = 1.0
 BRIGHTNESS_BETA = 0
 
 # Cantidad de imagenes objetivo (se acota a frames totales del video).
-DATA_LEN = 60
+DATA_LEN = 70
 
 # Prefijo de nombre: {IMAGE_NAME_PREFIX}_{count}.jpg
-IMAGE_NAME_PREFIX = "pump_ctk_feria"
+IMAGE_NAME_PREFIX = "nozzle_v_ctk_feria"
 IMAGE_EXT = ".jpg"
 
 # Video: vacio = primer archivo encontrado en vid/; si no, nombre de archivo concreto.
-VIDEO_FILENAME = "vid.mov"
+VIDEO_FILENAME = "vid_4.mov"
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 VIDEO_DIR = SCRIPT_DIR / "vid"
