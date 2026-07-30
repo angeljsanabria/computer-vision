@@ -6,12 +6,12 @@ Receta (RKNN Toolkit 2.3.2): imgsz desde nc.IMGSZ (416), opset=19.
 
 Uso (desde la raiz del repo):
   python yolo_train/export_nozzle_onnx.py
-  python yolo_train/export_nozzle_onnx.py --weights yolo_train/runs/detect/nozzle_bidones_v7/weights/best.pt
+  python yolo_train/export_nozzle_onnx.py --weights yolo_train/runs/detect/nozzle_bidones_v8/weights/best.pt
 
 Salida:
-  Yolo-Weights/yolov8n_nozzle_bidones_v7.onnx
+  Yolo-Weights/yolov8n_nozzle_bidones_v8.onnx
 
-Siguiente paso: python yolo_train/prepare_nozzle_calib_v7.py
+Siguiente paso: python yolo_train/prepare_nozzle_calib_v8.py
 """
 from __future__ import annotations
 
@@ -79,7 +79,7 @@ def main() -> None:
             exported.unlink()
 
     print(f"OK -> {ONNX_OUT}")
-    print("Siguiente: python yolo_train/prepare_nozzle_calib_v7.py")
+    print("Siguiente: python yolo_train/prepare_nozzle_calib_v8.py")
 
 
 if __name__ == "__main__":

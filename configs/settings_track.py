@@ -267,7 +267,7 @@ NOZZLE_MODEL_RK3568 = os.getenv(
     "models/yolov8n_nozzle_bidones_v7.rknn",
 )
 # Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
-NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.55"))
+NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.35"))
 NOZZLE_NMS_IOU = float(os.getenv("NOZZLE_NMS_IOU", "0.45"))
 NOZZLE_PROCESS_TOP_N = int(os.getenv("NOZZLE_PROCESS_TOP_N", "2"))
 # Demo medido: every 7 + hold TTL; N=1 satura NPU con RF.

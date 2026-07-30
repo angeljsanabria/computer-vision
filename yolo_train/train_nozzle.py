@@ -9,7 +9,7 @@ Uso (desde la raiz del repo):
   python yolo_train/train_nozzle.py --epochs 50 --batch 8
 
 Salida tipica:
-  yolo_train/runs/detect/nozzle_bidones_v7/weights/best.pt
+  yolo_train/runs/detect/nozzle_bidones_v8/weights/best.pt
 
 Siguiente paso: python yolo_train/export_nozzle_onnx.py
 """
