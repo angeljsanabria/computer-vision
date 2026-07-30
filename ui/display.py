@@ -23,6 +23,7 @@ class PipelineDisplay:
     ``banner`` se inyecta desde main (``DisplayBanner.try_resolve_from_path`` o None).
     ``overlay_theme`` define color MATCH y tipografia (legacy vs CTK).
     ``show_identity_bar`` controla la franja inferior de nombre/ID.
+    ``warning_object_bar`` avisa si hay Bidon visible (objeto no autorizado).
     """
 
     def __init__(
@@ -36,6 +37,7 @@ class PipelineDisplay:
         banner: DisplayBanner | None = None,
         overlay_theme: OverlayTheme | None = None,
         show_identity_bar: bool = True,
+        warning_object_bar: bool = False,
     ) -> None:
         self._enabled = enabled
         self._window_name = window_name
@@ -60,6 +62,7 @@ class PipelineDisplay:
             self._overlay = DebugOverlay(
                 theme=overlay_theme,
                 show_identity_bar=show_identity_bar,
+                warning_object_bar=warning_object_bar,
             )
 
     @classmethod
@@ -74,6 +77,7 @@ class PipelineDisplay:
         banner: DisplayBanner | None = None,
         overlay_theme: OverlayTheme | None = None,
         show_identity_bar: bool = True,
+        warning_object_bar: bool = False,
     ) -> PipelineDisplay:
         return cls(
             enabled=enabled,
@@ -84,6 +88,7 @@ class PipelineDisplay:
             banner=banner,
             overlay_theme=overlay_theme,
             show_identity_bar=show_identity_bar,
+            warning_object_bar=warning_object_bar,
         )
 
     def setup(self) -> None:

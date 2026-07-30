@@ -21,14 +21,22 @@ def build_face_tracker(
 
 
 def build_nozzle_tracker(
-    enable: bool, config: ByteTrackConfig | None = None
+    enable: bool,
+    config: ByteTrackConfig | None = None,
+    *,
+    show_bbox_score: float = 0.0,
+    show_bbox_hits: int = 1,
 ) -> "NozzleByteTracker | None":
     """Tracker ByteTrack para detecciones nozzle (siempre ON si ENABLE_NOZZLE)."""
     if not enable:
         return None
     from bytetrack.nozzle_tracker import NozzleByteTracker
 
-    return NozzleByteTracker(config or ByteTrackConfig())
+    return NozzleByteTracker(
+        config or ByteTrackConfig(),
+        show_bbox_score=show_bbox_score,
+        show_bbox_hits=show_bbox_hits,
+    )
 
 
 __all__ = [

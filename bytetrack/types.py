@@ -27,6 +27,10 @@ class FaceTrack:
     track_id: int
     tlbr: np.ndarray  # shape (4,) float: x1, y1, x2, y2
     score: float
+    # UI only: nozzle usa sticky show_bbox; caras dejan True (siempre dibujar).
+    show_bbox: bool = True
+    # UI only: nozzle cachea class_id (0=Bidon, 1=Pico); caras = None.
+    class_id: int | None = None
 
 
 @dataclass(frozen=True)

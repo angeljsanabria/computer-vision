@@ -25,7 +25,11 @@ DISPLAY_HEIGHT = int(os.getenv("DISPLAY_HEIGHT", "1080"))       # 0
 DISPLAY_BANNER_PATH = os.getenv("DISPLAY_BANNER_PATH", "../data/banner.png")
 # Barra inferior de identidad (nombre + ID) en overlay. Solo UX; no afecta matcher/FSM.
 DISPLAY_IDENTITY_BAR = (
-    os.getenv("DISPLAY_IDENTITY_BAR", "true").lower() == "true"
+    os.getenv("DISPLAY_IDENTITY_BAR", "false").lower() == "true"
+)
+# Aviso en barra inferior si hay Bidon visible (show_bbox). Solo UX.
+DISPLAY_WARNING_OBJECT_BAR = (
+    os.getenv("DISPLAY_WARNING_OBJECT_BAR", "false").lower() == "true"
 )
 
 # Branding CTK en overlay: color MATCH #0547C5 + Red Hat Display (Pillow/TTF).
@@ -287,6 +291,33 @@ NOZZLE_BYTETRACK_FRAME_RATE = float(
     os.getenv("NOZZLE_BYTETRACK_FRAME_RATE", str(MAX_FPS))
 )
 
+# Control de fantasmas en UI para detecciones.
+# UI: score minimo para marcar track nozzle como mostrable (sticky). 0.0 = todos -> feature desactivada.
+NOZZLE_SHOW_BBOX_SCORE = float(os.getenv("NOZZLE_SHOW_BBOX_SCORE", "0.8"))
+# Frames consecutivos con score >= SHOW_BBOX_SCORE antes del sticky (1 = un frame)  -> feature desactivada.
+NOZZLE_SHOW_BBOX_HITS = int(os.getenv("NOZZLE_SHOW_BBOX_HITS", "4"))
+# Gate HSV anti-fantasma Bidon (pre-tracker). Pico: mismo patron cuando haya espectro.
+NOZZLE_BIDON_VERIFICACION_COLOR = (
+    os.getenv("NOZZLE_BIDON_VERIFICACION_COLOR", "true").lower() == "true"
+)
+NOZZLE_BIDON_COLOR_RATIO_MIN = float(
+    os.getenv("NOZZLE_BIDON_COLOR_RATIO_MIN", "0.12")
+)
+NOZZLE_BIDON_COLOR_INSET = float(os.getenv("NOZZLE_BIDON_COLOR_INSET", "0.08"))
+# Espectro rojo OpenCV (dos rangos; H wrap-around). Cada canal = un env.
+NOZZLE_BIDON_HSV1_H_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_H_MIN", "0"))
+NOZZLE_BIDON_HSV1_S_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_S_MIN", "120"))
+NOZZLE_BIDON_HSV1_V_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_V_MIN", "70"))
+NOZZLE_BIDON_HSV1_H_MAX = int(os.getenv("NOZZLE_BIDON_HSV1_H_MAX", "10"))
+NOZZLE_BIDON_HSV1_S_MAX = int(os.getenv("NOZZLE_BIDON_HSV1_S_MAX", "255"))
+NOZZLE_BIDON_HSV1_V_MAX = int(os.getenv("NOZZLE_BIDON_HSV1_V_MAX", "255"))
+NOZZLE_BIDON_HSV2_H_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_H_MIN", "170"))
+NOZZLE_BIDON_HSV2_S_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_S_MIN", "120"))
+NOZZLE_BIDON_HSV2_V_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_V_MIN", "70"))
+NOZZLE_BIDON_HSV2_H_MAX = int(os.getenv("NOZZLE_BIDON_HSV2_H_MAX", "180"))
+NOZZLE_BIDON_HSV2_S_MAX = int(os.getenv("NOZZLE_BIDON_HSV2_S_MAX", "255"))
+NOZZLE_BIDON_HSV2_V_MAX = int(os.getenv("NOZZLE_BIDON_HSV2_V_MAX", "255"))
+
 
 _LOG_LEVEL_BY_MODE = {
     "prod": logging.INFO,
@@ -329,7 +360,9 @@ def validar_todo():
         )
         sys.exit(1)
     if DISPLAY_IS_ENABLE:
-        logging.info("Display identity bar: %s", DISPLAY_IDENTITY_BAR)
+        logging.info("Display identity bar: %s", DISPLAY_IDENTITY_BAR
+                     )
+        logging.info("Display warning object bar: %s", DISPLAY_WARNING_OBJECT_BAR)
 
     if CTK_COLORS_AND_FONT:
         if not os.path.isfile(CTK_OVERLAY_FONT_PATH):
@@ -888,6 +921,101 @@ def validar_todo():
                 NOZZLE_HOLD_MAX_MISSES,
             )
             sys.exit(1)
+        if NOZZLE_SHOW_BBOX_SCORE < 0.0 or NOZZLE_SHOW_BBOX_SCORE > 1.0:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_SHOW_BBOX_SCORE debe estar en [0, 1] "
+                "(got %.2f).",
+                NOZZLE_SHOW_BBOX_SCORE,
+            )
+            sys.exit(1)
+        if NOZZLE_SHOW_BBOX_HITS < 1:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_SHOW_BBOX_HITS debe ser >= 1 (got %d).",
+                NOZZLE_SHOW_BBOX_HITS,
+            )
+            sys.exit(1)
+        if (
+            NOZZLE_BIDON_COLOR_RATIO_MIN <= 0.0
+            or NOZZLE_BIDON_COLOR_RATIO_MIN > 1.0
+        ):
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BIDON_COLOR_RATIO_MIN debe estar en (0, 1] "
+                "(got %.3f).",
+                NOZZLE_BIDON_COLOR_RATIO_MIN,
+            )
+            sys.exit(1)
+        if NOZZLE_BIDON_COLOR_INSET < 0.0 or NOZZLE_BIDON_COLOR_INSET >= 0.4:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BIDON_COLOR_INSET debe estar en [0, 0.4) "
+                "(got %.3f).",
+                NOZZLE_BIDON_COLOR_INSET,
+            )
+            sys.exit(1)
+        for _name, _val, _lo, _hi in (
+            ("NOZZLE_BIDON_HSV1_H_MIN", NOZZLE_BIDON_HSV1_H_MIN, 0, 180),
+            ("NOZZLE_BIDON_HSV1_H_MAX", NOZZLE_BIDON_HSV1_H_MAX, 0, 180),
+            ("NOZZLE_BIDON_HSV2_H_MIN", NOZZLE_BIDON_HSV2_H_MIN, 0, 180),
+            ("NOZZLE_BIDON_HSV2_H_MAX", NOZZLE_BIDON_HSV2_H_MAX, 0, 180),
+            ("NOZZLE_BIDON_HSV1_S_MIN", NOZZLE_BIDON_HSV1_S_MIN, 0, 255),
+            ("NOZZLE_BIDON_HSV1_S_MAX", NOZZLE_BIDON_HSV1_S_MAX, 0, 255),
+            ("NOZZLE_BIDON_HSV1_V_MIN", NOZZLE_BIDON_HSV1_V_MIN, 0, 255),
+            ("NOZZLE_BIDON_HSV1_V_MAX", NOZZLE_BIDON_HSV1_V_MAX, 0, 255),
+            ("NOZZLE_BIDON_HSV2_S_MIN", NOZZLE_BIDON_HSV2_S_MIN, 0, 255),
+            ("NOZZLE_BIDON_HSV2_S_MAX", NOZZLE_BIDON_HSV2_S_MAX, 0, 255),
+            ("NOZZLE_BIDON_HSV2_V_MIN", NOZZLE_BIDON_HSV2_V_MIN, 0, 255),
+            ("NOZZLE_BIDON_HSV2_V_MAX", NOZZLE_BIDON_HSV2_V_MAX, 0, 255),
+        ):
+            if _val < _lo or _val > _hi:
+                logging.critical(
+                    "CONFIG ERROR: %s debe estar en [%d, %d] (got %d).",
+                    _name,
+                    _lo,
+                    _hi,
+                    _val,
+                )
+                sys.exit(1)
+        if NOZZLE_BIDON_HSV1_H_MIN > NOZZLE_BIDON_HSV1_H_MAX:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BIDON_HSV1_H_MIN (%d) > H_MAX (%d).",
+                NOZZLE_BIDON_HSV1_H_MIN,
+                NOZZLE_BIDON_HSV1_H_MAX,
+            )
+            sys.exit(1)
+        if NOZZLE_BIDON_HSV2_H_MIN > NOZZLE_BIDON_HSV2_H_MAX:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_BIDON_HSV2_H_MIN (%d) > H_MAX (%d).",
+                NOZZLE_BIDON_HSV2_H_MIN,
+                NOZZLE_BIDON_HSV2_H_MAX,
+            )
+            sys.exit(1)
+        if NOZZLE_BIDON_VERIFICACION_COLOR:
+            logging.info(
+                "Nozzle Bidon color-gate: ON ratio_min=%.3f inset=%.3f "
+                "HSV1=H[%d,%d]S[%d,%d]V[%d,%d] "
+                "HSV2=H[%d,%d]S[%d,%d]V[%d,%d]",
+                NOZZLE_BIDON_COLOR_RATIO_MIN,
+                NOZZLE_BIDON_COLOR_INSET,
+                NOZZLE_BIDON_HSV1_H_MIN,
+                NOZZLE_BIDON_HSV1_H_MAX,
+                NOZZLE_BIDON_HSV1_S_MIN,
+                NOZZLE_BIDON_HSV1_S_MAX,
+                NOZZLE_BIDON_HSV1_V_MIN,
+                NOZZLE_BIDON_HSV1_V_MAX,
+                NOZZLE_BIDON_HSV2_H_MIN,
+                NOZZLE_BIDON_HSV2_H_MAX,
+                NOZZLE_BIDON_HSV2_S_MIN,
+                NOZZLE_BIDON_HSV2_S_MAX,
+                NOZZLE_BIDON_HSV2_V_MIN,
+                NOZZLE_BIDON_HSV2_V_MAX,
+            )
+        else:
+            logging.info("Nozzle Bidon color-gate: OFF")
+        logging.info(
+            "Nozzle show_bbox: score >= %.2f durante %d frame(s) consecutivos "
+            "(luego sticky; score 0.0 = mostrar todos)",
+            NOZZLE_SHOW_BBOX_SCORE,
+            NOZZLE_SHOW_BBOX_HITS,
+        )
         if NOZZLE_BYTETRACK_TRACK_THRESH + 0.1 > NOZZLE_SCORE_DETECCION + 0.05:
             logging.warning(
                 "NOZZLE_BYTETRACK_TRACK_THRESH+0.1 (%.2f) > SCORE_DETECCION (%.2f): "

@@ -4,12 +4,44 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
+from inference.nozzle_bidon.constants import CLASS_NAMES as NOZZLE_CLASS_NAMES
 from inference.nozzle_bidon.types import NozzleBidonDetections
 from inference.types import FaceDetections
 from ui.facemesh_overlay import draw_facemesh_points
 from ui.overlay_text import OverlayTextRenderer
 from ui.overlay_theme import OverlayTheme
 from ui.types import FrameView
+
+
+# class_id 0 = Bidon (inference.nozzle_bidon.constants.CLASS_NAMES)
+_BIDON_CLASS_ID = 0
+_WARNING_OBJECT_MSG = "Se identifico un objeto no autorizado"
+# Naranja alerta BGR (distinto del match verde/azul).
+_WARNING_BAR_BGR = (0, 140, 255)
+
+
+def _nozzle_track_label(track) -> str:
+    """Etiqueta UI: solo clase (Bidon / Pico)."""
+    cls_id = track.class_id
+    if cls_id is not None and 0 <= int(cls_id) < len(NOZZLE_CLASS_NAMES):
+        return NOZZLE_CLASS_NAMES[int(cls_id)]
+    return "?"
+
+
+def _has_visible_bidon(view: FrameView) -> bool:
+    """True si hay Bidon dibujable (track show_bbox o det cruda de fallback)."""
+    if view.nozzle_tracks is not None:
+        for track in view.nozzle_tracks.tracks:
+            if track.show_bbox and track.class_id == _BIDON_CLASS_ID:
+                return True
+        return False
+    dets = view.nozzle_dets
+    if dets is None or not dets.has_detections:
+        return False
+    for row in dets.dets:
+        if int(row[5]) == _BIDON_CLASS_ID:
+            return True
+    return False
 
 
 def _track_color(track_id: int) -> tuple[int, int, int]:
@@ -28,10 +60,12 @@ class DebugOverlay:
         theme: OverlayTheme | None = None,
         *,
         show_identity_bar: bool = True,
+        warning_object_bar: bool = False,
     ) -> None:
         self._theme = theme if theme is not None else OverlayTheme.legacy()
         self._text = OverlayTextRenderer(self._theme)
         self._show_identity_bar = show_identity_bar
+        self._warning_object_bar = warning_object_bar
 
     def render(self, frame_bgr: np.ndarray, view: FrameView) -> np.ndarray:
         vis = frame_bgr.copy()
@@ -44,8 +78,8 @@ class DebugOverlay:
         else:
             # Tracking desactivado (ENABLE_FACE_TRACKING=false): dets crudos de RetinaFace.
             self._draw_faces(vis, view.dets)
-        self._draw_identity(vis, view)
         self._draw_nozzle(vis, view)
+        self._draw_bottom_bar(vis, view)
         return vis
 
     def _draw_faces(self, vis: np.ndarray, dets: FaceDetections | None) -> None:
@@ -82,22 +116,29 @@ class DebugOverlay:
             self._text.draw_label(vis, x1, y1, label, color)
 
     def _draw_nozzle(self, vis: np.ndarray, view: FrameView) -> None:
-        """Bboxes nozzle: dets crudas si existen; tracks encima para continuidad."""
-        if view.nozzle_dets is not None and view.nozzle_dets.has_detections:
-            self._draw_nozzle_dets(vis, view.nozzle_dets)
-        elif view.nozzle_tracks is not None and view.nozzle_tracks.tracks:
-            # ByteTrack no conserva class_id: solo id + score (sin inventar nombre).
+        """
+        Bboxes nozzle: prioriza tracks (mismo criterio que caras).
+
+        Solo dibuja tracks con ``show_bbox`` (sticky tras NOZZLE_SHOW_BBOX_SCORE).
+        Si no hay tracker/tracks, fallback a dets crudas.
+        """
+        if view.nozzle_tracks is not None:
+            color = (255, 200, 0)
             for track in view.nozzle_tracks.tracks:
+                if not track.show_bbox:
+                    continue
                 x1, y1, x2, y2 = map(int, track.tlbr)
-                color = (255, 200, 0)
                 cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
                 self._text.draw_label(
                     vis,
                     x1,
                     y1,
-                    f"#{track.track_id}\n{track.score:.2f}",
+                    _nozzle_track_label(track),
                     color,
                 )
+            return
+        if view.nozzle_dets is not None and view.nozzle_dets.has_detections:
+            self._draw_nozzle_dets(vis, view.nozzle_dets)
 
     def _draw_nozzle_dets(
         self,
@@ -109,22 +150,37 @@ class DebugOverlay:
         color = (255, 200, 0)
         for idx, row in enumerate(dets.dets):
             x1, y1, x2, y2 = map(int, row[:4])
-            score = float(row[4])
-            label = f"{dets.class_name(idx)} #{idx + 1}\n{score:.2f}"
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-            self._text.draw_label(vis, x1, y1, label, color)
+            self._text.draw_label(vis, x1, y1, dets.class_name(idx), color)
 
-    def _draw_identity(self, vis: np.ndarray, view: FrameView) -> None:
-        """Barra inferior solo con identidad confirmada (activa o retenida)."""
-        if not self._show_identity_bar:
-            return
+    def _draw_bottom_bar(self, vis: np.ndarray, view: FrameView) -> None:
+        """
+        Barra inferior UX: aviso Bidon y/o identidad MATCH.
+
+        El aviso usa el mismo strip que la barra de identidad; si hay Bidon
+        visible (show_bbox) tiene prioridad de color (alerta).
+        """
+        warn = self._warning_object_bar and _has_visible_bidon(view)
         idm = view.identity
-        if idm is None or not idm.is_match:
+        show_id = (
+            self._show_identity_bar
+            and idm is not None
+            and idm.is_match
+        )
+        if not warn and not show_id:
             return
 
         h, w = vis.shape[:2]
         cv2.rectangle(vis, (0, h - 32), (w, h), (0, 0, 0), -1)
 
-        bar = f"{idm.nombre}  ID: {idm.person_id}"
-        color = self._theme.match_color(is_stale=view.identity_is_stale)
+        if warn and show_id:
+            bar = f"{_WARNING_OBJECT_MSG}  |  {idm.nombre}  ID: {idm.person_id}"
+            color = _WARNING_BAR_BGR
+        elif warn:
+            bar = _WARNING_OBJECT_MSG
+            color = _WARNING_BAR_BGR
+        else:
+            bar = f"{idm.nombre}  ID: {idm.person_id}"
+            color = self._theme.match_color(is_stale=view.identity_is_stale)
+
         self._text.draw_bar_text(vis, bar, x=6, baseline_y=h - 10, color=color)

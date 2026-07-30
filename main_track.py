@@ -30,6 +30,7 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   DISPLAY_WIDTH / DISPLAY_HEIGHT — tamano ventana (0 = sin resizeWindow)
   DISPLAY_BANNER_PATH    — banner fallback; busca {stem}_{DISPLAY_WIDTH}.png|.jpg en la misma carpeta
   DISPLAY_IDENTITY_BAR — true/false (barra inferior nombre+ID; default true)
+  DISPLAY_WARNING_OBJECT_BAR — true/false (aviso Bidon en barra; default false)
   CTK_COLORS_AND_FONT  — true/false (MATCH #0547C5 + Red Hat Display; false=legacy)
   CTK_OVERLAY_FONT_PATH — TTF (default ../data/fonts/RedHatDisplay-Medium.ttf)
   ENABLE_NOZZLE — Bidon/Pico via inference/nozzle_bidon (modelo v4)
@@ -49,6 +50,10 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   RETINAFACE_EVERY_N_FRAMES — RF cada N frames de pipeline si FULLRATE=false (hold en skip)
   FACE_HOLD_MAX_MISSES   — misses RF (EMPTY) antes de soltar hold facial (defecto 1)
   NOZZLE_HOLD_MAX_MISSES — misses YOLO antes de soltar hold nozzle (defecto 3)
+  NOZZLE_SHOW_BBOX_SCORE — umbral score para desbloquear bbox nozzle (sticky)
+  NOZZLE_SHOW_BBOX_HITS  — frames consecutivos sobre el umbral (defecto 1)
+  NOZZLE_BIDON_VERIFICACION_COLOR — gate HSV anti-fantasma Bidon pre-tracker
+  NOZZLE_BIDON_COLOR_RATIO_MIN / COLOR_INSET / HSV1_* / HSV2_* — umbral y espectro
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
   FACE_ROT_ALIGNMENT_SIMPLE_ENABLE   — true=hibrido crop/roll-fix
   FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
@@ -114,6 +119,10 @@ from inference.identity.types import IdentityMatch  # noqa: E402
 from inference.types import FaceDetections, FaceEmbedding, FaceMeshLandmarks  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
 from inference.facemesh.from_detection import estimate_from_det  # noqa: E402
+from inference.nozzle_bidon.color_verify import (  # noqa: E402
+    HsvRange,
+    verificar_color_bidones,
+)
 from inference.nozzle_bidon.select_best import mejores_bidones  # noqa: E402
 from inference.nozzle_bidon.types import NozzleBidonDetections  # noqa: E402
 from inference.retinaface.select_best import mejores_caras  # noqa: E402
@@ -449,9 +458,10 @@ def _tick_nozzle_if_needed(
     Nozzle Bidon/Pico YOLO con mismo gate FSM que RetinaFace.
 
     ``SKIPPED`` — every_n / gate off / sin detector.
-    ``EMPTY`` — modelo corrio sin dets (o fallo detect).
-    ``DETECTED`` — hay dets tras filtro SCORE.
+    ``EMPTY`` — modelo corrio sin dets (o fallo detect / color-gate).
+    ``DETECTED`` — hay dets tras color-gate (Bidon) + filtro SCORE/top-N.
     El hold (miss TTL) lo aplica el caller via ``DetectionHold``.
+    Color-gate va ANTES del tracker: fantasmas Bidon no generan track.
     """
     if not s.ENABLE_NOZZLE or nozzle is None or not fsm_out.run_face_detector:
         return InferOutcome.skipped()
@@ -463,6 +473,31 @@ def _tick_nozzle_if_needed(
     except Exception as exc:
         logging.warning("[Nozzle] fallo detect(): %s", exc)
         return InferOutcome.empty()
+    raw = verificar_color_bidones(
+        frame,
+        raw,
+        enabled=s.NOZZLE_BIDON_VERIFICACION_COLOR,
+        ratio_min=s.NOZZLE_BIDON_COLOR_RATIO_MIN,
+        inset=s.NOZZLE_BIDON_COLOR_INSET,
+        ranges=(
+            HsvRange(
+                s.NOZZLE_BIDON_HSV1_H_MIN,
+                s.NOZZLE_BIDON_HSV1_S_MIN,
+                s.NOZZLE_BIDON_HSV1_V_MIN,
+                s.NOZZLE_BIDON_HSV1_H_MAX,
+                s.NOZZLE_BIDON_HSV1_S_MAX,
+                s.NOZZLE_BIDON_HSV1_V_MAX,
+            ),
+            HsvRange(
+                s.NOZZLE_BIDON_HSV2_H_MIN,
+                s.NOZZLE_BIDON_HSV2_S_MIN,
+                s.NOZZLE_BIDON_HSV2_V_MIN,
+                s.NOZZLE_BIDON_HSV2_H_MAX,
+                s.NOZZLE_BIDON_HSV2_S_MAX,
+                s.NOZZLE_BIDON_HSV2_V_MAX,
+            ),
+        ),
+    )
     dets = mejores_bidones(
         raw,
         top_n=s.NOZZLE_PROCESS_TOP_N,
@@ -790,6 +825,8 @@ def main() -> int:
                 track_buffer=s.NOZZLE_BYTETRACK_TRACK_BUFFER,
                 frame_rate=s.NOZZLE_BYTETRACK_FRAME_RATE,
             ),
+            show_bbox_score=s.NOZZLE_SHOW_BBOX_SCORE,
+            show_bbox_hits=s.NOZZLE_SHOW_BBOX_HITS,
         )
         if nozzle is not None:
             logging.debug(
@@ -827,6 +864,7 @@ def main() -> int:
             font_path=s.CTK_OVERLAY_FONT_PATH,
         ),
         show_identity_bar=s.DISPLAY_IDENTITY_BAR,
+        warning_object_bar=s.DISPLAY_WARNING_OBJECT_BAR,
     )
     capture: CaptureCameras | None = None
     exit_code = 0
