@@ -50,8 +50,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   RETINAFACE_EVERY_N_FRAMES — RF cada N frames de pipeline si FULLRATE=false (hold en skip)
   FACE_HOLD_MAX_MISSES   — misses RF (EMPTY) antes de soltar hold facial (defecto 1)
   NOZZLE_HOLD_MAX_MISSES — misses YOLO antes de soltar hold nozzle (defecto 3)
-  NOZZLE_SHOW_BBOX_SCORE — umbral score para desbloquear bbox nozzle (sticky)
-  NOZZLE_SHOW_BBOX_HITS  — frames consecutivos sobre el umbral (defecto 1)
+  NOZZLE_SHOW_BBOX_SCORE — umbral sticky display (default = SCORE_DETECCION)
+  NOZZLE_SHOW_BBOX_HITS  — frames consecutivos sobre el umbral (defecto 2)
   NOZZLE_BIDON_VERIFICACION_COLOR — gate HSV anti-fantasma Bidon pre-tracker
   NOZZLE_BIDON_COLOR_RATIO_MIN / COLOR_INSET / HSV1_* / HSV2_* — umbral y espectro
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)

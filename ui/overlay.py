@@ -117,11 +117,13 @@ class DebugOverlay:
 
     def _draw_nozzle(self, vis: np.ndarray, view: FrameView) -> None:
         """
-        Bboxes nozzle: prioriza tracks (mismo criterio que caras).
+        Bboxes nozzle: prioriza tracks con ``show_bbox`` (sticky).
 
-        Solo dibuja tracks con ``show_bbox`` (sticky tras NOZZLE_SHOW_BBOX_SCORE).
-        Si no hay tracker/tracks, fallback a dets crudas.
+        Si no hay ningun track mostrable (tracks vacios, score bajo el umbral
+        de display, o id nuevo sin hits), fallback a dets del hold para no
+        perder el bbox mientras el tracker re-confirma.
         """
+        drew_track = False
         if view.nozzle_tracks is not None:
             color = (255, 200, 0)
             for track in view.nozzle_tracks.tracks:
@@ -136,6 +138,8 @@ class DebugOverlay:
                     _nozzle_track_label(track),
                     color,
                 )
+                drew_track = True
+        if drew_track:
             return
         if view.nozzle_dets is not None and view.nozzle_dets.has_detections:
             self._draw_nozzle_dets(vis, view.nozzle_dets)

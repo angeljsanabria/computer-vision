@@ -264,11 +264,11 @@ BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
 ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "true").lower() == "true"
 NOZZLE_MODEL_PC = os.getenv(
     "NOZZLE_MODEL_PC",
-    "models_onnx/yolov8n_nozzle_bidones_v7.onnx",
+    "models_onnx/yolov8n_nozzle_bidones_v10.onnx",
 )
 NOZZLE_MODEL_RK3568 = os.getenv(
     "NOZZLE_MODEL_RK3568",
-    "models/yolov8n_nozzle_bidones_v7.rknn",
+    "models/yolov8n_nozzle_bidones_v10.rknn",
 )
 # Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
 NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.35"))
@@ -292,10 +292,13 @@ NOZZLE_BYTETRACK_FRAME_RATE = float(
 )
 
 # Control de fantasmas en UI para detecciones.
-# UI: score minimo para marcar track nozzle como mostrable (sticky). 0.0 = todos -> feature desactivada.
-NOZZLE_SHOW_BBOX_SCORE = float(os.getenv("NOZZLE_SHOW_BBOX_SCORE", "0.8"))
-# Frames consecutivos con score >= SHOW_BBOX_SCORE antes del sticky (1 = un frame)  -> feature desactivada.
-NOZZLE_SHOW_BBOX_HITS = int(os.getenv("NOZZLE_SHOW_BBOX_HITS", "4"))
+# UI: score minimo para marcar track nozzle como mostrable (sticky).
+# Default = SCORE_DETECCION (si show > deteccion, el bbox puede no volver tras un miss).
+NOZZLE_SHOW_BBOX_SCORE = float(
+    os.getenv("NOZZLE_SHOW_BBOX_SCORE", str(NOZZLE_SCORE_DETECCION))
+)
+# Frames consecutivos con score >= SHOW_BBOX_SCORE antes del sticky (1 = un frame).
+NOZZLE_SHOW_BBOX_HITS = int(os.getenv("NOZZLE_SHOW_BBOX_HITS", "2"))
 # Gate HSV anti-fantasma Bidon (pre-tracker). Pico: mismo patron cuando haya espectro.
 NOZZLE_BIDON_VERIFICACION_COLOR = (
     os.getenv("NOZZLE_BIDON_VERIFICACION_COLOR", "true").lower() == "true"
