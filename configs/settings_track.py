@@ -264,12 +264,21 @@ BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
 ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "true").lower() == "true"
 NOZZLE_MODEL_PC = os.getenv(
     "NOZZLE_MODEL_PC",
-    "models_onnx/yolov8n_nozzle_bidones_v11.onnx",
+    "models_onnx/yolov8n_nozzle_bidones_v12.onnx",
 )
 NOZZLE_MODEL_RK3568 = os.getenv(
     "NOZZLE_MODEL_RK3568",
-    "models/yolov8n_nozzle_bidones_v11.rknn",
+    "models/yolov8n_nozzle_bidones_v12.rknn",
 )
+# Entrada cuadrada YOLO (letterbox PC / stretch RK3568). Debe coincidir con train/export del .onnx/.rknn.
+# 0 = auto: _v12 en NOZZLE_MODEL_RK3568 -> 640; si no -> 416. Explicito: 416 o 640.
+_NOZZLE_INPUT_SIZE_RAW = int(os.getenv("NOZZLE_INPUT_SIZE", "0"))
+if _NOZZLE_INPUT_SIZE_RAW > 0:
+    NOZZLE_INPUT_SIZE = _NOZZLE_INPUT_SIZE_RAW
+elif "_v12" in NOZZLE_MODEL_RK3568:
+    NOZZLE_INPUT_SIZE = 640
+else:
+    NOZZLE_INPUT_SIZE = 416
 # Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
 NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.30"))
 NOZZLE_NMS_IOU = float(os.getenv("NOZZLE_NMS_IOU", "0.45"))
@@ -304,7 +313,7 @@ NOZZLE_BIDON_VERIFICACION_COLOR = (
     os.getenv("NOZZLE_BIDON_VERIFICACION_COLOR", "true").lower() == "true"
 )
 NOZZLE_BIDON_COLOR_RATIO_MIN = float(
-    os.getenv("NOZZLE_BIDON_COLOR_RATIO_MIN", "0.30")
+    os.getenv("NOZZLE_BIDON_COLOR_RATIO_MIN", "0.22")
 )
 NOZZLE_BIDON_COLOR_INSET = float(os.getenv("NOZZLE_BIDON_COLOR_INSET", "0.08"))
 # Rojo vivo del bidon (no bordo): H estrecho, S/V altos. Dos rangos H wrap-around.
@@ -925,6 +934,35 @@ def validar_todo():
                 NOZZLE_NMS_IOU,
             )
             sys.exit(1)
+        if _NOZZLE_INPUT_SIZE_RAW < 0:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_INPUT_SIZE debe ser >= 0 (0=auto, got %d).",
+                _NOZZLE_INPUT_SIZE_RAW,
+            )
+            sys.exit(1)
+        if _NOZZLE_INPUT_SIZE_RAW > 0 and _NOZZLE_INPUT_SIZE_RAW not in (
+            320,
+            416,
+            480,
+            640,
+        ):
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_INPUT_SIZE=%d no soportado (usar 320, 416, 480 o 640).",
+                _NOZZLE_INPUT_SIZE_RAW,
+            )
+            sys.exit(1)
+        if NOZZLE_INPUT_SIZE not in (320, 416, 480, 640):
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_INPUT_SIZE resuelto=%d invalido.",
+                NOZZLE_INPUT_SIZE,
+            )
+            sys.exit(1)
+        if _NOZZLE_INPUT_SIZE_RAW == 0:
+            logging.info(
+                "Nozzle input auto: NOZZLE_INPUT_SIZE=%d (modelo RK3568=%s)",
+                NOZZLE_INPUT_SIZE,
+                NOZZLE_MODEL_RK3568,
+            )
         if NOZZLE_BYTETRACK_TRACK_THRESH <= 0.0 or NOZZLE_BYTETRACK_TRACK_THRESH > 1.0:
             logging.critical(
                 "CONFIG ERROR: NOZZLE_BYTETRACK_TRACK_THRESH debe estar en (0, 1] "
@@ -1181,8 +1219,9 @@ def validar_todo():
                 )
                 sys.exit(1)
             logging.info(
-                "Nozzle PC: %s (top %d, score>=%.2f, cada %d frame(s), track_thresh=%.2f)",
+                "Nozzle PC: %s input=%d (top %d, score>=%.2f, cada %d frame(s), track_thresh=%.2f)",
                 nozzle_pc,
+                NOZZLE_INPUT_SIZE,
                 NOZZLE_PROCESS_TOP_N,
                 NOZZLE_SCORE_DETECCION,
                 NOZZLE_EVERY_N_FRAMES,
@@ -1197,8 +1236,9 @@ def validar_todo():
                 )
                 sys.exit(1)
             logging.info(
-                "Nozzle RK3568: %s (top %d, score>=%.2f, cada %d frame(s), track_thresh=%.2f)",
+                "Nozzle RK3568: %s input=%d (top %d, score>=%.2f, cada %d frame(s), track_thresh=%.2f)",
                 nozzle_rk,
+                NOZZLE_INPUT_SIZE,
                 NOZZLE_PROCESS_TOP_N,
                 NOZZLE_SCORE_DETECCION,
                 NOZZLE_EVERY_N_FRAMES,

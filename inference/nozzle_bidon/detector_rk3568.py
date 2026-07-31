@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 
-from inference.nozzle_bidon.constants import INPUT_SIZE
 from inference.nozzle_bidon.postprocess import (
     postprocess_yolov8_ultralytics,
     scale_boxes_stretch,
@@ -24,7 +23,7 @@ class NozzleBidonDetectorRk3568:
     """
     YOLOv8n Bidon/Pico (2 clases) en NPU Rockchip.
 
-    Preproceso: resize stretch INPUT_SIZE, RGB uint8 NHWC (mean 0 / std 255).
+    Preproceso: resize stretch input_size, RGB uint8 NHWC (mean 0 / std 255).
     """
 
     def __init__(
@@ -32,16 +31,20 @@ class NozzleBidonDetectorRk3568:
         model_path: str | Path,
         score_deteccion: float,
         nms_iou: float,
+        input_size: int,
     ) -> None:
         if RKNNLite is None:
             raise RuntimeError(
                 "rknnlite no instalado. Instala RKNN-Toolkit-Lite2 en la placa "
                 "(aarch64), p. ej. rknn_toolkit_lite2-2.3.2-...whl"
             )
+        if input_size < 32:
+            raise ValueError(f"input_size invalido: {input_size}")
         path = Path(model_path)
         if not path.is_file():
             raise FileNotFoundError(f"No existe modelo nozzle_bidon RKNN: {path}")
 
+        self._input_size = int(input_size)
         self._score = float(score_deteccion)
         self._nms_iou = float(nms_iou)
         self._rknn: RKNNLite | None = RKNNLite()
@@ -51,7 +54,11 @@ class NozzleBidonDetectorRk3568:
             self._rknn.release()
             raise RuntimeError(f"init_runtime failed: {path}")
 
-        logging.debug("NozzleBidon RK3568 (RKNN) cargado: %s", path)
+        logging.info(
+            "NozzleBidon RK3568 (RKNN) cargado: %s input=%d",
+            path,
+            self._input_size,
+        )
 
     def release(self) -> None:
         if self._rknn is not None:
@@ -69,7 +76,7 @@ class NozzleBidonDetectorRk3568:
             raise RuntimeError("NozzleBidon RK3568: runtime ya liberado")
 
         h, w = frame_bgr.shape[:2]
-        inp = stretch_bgr_to_rknn_input(frame_bgr)
+        inp = stretch_bgr_to_rknn_input(frame_bgr, self._input_size)
         outputs = self._rknn.inference(inputs=[inp])
         if not outputs:
             return NozzleBidonDetections.empty()
@@ -81,7 +88,7 @@ class NozzleBidonDetectorRk3568:
         if xyxy is None or scores is None or class_ids is None:
             return NozzleBidonDetections.empty()
 
-        xyxy = scale_boxes_stretch(xyxy, w, h, INPUT_SIZE)
+        xyxy = scale_boxes_stretch(xyxy, w, h, self._input_size)
         dets = np.column_stack(
             [xyxy, scores, class_ids.astype(np.float32)]
         ).astype(np.float32)

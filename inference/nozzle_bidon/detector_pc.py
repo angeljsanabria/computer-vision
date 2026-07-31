@@ -6,7 +6,7 @@ from pathlib import Path
 
 import numpy as np
 
-from inference.nozzle_bidon.constants import INPUT_SIZE, LETTERBOX_FILL
+from inference.nozzle_bidon.constants import LETTERBOX_FILL
 from inference.nozzle_bidon.postprocess import postprocess_yolov8_ultralytics
 from inference.nozzle_bidon.preprocess import (
     letterbox_bgr_for_onnx,
@@ -25,7 +25,7 @@ class NozzleBidonDetectorPc:
     """
     YOLOv8 ONNX Bidon/Pico en PC.
 
-    Preproceso letterbox INPUT_SIZE; salida tipica (1, 4+nc, N) con nc=2.
+    Preproceso letterbox input_size; salida tipica (1, 4+nc, N) con nc=2.
     """
 
     def __init__(
@@ -33,15 +33,19 @@ class NozzleBidonDetectorPc:
         model_path: str | Path,
         score_deteccion: float,
         nms_iou: float,
+        input_size: int,
     ) -> None:
         if ort is None:
             raise RuntimeError(
                 "onnxruntime no instalado. pip install onnxruntime"
             )
+        if input_size < 32:
+            raise ValueError(f"input_size invalido: {input_size}")
         path = Path(model_path)
         if not path.is_file():
             raise FileNotFoundError(f"No existe modelo nozzle_bidon ONNX: {path}")
 
+        self._input_size = int(input_size)
         self._score = float(score_deteccion)
         self._nms_iou = float(nms_iou)
         self._session = ort.InferenceSession(
@@ -50,11 +54,16 @@ class NozzleBidonDetectorPc:
         )
         inputs = self._session.get_inputs()
         self._input_name = inputs[0].name
-        logging.info("NozzleBidon PC (ONNX Runtime) cargado: %s", path)
+        logging.info(
+            "NozzleBidon PC (ONNX Runtime) cargado: %s input=%d",
+            path,
+            self._input_size,
+        )
         self._warmup()
 
     def _warmup(self) -> None:
-        dummy = np.zeros((1, 3, INPUT_SIZE, INPUT_SIZE), dtype=np.float32)
+        sz = self._input_size
+        dummy = np.zeros((1, 3, sz, sz), dtype=np.float32)
         try:
             self._session.run(None, {self._input_name: dummy})
         except Exception as exc:
@@ -64,7 +73,9 @@ class NozzleBidonDetectorPc:
 
     def detect(self, frame_bgr: np.ndarray) -> NozzleBidonDetections:
         h, w = frame_bgr.shape[:2]
-        canvas, meta = letterbox_bgr_for_onnx(frame_bgr, LETTERBOX_FILL)
+        canvas, meta = letterbox_bgr_for_onnx(
+            frame_bgr, LETTERBOX_FILL, self._input_size
+        )
         feed = letterbox_to_nchw_float01(canvas)
         outputs = self._session.run(None, {self._input_name: feed})
         if not outputs:

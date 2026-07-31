@@ -33,7 +33,9 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   DISPLAY_WARNING_OBJECT_BAR — true/false (aviso Bidon en barra; default false)
   CTK_COLORS_AND_FONT  — true/false (MATCH #0547C5 + Red Hat Display; false=legacy)
   CTK_OVERLAY_FONT_PATH — TTF (default ../data/fonts/RedHatDisplay-Medium.ttf)
-  ENABLE_NOZZLE — Bidon/Pico via inference/nozzle_bidon (modelo v4)
+  ENABLE_NOZZLE — Bidon/Pico via inference/nozzle_bidon
+  NOZZLE_MODEL_PC / NOZZLE_MODEL_RK3568 — rutas ONNX/RKNN
+  NOZZLE_INPUT_SIZE — 0=auto (_v12 en NOZZLE_MODEL_RK3568 -> 640, sino 416); o 416/640 explicito
   MOG2_* / FSM_TIMEOUT_* — umbrales MOG2 y timeouts mov/cara
   FSM_RECOGNIZED_REFRESH_S — retencion identidad MATCH en FACE_RECOGNIZED (s)
   INFERENCE_BACKEND    — none | pc | rk3568 (factory en ``inference/``)
@@ -880,6 +882,7 @@ def main() -> int:
                 nozzle_model,
                 s.NOZZLE_SCORE_DETECCION,
                 s.NOZZLE_NMS_IOU,
+                s.NOZZLE_INPUT_SIZE,
             )
         nozzle_tracker = build_nozzle_tracker(
             True,
@@ -893,9 +896,11 @@ def main() -> int:
             show_bbox_hits=s.NOZZLE_SHOW_BBOX_HITS,
         )
         if nozzle is not None:
-            logging.debug(
-                "Nozzle bidon activo (backend=%s, top_n=%d, every_n=%d, "
-                "track_thresh=%.2f)",
+            logging.info(
+                "Nozzle bidon activo: model=%s input=%d backend=%s "
+                "top_n=%d every_n=%d track_thresh=%.2f",
+                nozzle_model,
+                s.NOZZLE_INPUT_SIZE,
                 s.INFERENCE_BACKEND,
                 s.NOZZLE_PROCESS_TOP_N,
                 s.NOZZLE_EVERY_N_FRAMES,

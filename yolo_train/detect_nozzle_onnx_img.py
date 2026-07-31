@@ -85,7 +85,7 @@ def main() -> None:
     if frame is None:
         raise SystemExit(f"No se pudo leer la imagen: {img_path}")
 
-    results = model(frame, conf=args.conf, verbose=False)
+    results = model(frame, conf=args.conf, imgsz=nc.IMGSZ, verbose=False)
     det = results[0].boxes
     n = 0 if det is None else len(det)
     print(f"Detecciones: {n}")

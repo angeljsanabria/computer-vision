@@ -4,24 +4,27 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from inference.nozzle_bidon.constants import INPUT_SIZE
 from utils.image_utils import LetterboxMeta, bgr_to_rgb, letterbox_bgr, resize_frame
 
 
-def stretch_bgr_to_rknn_input(frame_bgr: np.ndarray) -> np.ndarray:
+def stretch_bgr_to_rknn_input(frame_bgr: np.ndarray, input_size: int) -> np.ndarray:
     """Resize cuadrado + RGB uint8 NHWC (mean 0 / std 255 en export RKNN)."""
     img = resize_frame(
         frame_bgr,
-        (INPUT_SIZE, INPUT_SIZE),
+        (input_size, input_size),
         interpolation=cv2.INTER_LINEAR,
     )
     rgb = bgr_to_rgb(img)
     return np.expand_dims(rgb, axis=0)
 
 
-def letterbox_bgr_for_onnx(frame_bgr: np.ndarray, fill_value: int) -> tuple[np.ndarray, LetterboxMeta]:
-    """Letterbox BGR para ONNX Ultralytics (INPUT_SIZE)."""
-    return letterbox_bgr(frame_bgr, (INPUT_SIZE, INPUT_SIZE), fill_value)
+def letterbox_bgr_for_onnx(
+    frame_bgr: np.ndarray,
+    fill_value: int,
+    input_size: int,
+) -> tuple[np.ndarray, LetterboxMeta]:
+    """Letterbox BGR para ONNX Ultralytics (input_size x input_size)."""
+    return letterbox_bgr(frame_bgr, (input_size, input_size), fill_value)
 
 
 def letterbox_to_nchw_float01(canvas_bgr: np.ndarray) -> np.ndarray:

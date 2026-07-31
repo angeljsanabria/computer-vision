@@ -173,9 +173,10 @@ def build_nozzle_bidon_detector(
     model_path: str,
     score_deteccion: float,
     nms_iou: float,
+    input_size: int,
 ) -> NozzleBidonDetector | None:
     """
-    Factory Bidon/Pico (nozzle_bidones_v4).
+    Factory Bidon/Pico (nozzle_bidones; input_size desde settings).
 
     Mismo backend: ``none`` / ``pc`` / ``rk3568``.
     """
@@ -188,6 +189,7 @@ def build_nozzle_bidon_detector(
             model_path=model_path,
             score_deteccion=score_deteccion,
             nms_iou=nms_iou,
+            input_size=input_size,
         )
     if backend == "rk3568":
         from inference.nozzle_bidon.detector_rk3568 import NozzleBidonDetectorRk3568
@@ -196,6 +198,7 @@ def build_nozzle_bidon_detector(
             model_path=model_path,
             score_deteccion=score_deteccion,
             nms_iou=nms_iou,
+            input_size=input_size,
         )
 
     logging.critical(
