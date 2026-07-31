@@ -264,11 +264,11 @@ BYTETRACK_FRAME_RATE = float(os.getenv("BYTETRACK_FRAME_RATE", str(MAX_FPS)))
 ENABLE_NOZZLE = os.getenv("ENABLE_NOZZLE", "true").lower() == "true"
 NOZZLE_MODEL_PC = os.getenv(
     "NOZZLE_MODEL_PC",
-    "models_onnx/yolov8n_nozzle_bidones_v10.onnx",
+    "models_onnx/yolov8n_nozzle_bidones_v11.onnx",
 )
 NOZZLE_MODEL_RK3568 = os.getenv(
     "NOZZLE_MODEL_RK3568",
-    "models/yolov8n_nozzle_bidones_v10.rknn",
+    "models/yolov8n_nozzle_bidones_v11.rknn",
 )
 # Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
 NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.35"))
