@@ -6,13 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 # Azul CTK: #0547C5 (RGB 5,71,197) -> BGR OpenCV
-# Verde Autorizado #00E676  (RGB 0,230,118) -> BGR OpenCV
+# Nozzle Bidon/Pico bbox: #0449CE (RGB 4,73,206) -> BGR OpenCV
+# Verde Autorizado #267C19 (RGB 38,124,25) -> BGR OpenCV
 _CTK_MATCH_BGR: tuple[int, int, int] = (197, 71, 5)
-_VERDE_MATCH_BGR: tuple[int, int, int] = (118, 230, 0)
+NOZZLE_BBOX_BGR: tuple[int, int, int] = (206, 73, 4)
+_VERDE_MATCH_BGR: tuple[int, int, int] = (25, 124, 38)
 _MATCH_BBOX_SELECTED: tuple[int, int, int] = _VERDE_MATCH_BGR
 _LEGACY_MATCH_BGR: tuple[int, int, int] = (0, 200, 0)
 _STALE_BGR: tuple[int, int, int] = (0, 0, 255)
-_LABEL_TEXT_BGR: tuple[int, int, int] = (255, 255, 255)
+# Texto sobre placa de label bbox (caras): #000000
+_LABEL_TEXT_BGR: tuple[int, int, int] = (0, 0, 0)
 
 
 @dataclass(frozen=True)

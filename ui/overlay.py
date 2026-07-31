@@ -4,12 +4,11 @@ from __future__ import annotations
 import cv2
 import numpy as np
 
-from inference.nozzle_bidon.constants import CLASS_NAMES as NOZZLE_CLASS_NAMES
 from inference.nozzle_bidon.types import NozzleBidonDetections
 from inference.types import FaceDetections
 from ui.facemesh_overlay import draw_facemesh_points
 from ui.overlay_text import OverlayTextRenderer
-from ui.overlay_theme import OverlayTheme
+from ui.overlay_theme import NOZZLE_BBOX_BGR, OverlayTheme
 from ui.types import FrameView
 
 
@@ -18,14 +17,6 @@ _BIDON_CLASS_ID = 0
 _WARNING_OBJECT_MSG = "Se identifico un objeto no autorizado"
 # Naranja alerta BGR (distinto del match verde/azul).
 _WARNING_BAR_BGR = (0, 140, 255)
-
-
-def _nozzle_track_label(track) -> str:
-    """Etiqueta UI: solo clase (Bidon / Pico)."""
-    cls_id = track.class_id
-    if cls_id is not None and 0 <= int(cls_id) < len(NOZZLE_CLASS_NAMES):
-        return NOZZLE_CLASS_NAMES[int(cls_id)]
-    return "?"
 
 
 def _has_visible_bidon(view: FrameView) -> bool:
@@ -117,7 +108,8 @@ class DebugOverlay:
 
     def _draw_nozzle(self, vis: np.ndarray, view: FrameView) -> None:
         """
-        Bboxes nozzle: prioriza tracks con ``show_bbox`` (sticky).
+        Bboxes nozzle: prioriza tracks con ``show_bbox`` (sticky). Sin texto de clase
+        (evita mostrar Bidon/Pico en falsos positivos).
 
         Si no hay ningun track mostrable (tracks vacios, score bajo el umbral
         de display, o id nuevo sin hits), fallback a dets del hold para no
@@ -125,19 +117,12 @@ class DebugOverlay:
         """
         drew_track = False
         if view.nozzle_tracks is not None:
-            color = (255, 200, 0)
+            color = NOZZLE_BBOX_BGR
             for track in view.nozzle_tracks.tracks:
                 if not track.show_bbox:
                     continue
                 x1, y1, x2, y2 = map(int, track.tlbr)
                 cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-                self._text.draw_label(
-                    vis,
-                    x1,
-                    y1,
-                    _nozzle_track_label(track),
-                    color,
-                )
                 drew_track = True
         if drew_track:
             return
@@ -151,11 +136,10 @@ class DebugOverlay:
     ) -> None:
         if dets is None or not dets.has_detections:
             return
-        color = (255, 200, 0)
-        for idx, row in enumerate(dets.dets):
+        color = NOZZLE_BBOX_BGR
+        for row in dets.dets:
             x1, y1, x2, y2 = map(int, row[:4])
             cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
-            self._text.draw_label(vis, x1, y1, dets.class_name(idx), color)
 
     def _draw_bottom_bar(self, vis: np.ndarray, view: FrameView) -> None:
         """

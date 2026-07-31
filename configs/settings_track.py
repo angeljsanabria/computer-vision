@@ -271,7 +271,7 @@ NOZZLE_MODEL_RK3568 = os.getenv(
     "models/yolov8n_nozzle_bidones_v11.rknn",
 )
 # Filtro anti-fantasma ANTES del tracker. Bajarlo mete falsos positivos en overlay.
-NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.35"))
+NOZZLE_SCORE_DETECCION = float(os.getenv("NOZZLE_SCORE_DETECCION", "0.30"))
 NOZZLE_NMS_IOU = float(os.getenv("NOZZLE_NMS_IOU", "0.45"))
 NOZZLE_PROCESS_TOP_N = int(os.getenv("NOZZLE_PROCESS_TOP_N", "2"))
 # Demo medido: every 7 + hold TTL; N=1 satura NPU con RF.
@@ -295,31 +295,64 @@ NOZZLE_BYTETRACK_FRAME_RATE = float(
 # UI: score minimo para marcar track nozzle como mostrable (sticky).
 # Default = SCORE_DETECCION (si show > deteccion, el bbox puede no volver tras un miss).
 NOZZLE_SHOW_BBOX_SCORE = float(
-    os.getenv("NOZZLE_SHOW_BBOX_SCORE", str(NOZZLE_SCORE_DETECCION))
+    os.getenv("NOZZLE_SHOW_BBOX_SCORE", "0.60")
 )
 # Frames consecutivos con score >= SHOW_BBOX_SCORE antes del sticky (1 = un frame).
-NOZZLE_SHOW_BBOX_HITS = int(os.getenv("NOZZLE_SHOW_BBOX_HITS", "2"))
-# Gate HSV anti-fantasma Bidon (pre-tracker). Pico: mismo patron cuando haya espectro.
+NOZZLE_SHOW_BBOX_HITS = int(os.getenv("NOZZLE_SHOW_BBOX_HITS", "3"))
+# Gate HSV anti-fantasma Bidon (pre-tracker).
 NOZZLE_BIDON_VERIFICACION_COLOR = (
     os.getenv("NOZZLE_BIDON_VERIFICACION_COLOR", "true").lower() == "true"
 )
 NOZZLE_BIDON_COLOR_RATIO_MIN = float(
-    os.getenv("NOZZLE_BIDON_COLOR_RATIO_MIN", "0.12")
+    os.getenv("NOZZLE_BIDON_COLOR_RATIO_MIN", "0.30")
 )
 NOZZLE_BIDON_COLOR_INSET = float(os.getenv("NOZZLE_BIDON_COLOR_INSET", "0.08"))
-# Espectro rojo OpenCV (dos rangos; H wrap-around). Cada canal = un env.
+# Rojo vivo del bidon (no bordo): H estrecho, S/V altos. Dos rangos H wrap-around.
 NOZZLE_BIDON_HSV1_H_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_H_MIN", "0"))
-NOZZLE_BIDON_HSV1_S_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_S_MIN", "120"))
-NOZZLE_BIDON_HSV1_V_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_V_MIN", "70"))
-NOZZLE_BIDON_HSV1_H_MAX = int(os.getenv("NOZZLE_BIDON_HSV1_H_MAX", "10"))
+NOZZLE_BIDON_HSV1_S_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_S_MIN", "150"))
+NOZZLE_BIDON_HSV1_V_MIN = int(os.getenv("NOZZLE_BIDON_HSV1_V_MIN", "130"))
+NOZZLE_BIDON_HSV1_H_MAX = int(os.getenv("NOZZLE_BIDON_HSV1_H_MAX", "8"))
 NOZZLE_BIDON_HSV1_S_MAX = int(os.getenv("NOZZLE_BIDON_HSV1_S_MAX", "255"))
 NOZZLE_BIDON_HSV1_V_MAX = int(os.getenv("NOZZLE_BIDON_HSV1_V_MAX", "255"))
-NOZZLE_BIDON_HSV2_H_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_H_MIN", "170"))
-NOZZLE_BIDON_HSV2_S_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_S_MIN", "120"))
-NOZZLE_BIDON_HSV2_V_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_V_MIN", "70"))
+NOZZLE_BIDON_HSV2_H_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_H_MIN", "172"))
+NOZZLE_BIDON_HSV2_S_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_S_MIN", "150"))
+NOZZLE_BIDON_HSV2_V_MIN = int(os.getenv("NOZZLE_BIDON_HSV2_V_MIN", "130"))
 NOZZLE_BIDON_HSV2_H_MAX = int(os.getenv("NOZZLE_BIDON_HSV2_H_MAX", "180"))
 NOZZLE_BIDON_HSV2_S_MAX = int(os.getenv("NOZZLE_BIDON_HSV2_S_MAX", "255"))
 NOZZLE_BIDON_HSV2_V_MAX = int(os.getenv("NOZZLE_BIDON_HSV2_V_MAX", "255"))
+# Gate HSV Pico (pre-tracker). Verde dominante, o verde + metal (sin rojo).
+NOZZLE_PICO_VERIFICACION_COLOR = (
+    os.getenv("NOZZLE_PICO_VERIFICACION_COLOR", "true").lower() == "true"
+)
+NOZZLE_PICO_COLOR_INSET = float(os.getenv("NOZZLE_PICO_COLOR_INSET", "0.08"))
+# Grilla de cuadrantes para ratios HSV (max por celda; TL/TR/BL/BR si 2x2).
+NOZZLE_PICO_COLOR_GRID_FILAS = int(os.getenv("NOZZLE_PICO_COLOR_GRID_FILAS", "2"))
+NOZZLE_PICO_COLOR_GRID_COLS = int(os.getenv("NOZZLE_PICO_COLOR_GRID_COLS", "2"))
+NOZZLE_PICO_COLOR_CELDA_MIN_PX = int(os.getenv("NOZZLE_PICO_COLOR_CELDA_MIN_PX", "64"))
+# Umbrales sobre max(celda).
+NOZZLE_PICO_COLOR_RATIO_VERDE_MIN = float(
+    os.getenv("NOZZLE_PICO_COLOR_RATIO_VERDE_MIN", "0.12")
+)
+NOZZLE_PICO_COLOR_RATIO_METAL_MIN = float(
+    os.getenv("NOZZLE_PICO_COLOR_RATIO_METAL_MIN", "0.03")
+)
+NOZZLE_PICO_COLOR_RATIO_VERDE_SOLO_MIN = float(
+    os.getenv("NOZZLE_PICO_COLOR_RATIO_VERDE_SOLO_MIN", "0.22")
+)
+# Cuerpo verde (un rango amplio; incluye verdes apagados por stream/luz).
+NOZZLE_PICO_HSV_VERDE_H_MIN = int(os.getenv("NOZZLE_PICO_HSV_VERDE_H_MIN", "28"))
+NOZZLE_PICO_HSV_VERDE_S_MIN = int(os.getenv("NOZZLE_PICO_HSV_VERDE_S_MIN", "20"))
+NOZZLE_PICO_HSV_VERDE_V_MIN = int(os.getenv("NOZZLE_PICO_HSV_VERDE_V_MIN", "20"))
+NOZZLE_PICO_HSV_VERDE_H_MAX = int(os.getenv("NOZZLE_PICO_HSV_VERDE_H_MAX", "92"))
+NOZZLE_PICO_HSV_VERDE_S_MAX = int(os.getenv("NOZZLE_PICO_HSV_VERDE_S_MAX", "255"))
+NOZZLE_PICO_HSV_VERDE_V_MAX = int(os.getenv("NOZZLE_PICO_HSV_VERDE_V_MAX", "255"))
+# Metal plateado (baja S, V medio-alto).
+NOZZLE_PICO_HSV_METAL_H_MIN = int(os.getenv("NOZZLE_PICO_HSV_METAL_H_MIN", "0"))
+NOZZLE_PICO_HSV_METAL_S_MIN = int(os.getenv("NOZZLE_PICO_HSV_METAL_S_MIN", "0"))
+NOZZLE_PICO_HSV_METAL_V_MIN = int(os.getenv("NOZZLE_PICO_HSV_METAL_V_MIN", "160"))
+NOZZLE_PICO_HSV_METAL_H_MAX = int(os.getenv("NOZZLE_PICO_HSV_METAL_H_MAX", "180"))
+NOZZLE_PICO_HSV_METAL_S_MAX = int(os.getenv("NOZZLE_PICO_HSV_METAL_S_MAX", "40"))
+NOZZLE_PICO_HSV_METAL_V_MAX = int(os.getenv("NOZZLE_PICO_HSV_METAL_V_MAX", "230"))
 
 
 _LOG_LEVEL_BY_MODE = {
@@ -1013,6 +1046,110 @@ def validar_todo():
             )
         else:
             logging.info("Nozzle Bidon color-gate: OFF")
+        for _name, _val, _lo, _hi in (
+            ("NOZZLE_PICO_COLOR_RATIO_VERDE_MIN", NOZZLE_PICO_COLOR_RATIO_VERDE_MIN, 0.0, 1.0),
+            ("NOZZLE_PICO_COLOR_RATIO_METAL_MIN", NOZZLE_PICO_COLOR_RATIO_METAL_MIN, 0.0, 1.0),
+            (
+                "NOZZLE_PICO_COLOR_RATIO_VERDE_SOLO_MIN",
+                NOZZLE_PICO_COLOR_RATIO_VERDE_SOLO_MIN,
+                0.0,
+                1.0,
+            ),
+        ):
+            if _val <= 0.0 or _val > 1.0:
+                logging.critical(
+                    "CONFIG ERROR: %s debe estar en (0, 1] (got %.3f).",
+                    _name,
+                    _val,
+                )
+                sys.exit(1)
+        if NOZZLE_PICO_COLOR_INSET < 0.0 or NOZZLE_PICO_COLOR_INSET >= 0.4:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_PICO_COLOR_INSET debe estar en [0, 0.4) "
+                "(got %.3f).",
+                NOZZLE_PICO_COLOR_INSET,
+            )
+            sys.exit(1)
+        if NOZZLE_PICO_COLOR_GRID_FILAS < 1 or NOZZLE_PICO_COLOR_GRID_COLS < 1:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_PICO_COLOR_GRID_FILAS/COLS deben ser >= 1 "
+                "(got %dx%d).",
+                NOZZLE_PICO_COLOR_GRID_FILAS,
+                NOZZLE_PICO_COLOR_GRID_COLS,
+            )
+            sys.exit(1)
+        if NOZZLE_PICO_COLOR_CELDA_MIN_PX < 16:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_PICO_COLOR_CELDA_MIN_PX debe ser >= 16 "
+                "(got %d).",
+                NOZZLE_PICO_COLOR_CELDA_MIN_PX,
+            )
+            sys.exit(1)
+        for _name, _val, _lo, _hi in (
+            ("NOZZLE_PICO_HSV_VERDE_H_MIN", NOZZLE_PICO_HSV_VERDE_H_MIN, 0, 180),
+            ("NOZZLE_PICO_HSV_VERDE_H_MAX", NOZZLE_PICO_HSV_VERDE_H_MAX, 0, 180),
+            ("NOZZLE_PICO_HSV_METAL_H_MIN", NOZZLE_PICO_HSV_METAL_H_MIN, 0, 180),
+            ("NOZZLE_PICO_HSV_METAL_H_MAX", NOZZLE_PICO_HSV_METAL_H_MAX, 0, 180),
+            ("NOZZLE_PICO_HSV_VERDE_S_MIN", NOZZLE_PICO_HSV_VERDE_S_MIN, 0, 255),
+            ("NOZZLE_PICO_HSV_VERDE_S_MAX", NOZZLE_PICO_HSV_VERDE_S_MAX, 0, 255),
+            ("NOZZLE_PICO_HSV_VERDE_V_MIN", NOZZLE_PICO_HSV_VERDE_V_MIN, 0, 255),
+            ("NOZZLE_PICO_HSV_VERDE_V_MAX", NOZZLE_PICO_HSV_VERDE_V_MAX, 0, 255),
+            ("NOZZLE_PICO_HSV_METAL_S_MIN", NOZZLE_PICO_HSV_METAL_S_MIN, 0, 255),
+            ("NOZZLE_PICO_HSV_METAL_S_MAX", NOZZLE_PICO_HSV_METAL_S_MAX, 0, 255),
+            ("NOZZLE_PICO_HSV_METAL_V_MIN", NOZZLE_PICO_HSV_METAL_V_MIN, 0, 255),
+            ("NOZZLE_PICO_HSV_METAL_V_MAX", NOZZLE_PICO_HSV_METAL_V_MAX, 0, 255),
+        ):
+            if _val < _lo or _val > _hi:
+                logging.critical(
+                    "CONFIG ERROR: %s debe estar en [%d, %d] (got %d).",
+                    _name,
+                    _lo,
+                    _hi,
+                    _val,
+                )
+                sys.exit(1)
+        if NOZZLE_PICO_HSV_VERDE_H_MIN > NOZZLE_PICO_HSV_VERDE_H_MAX:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_PICO_HSV_VERDE_H_MIN (%d) > H_MAX (%d).",
+                NOZZLE_PICO_HSV_VERDE_H_MIN,
+                NOZZLE_PICO_HSV_VERDE_H_MAX,
+            )
+            sys.exit(1)
+        if NOZZLE_PICO_HSV_METAL_H_MIN > NOZZLE_PICO_HSV_METAL_H_MAX:
+            logging.critical(
+                "CONFIG ERROR: NOZZLE_PICO_HSV_METAL_H_MIN (%d) > H_MAX (%d).",
+                NOZZLE_PICO_HSV_METAL_H_MIN,
+                NOZZLE_PICO_HSV_METAL_H_MAX,
+            )
+            sys.exit(1)
+        if NOZZLE_PICO_VERIFICACION_COLOR:
+            logging.info(
+                "Nozzle Pico color-gate: ON inset=%.3f grid=%dx%d celda_min_px=%d "
+                "verde_min=%.3f metal_min=%.3f verde_solo_min=%.3f "
+                "VERDE=H[%d,%d]S[%d,%d]V[%d,%d] "
+                "METAL=H[%d,%d]S[%d,%d]V[%d,%d]",
+                NOZZLE_PICO_COLOR_INSET,
+                NOZZLE_PICO_COLOR_GRID_FILAS,
+                NOZZLE_PICO_COLOR_GRID_COLS,
+                NOZZLE_PICO_COLOR_CELDA_MIN_PX,
+                NOZZLE_PICO_COLOR_RATIO_VERDE_MIN,
+                NOZZLE_PICO_COLOR_RATIO_METAL_MIN,
+                NOZZLE_PICO_COLOR_RATIO_VERDE_SOLO_MIN,
+                NOZZLE_PICO_HSV_VERDE_H_MIN,
+                NOZZLE_PICO_HSV_VERDE_H_MAX,
+                NOZZLE_PICO_HSV_VERDE_S_MIN,
+                NOZZLE_PICO_HSV_VERDE_S_MAX,
+                NOZZLE_PICO_HSV_VERDE_V_MIN,
+                NOZZLE_PICO_HSV_VERDE_V_MAX,
+                NOZZLE_PICO_HSV_METAL_H_MIN,
+                NOZZLE_PICO_HSV_METAL_H_MAX,
+                NOZZLE_PICO_HSV_METAL_S_MIN,
+                NOZZLE_PICO_HSV_METAL_S_MAX,
+                NOZZLE_PICO_HSV_METAL_V_MIN,
+                NOZZLE_PICO_HSV_METAL_V_MAX,
+            )
+        else:
+            logging.info("Nozzle Pico color-gate: OFF")
         logging.info(
             "Nozzle show_bbox: score >= %.2f durante %d frame(s) consecutivos "
             "(luego sticky; score 0.0 = mostrar todos)",

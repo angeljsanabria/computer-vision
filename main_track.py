@@ -54,6 +54,8 @@ Variables de entorno utiles (ver ``configs/settings.py``):
   NOZZLE_SHOW_BBOX_HITS  — frames consecutivos sobre el umbral (defecto 2)
   NOZZLE_BIDON_VERIFICACION_COLOR — gate HSV anti-fantasma Bidon pre-tracker
   NOZZLE_BIDON_COLOR_RATIO_MIN / COLOR_INSET / HSV1_* / HSV2_* — umbral y espectro
+  NOZZLE_PICO_VERIFICACION_COLOR — gate HSV Pico pre-tracker (verde / verde+metal)
+  NOZZLE_PICO_COLOR_* / GRID_* / HSV_VERDE_* / HSV_METAL_* — ratios y espectros
   FACE_ALIGNMENT_ENABLE              — true=align ArcFace siempre (refs alineadas)
   FACE_ROT_ALIGNMENT_SIMPLE_ENABLE   — true=hibrido crop/roll-fix
   FACE_ROLL_MAX_DEG                  — umbral roll-fix simple
@@ -122,8 +124,10 @@ from inference.facemesh.from_detection import estimate_from_det  # noqa: E402
 from inference.nozzle_bidon.color_verify import (  # noqa: E402
     HsvRange,
     verificar_color_bidones,
+    verificar_color_picos,
 )
 from inference.nozzle_bidon.select_best import mejores_bidones  # noqa: E402
+from inference.nozzle_bidon.constants import CLASS_NAMES as NOZZLE_CLASS_NAMES
 from inference.nozzle_bidon.types import NozzleBidonDetections  # noqa: E402
 from inference.retinaface.select_best import mejores_caras  # noqa: E402
 from bytetrack import (  # noqa: E402
@@ -459,9 +463,9 @@ def _tick_nozzle_if_needed(
 
     ``SKIPPED`` — every_n / gate off / sin detector.
     ``EMPTY`` — modelo corrio sin dets (o fallo detect / color-gate).
-    ``DETECTED`` — hay dets tras color-gate (Bidon) + filtro SCORE/top-N.
+    ``DETECTED`` — hay dets tras color-gate (Bidon/Pico) + filtro SCORE/top-N.
     El hold (miss TTL) lo aplica el caller via ``DetectionHold``.
-    Color-gate va ANTES del tracker: fantasmas Bidon no generan track.
+    Color-gate va ANTES del tracker: fantasmas no generan track.
     """
     if not s.ENABLE_NOZZLE or nozzle is None or not fsm_out.run_face_detector:
         return InferOutcome.skipped()
@@ -498,6 +502,34 @@ def _tick_nozzle_if_needed(
             ),
         ),
     )
+    raw = verificar_color_picos(
+        frame,
+        raw,
+        enabled=s.NOZZLE_PICO_VERIFICACION_COLOR,
+        inset=s.NOZZLE_PICO_COLOR_INSET,
+        ratio_verde_min=s.NOZZLE_PICO_COLOR_RATIO_VERDE_MIN,
+        ratio_metal_min=s.NOZZLE_PICO_COLOR_RATIO_METAL_MIN,
+        ratio_verde_solo_min=s.NOZZLE_PICO_COLOR_RATIO_VERDE_SOLO_MIN,
+        verde=HsvRange(
+            s.NOZZLE_PICO_HSV_VERDE_H_MIN,
+            s.NOZZLE_PICO_HSV_VERDE_S_MIN,
+            s.NOZZLE_PICO_HSV_VERDE_V_MIN,
+            s.NOZZLE_PICO_HSV_VERDE_H_MAX,
+            s.NOZZLE_PICO_HSV_VERDE_S_MAX,
+            s.NOZZLE_PICO_HSV_VERDE_V_MAX,
+        ),
+        metal=HsvRange(
+            s.NOZZLE_PICO_HSV_METAL_H_MIN,
+            s.NOZZLE_PICO_HSV_METAL_S_MIN,
+            s.NOZZLE_PICO_HSV_METAL_V_MIN,
+            s.NOZZLE_PICO_HSV_METAL_H_MAX,
+            s.NOZZLE_PICO_HSV_METAL_S_MAX,
+            s.NOZZLE_PICO_HSV_METAL_V_MAX,
+        ),
+        grid_filas=s.NOZZLE_PICO_COLOR_GRID_FILAS,
+        grid_cols=s.NOZZLE_PICO_COLOR_GRID_COLS,
+        celda_min_px=s.NOZZLE_PICO_COLOR_CELDA_MIN_PX,
+    )
     dets = mejores_bidones(
         raw,
         top_n=s.NOZZLE_PROCESS_TOP_N,
@@ -522,6 +554,38 @@ def _tick_nozzle_bytetrack_if_needed(
         return None
 
 
+def _nozzle_class_name(class_id: int | None) -> str:
+    if class_id is None:
+        return "?"
+    cid = int(class_id)
+    if 0 <= cid < len(NOZZLE_CLASS_NAMES):
+        return NOZZLE_CLASS_NAMES[cid]
+    return str(cid)
+
+
+def _nozzle_dets_class_counts(
+    dets: NozzleBidonDetections | None,
+) -> tuple[int, int]:
+    if dets is None or not dets.has_detections:
+        return 0, 0
+    cls = dets.dets[:, 5].astype(int)
+    return int(np.sum(cls == 0)), int(np.sum(cls == 1))
+
+
+def _nozzle_best_label_and_score(
+    dets: NozzleBidonDetections | None,
+    tracks: TrackResult | None,
+) -> tuple[str, float]:
+    if dets is not None and dets.has_detections:
+        idx = int(np.argmax(dets.dets[:, 4]))
+        row = dets.dets[idx]
+        return _nozzle_class_name(int(row[5])), float(row[4])
+    if tracks is not None and tracks.tracks:
+        best = max(tracks.tracks, key=lambda t: t.score)
+        return _nozzle_class_name(best.class_id), float(best.score)
+    return "-", 0.0
+
+
 def _log_nozzle_periodic(frame_idx: int, hold: DetectionHold) -> None:
     if frame_idx % s.LOG_CADA_N_FRAMES != 0:
         return
@@ -530,16 +594,16 @@ def _log_nozzle_periodic(frame_idx: int, hold: DetectionHold) -> None:
     has_dets = dets is not None and dets.has_detections
     n_dets = int(dets.dets.shape[0]) if has_dets else 0
     n_tracks = len(tracks.tracks) if tracks is not None and tracks.tracks else 0
-    best = 0.0
-    if has_dets:
-        best = float(np.max(dets.dets[:, 4]))
-    elif tracks is not None and tracks.tracks:
-        best = max(t.score for t in tracks.tracks)
-    msg = "[Nozzle] hold_dets=%d hold_tracks=%d best_score=%.3f misses=%d"
+    n_bidon, n_pico = _nozzle_dets_class_counts(dets)
+    best_cls, best = _nozzle_best_label_and_score(dets, tracks)
+    msg = (
+        "[Nozzle] hold dets=%d (Bidon=%d Pico=%d) tracks=%d "
+        "best=%s score=%.3f misses=%d"
+    )
     if n_dets > 0 or n_tracks > 0 or hold.misses > 0:
-        logging.info(msg, n_dets, n_tracks, best, hold.misses)
+        logging.info(msg, n_dets, n_bidon, n_pico, n_tracks, best_cls, best, hold.misses)
     else:
-        logging.debug(msg, n_dets, n_tracks, best, hold.misses)
+        logging.debug(msg, n_dets, n_bidon, n_pico, n_tracks, best_cls, best, hold.misses)
 
 
 def _tick_embed_if_needed(
