@@ -46,20 +46,12 @@ FACES_DIR = SCRIPT_DIR / "faces"
 FACES_UPD_DIR = SCRIPT_DIR / "faces_upd"
 FACES_OR_DIR = FACES_UPD_DIR / "or"
 
+# Carpeta del script en sys.path (settings_embedder vive junto a este archivo).
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-def _project_root(start_dir: Path) -> Path:
-    cur = start_dir.resolve()
-    for d in [cur, *cur.parents]:
-        if (d / "configs" / "settings.py").is_file():
-            return d
-    raise RuntimeError("No se encontro configs/settings.py desde " + str(start_dir))
-
-
-ROOT = _project_root(SCRIPT_DIR)
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from configs import settings as s  # noqa: E402
+# settings_embedder pone src/ en sys.path y resuelve modelos contra src/ (no CWD).
+import settings_embedder as s  # noqa: E402
 from inference import build_face_detector  # noqa: E402
 from inference.face_align import landmarks_from_det_row  # noqa: E402
 from inference.face_crop import bbox_crop_with_margin  # noqa: E402
@@ -462,7 +454,20 @@ def main() -> None:
     )
     logging.info("Backend: %s", s.INFERENCE_BACKEND)
 
-    detector = build_face_detector()
+    backend = s.INFERENCE_BACKEND
+    if backend == "pc":
+        retinaface_model = s.RETINAFACE_MODEL_PC
+    elif backend == "rk3568":
+        retinaface_model = s.RETINAFACE_MODEL_RK3568
+    else:
+        retinaface_model = ""
+
+    detector = build_face_detector(
+        backend,
+        retinaface_model,
+        s.RETINAFACE_SCORE_DETECCION,
+        s.RETINAFACE_SCORE_PRE_NMS,
+    )
     if detector is None:
         raise SystemExit("No se pudo crear detector.")
 

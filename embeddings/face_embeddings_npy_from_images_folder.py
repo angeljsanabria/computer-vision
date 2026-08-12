@@ -53,20 +53,11 @@ FACES_DIR = SCRIPT_DIR / "faces_upd"
 GALLERY_NPY = SCRIPT_DIR / "gallery.npy"
 GALLERY_META_JSON = SCRIPT_DIR / "gallery_meta.json"
 
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-def _project_root(start_dir: Path) -> Path:
-    cur = start_dir.resolve()
-    for d in [cur, *cur.parents]:
-        if (d / "configs" / "settings.py").is_file():
-            return d
-    raise RuntimeError("No se encontro configs/settings.py desde " + str(start_dir))
-
-
-ROOT = _project_root(SCRIPT_DIR)
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-from configs import settings as s  # noqa: E402
+# settings_embedder pone src/ en sys.path y resuelve modelos contra src/ (no CWD).
+import settings_embedder as s  # noqa: E402
 from inference import build_embedder, build_face_detector  # noqa: E402
 from inference.face_pose import eye_roll_deg_from_det_row  # noqa: E402
 from inference.face_preprocess import prepare_face_patch  # noqa: E402
@@ -422,8 +413,24 @@ def main() -> None:
 
     _log_enrollment_config()
 
-    detector = build_face_detector()
-    embedder = build_embedder()
+    backend = s.INFERENCE_BACKEND
+    if backend == "pc":
+        retinaface_model = s.RETINAFACE_MODEL_PC
+        mobilefacenet_model = s.MOBILEFACENET_MODEL_PC
+    elif backend == "rk3568":
+        retinaface_model = s.RETINAFACE_MODEL_RK3568
+        mobilefacenet_model = s.MOBILEFACENET_MODEL_RK3568
+    else:
+        retinaface_model = ""
+        mobilefacenet_model = ""
+
+    detector = build_face_detector(
+        backend,
+        retinaface_model,
+        s.RETINAFACE_SCORE_DETECCION,
+        s.RETINAFACE_SCORE_PRE_NMS,
+    )
+    embedder = build_embedder(backend, mobilefacenet_model)
     if detector is None or embedder is None:
         raise SystemExit("No se pudo crear detector o embedder.")
 
